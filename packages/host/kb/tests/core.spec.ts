@@ -172,3 +172,42 @@ describe('KbEngine image fallback', () => {
     await expect(engine.image('00-inbox/missing.png')).rejects.toThrow(/图片不存在/)
   })
 })
+
+describe('KbEngine purge image cascade', () => {
+  /** Seed one library with a document and an image, and index it. */
+  async function bench(body: string, otherBody?: string): Promise<{ fs: MemoryFs; engine: KbEngine }> {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    fs.seed('kb/10-技术/11-AI/2026-08-14-a.md', doc('甲', '2026-08-14', '') + body)
+    if (otherBody !== undefined) {
+      fs.seed('kb/10-技术/2026-08-14-b.md', doc('乙', '2026-08-14', '') + otherBody)
+    }
+    fs.seed('kb/10-技术/11-AI/diagram.png', 'png-bytes')
+    fs.seed('kb/_meta/images.json', JSON.stringify({
+      schemaVersion: 1,
+      images: { '10-技术/11-AI/diagram.png': {} },
+    }))
+    const engine = new KbEngine(fs, undefined)
+    await engine.ensureInit()
+    return { fs, engine }
+  }
+
+  it('blanks and unregisters an exclusively referenced image on purge', async () => {
+    const { fs, engine } = await bench('正文 ![[diagram.png]]')
+    await engine.remove({ path: '10-技术/11-AI/2026-08-14-a.md' })
+    const entries = await engine.trash()
+    await engine.purge({ path: entries.docs[0]!.path })
+    expect(fs.entries.get('kb/10-技术/11-AI/diagram.png')?.text.trim()).toBe('')
+    await expect(engine.image('10-技术/11-AI/diagram.png')).rejects.toThrow(/图片不存在/)
+  })
+
+  it('keeps an image another document still references', async () => {
+    const { engine } = await bench('正文 ![[diagram.png]]', '另一篇 ![[11-AI/diagram.png]]')
+    await engine.remove({ path: '10-技术/11-AI/2026-08-14-a.md' })
+    const entries = await engine.trash()
+    await engine.purge({ path: entries.docs[0]!.path })
+    const result = await engine.image('10-技术/11-AI/diagram.png')
+    expect(new TextDecoder().decode(result.bytes)).toBe('png-bytes')
+  })
+})

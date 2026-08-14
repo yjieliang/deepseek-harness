@@ -109,6 +109,38 @@ export function extractLinks(body: string): string[] {
   return out
 }
 
+/** Resolve one image reference against a document directory to a library path, or null for a remote URL. */
+function resolveImageRef(ref: string, docDir: string): string | null {
+  const trimmed = ref.trim()
+  if (/^https?:\/\//i.test(trimmed)) return null
+  const rel = trimmed.replace(/^\/+/, '')
+  if (rel.length === 0) return null
+  return rel.includes('/') ? rel : (docDir === '' ? rel : docDir + '/' + rel)
+}
+
+/**
+ * Image references in one body (`![[embed]]` and `![](...)`), resolved to
+ * library-relative paths against the document's directory. Remote URLs are
+ * skipped; references that start with `/` resolve against the library root.
+ * @param body - the markdown body
+ * @param docDir - directory of the document, library-relative ('' for root docs)
+ * @returns the unique resolved image paths, in first-reference order
+ */
+export function extractImageRefs(body: string, docDir: string): string[] {
+  const out: string[] = []
+  const push = (ref: string): void => {
+    const resolved = resolveImageRef(ref, docDir)
+    if (resolved !== null && !out.includes(resolved)) out.push(resolved)
+  }
+  for (const match of body.matchAll(/!\[\[([^\]]+)\]\]/g)) {
+    const [file = ''] = (match[1] ?? '').split(/[|#]/)
+    push(file)
+  }
+  for (const match of body.matchAll(/!\[([^\]]*)\]\(<([^)>]+)>\)/g)) push(match[2] ?? '')
+  for (const match of body.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)/g)) push(match[2] ?? '')
+  return out
+}
+
 /**
  * The knowledge-base engine. One instance per host process; all reads and
  * writes go through the sandboxed `fs` service under the `kb/` workspace root.
@@ -585,8 +617,10 @@ export class KbEngine {
 
   /**
    * Permanently clear one trashed document. The fs seam has no delete
-   * primitive, so the file is blanked in place; the trash listing skips
-   * blank files, and the bytes stay on disk until a future fs delete lands.
+   * primitive, so files are blanked in place; the trash listing skips blank
+   * files, and the bytes stay on disk until a future fs delete lands. Images
+   * the purged document referenced are blanked and unregistered too, but only
+   * when no other document references them.
    * @param request - the trash path
    * @param signal - abort signal for cooperative cancellation
    * @returns the purged path
@@ -595,8 +629,32 @@ export class KbEngine {
     await this.ensureInit(signal)
     const trashRel = stripLeadingSlash(request.path)
     if (!trashRel.startsWith('.trash/')) throw new Error('kb: 只能清除回收站文档')
-    await this.fs.writeText(await this.target(trashRel, signal), ' ', undefined, signal)
+    const target = await this.target(trashRel, signal)
+    const text = await this.fs.readText(target, signal)
+    // The trash copy carries no origin directory, so image references resolve
+    // against the library root and fall back to the registry by basename.
+    await this.cascadePurgeImages(extractImageRefs(text, ''), signal)
+    await this.fs.writeText(target, ' ', undefined, signal)
     return { path: trashRel, purged: true }
+  }
+
+  /** Blank and unregister referenced images that no other document uses. */
+  private async cascadePurgeImages(refs: readonly string[], signal?: AbortSignal): Promise<void> {
+    if (refs.length === 0) return
+    const referencedElsewhere = new Set<string>()
+    for (const [rel, doc] of this.docs) {
+      const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : ''
+      for (const ref of extractImageRefs(doc.body, dir)) {
+        const target = await this.imageTarget(ref, signal)
+        if (target !== null) referencedElsewhere.add(target)
+      }
+    }
+    for (const ref of refs) {
+      const target = await this.imageTarget(ref, signal)
+      if (target === null || referencedElsewhere.has(target)) continue
+      await this.fs.writeText(await this.target(target, signal), '', undefined, signal)
+      await this.removeImageRegistration(target, signal)
+    }
   }
 
   /**
@@ -642,28 +700,53 @@ export class KbEngine {
   async image(rel: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; mime: string }> {
     await this.ensureInit(signal)
     const resolved = await this.imageTarget(rel, signal)
+    if (resolved === null) throw new Error(`kb: 图片不存在: ${rel}`)
     const ext = (resolved.split('.').pop() ?? '').toLowerCase()
     const mime = IMAGE_MIME[ext] ?? 'application/octet-stream'
     const bytes = await this.fs.readBytes(await this.target(resolved, signal), signal, 20 * 1024 * 1024)
+    // A blank file is a purged image; treat it as absent so cleared images 404.
+    if (bytes.length === 0) throw new Error(`kb: 图片不存在: ${rel}`)
     return { bytes, mime }
   }
 
-  /** Resolve one image path, falling back to the registry by basename when the exact path is absent. */
-  private async imageTarget(rel: string, signal?: AbortSignal): Promise<string> {
+  /**
+   * Resolve one image path to the file that serves it: the exact path first,
+   * then the registry by basename (documents move, but images stay put).
+   * @param rel - the library-relative image path.
+   * @param signal - abort signal for cooperative cancellation.
+   * @returns the serving path, or null when nothing matches.
+   */
+  private async imageTarget(rel: string, signal?: AbortSignal): Promise<string | null> {
     const info = await this.fs.stat(await this.target(rel, signal), signal)
     if (info !== undefined && info.type === 'file') return rel
     const name = rel.split('/').pop() ?? ''
     const index = await this.locate('_meta/images.json', signal)
     const indexInfo = await this.fs.stat(index, signal)
-    if (name.length === 0 || indexInfo === undefined) throw new Error(`kb: 图片不存在: ${rel}`)
+    if (name.length === 0 || indexInfo === undefined) return null
     try {
       const parsed = JSON.parse(await this.fs.readText(index, signal)) as { images?: Record<string, unknown> }
       const hit = Object.keys(parsed.images ?? {}).find(path => (path.split('/').pop() ?? '') === name)
-      if (hit !== undefined) return hit
+      return hit ?? null
     } catch {
       // A malformed registry is not an image-loading failure beyond the 404 below.
+      return null
     }
-    throw new Error(`kb: 图片不存在: ${rel}`)
+  }
+
+  /** Remove one image path from the registry when it is no longer referenced. */
+  private async removeImageRegistration(rel: string, signal?: AbortSignal): Promise<void> {
+    const index = await this.locate('_meta/images.json', signal)
+    try {
+      const parsed = JSON.parse(await this.fs.readText(index, signal)) as { images?: Record<string, unknown> }
+      if (parsed.images !== undefined && rel in parsed.images) {
+        // JSON.stringify omits undefined values, which removes the key without
+        // a dynamic delete.
+        parsed.images[rel] = undefined
+        await this.fs.writeText(index, JSON.stringify(parsed, null, 2), undefined, signal)
+      }
+    } catch {
+      // A malformed registry is left alone; the blanked file 404s on its own.
+    }
   }
 
   /** Whether one document matches the list filters. */

@@ -37,6 +37,6 @@ None.
 
 - **Index duplication with the preset** — the `knowledge-base` agent preset ships its own import-free copy of the engine for the model-facing tools; the two implementations can drift until the preset can depend on this package.
 - **No full-text ranking** — search is 2-gram AND intersection with recency sort; no TF-IDF or fuzzy matching.
-- **`.trash` is a plain directory** — trashed files are recoverable via the Remote but not automatically cleaned; `purgeDoc` blanks a file in place and the trash listing skips blank files, so a purged entry leaves the listing while its bytes stay on disk until the fs seam gains a delete primitive.
+- **`.trash` is a plain directory** — trashed files are recoverable via the Remote but not automatically cleaned; `purgeDoc` blanks a file in place and the trash listing skips blank files, so a purged entry leaves the listing while its bytes stay on disk until the fs seam gains a delete primitive. Purging also blanks and unregisters images the document referenced, but only when no other document references them (by resolved registry path).
 - **`renameDir` cannot move binary assets** — the text-only `fs` seam has no byte-write operation, so renaming a directory whose entries include binary files (e.g. images) fails loudly rather than half-relocating them; document-only directories rename cleanly.
 - **No per-directory counts** — the directory tree renders without document counts until a per-directory count endpoint lands.
