@@ -24,7 +24,9 @@
 
 ## Remote surface
 
-`kb.list` / `kb.search` / `kb.get` / `kb.dirs` / `kb.stats` / `kb.tags` / `kb.saveDoc` / `kb.createDoc` / `kb.moveDoc` / `kb.createDir` / `kb.renameDir` / `kb.deleteDoc` / `kb.trash` / `kb.restoreDoc` / `kb.purgeDoc` / `kb.resolveLink` —— 请求与结果词汇见 `./types`。
+`kb.list` / `kb.search` / `kb.get` / `kb.dirs` / `kb.stats` / `kb.tags` / `kb.saveDoc` / `kb.createDoc` / `kb.moveDoc` / `kb.createDir` / `kb.renameDir` / `kb.deleteDoc` / `kb.trash` / `kb.restoreDoc` / `kb.purgeDoc` / `kb.refresh` / `kb.resolveLink` —— 请求与结果词汇见 `./types`。
+
+热更新：引擎维护惰性内存索引，只感知自己的写入。`kb.refresh` 从磁盘重建索引（空文件是已清除标记，不进入索引），面板每次打开时都会调用它，因此 agent 新增或直接编辑的文件无需重启即可出现。
 
 文档排序与置顶：`kb.list` 置顶优先、更新日期次之；`pinned: true` frontmatter 标记经 `kb.saveDoc.pinned` 写入与清除，并上报在每一行摘要上。
 

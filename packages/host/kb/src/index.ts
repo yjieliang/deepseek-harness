@@ -18,10 +18,10 @@ import { KbEngine } from './core.ts'
 import { DEFAULT_ARCHIVE_DIR, DEFAULT_TRASH_RETENTION_DAYS, RESERVED_DIRS } from './core.ts'
 import type {
   KbCreateDirRequest, KbCreateDirResult, KbCreateRequest, KbCreateResult, KbDeleteRequest,
-  KbDeleteResult, KbDirsResult, KbEmptyRequest, KbGetRequest, KbGetResult, KbListRequest,
-  KbListResult, KbMoveRequest, KbMoveResult, KbPurgeRequest, KbPurgeResult, KbRenameDirRequest,
-  KbRenameDirResult, KbResolveRequest, KbResolveResult, KbRestoreRequest, KbRestoreResult,
-  KbSaveRequest, KbSaveResult, KbSearchRequest, KbSearchResult, KbStatsResult,
+  KbDeleteResult, KbDirsResult, KbEmptyRequest, KbEmptyResult, KbGetRequest, KbGetResult,
+  KbListRequest, KbListResult, KbMoveRequest, KbMoveResult, KbPurgeRequest, KbPurgeResult,
+  KbRenameDirRequest, KbRenameDirResult, KbResolveRequest, KbResolveResult, KbRestoreRequest,
+  KbRestoreResult, KbSaveRequest, KbSaveResult, KbSearchRequest, KbSearchResult, KbStatsResult,
   KbTagsResult, KbTrashResult,
 } from './types.ts'
 
@@ -205,6 +205,20 @@ export class KbGateway extends TypertRemoteService {
   async tags(_request: KbEmptyRequest, signal: AbortSignal): Promise<KbTagsResult> {
     signal.throwIfAborted()
     return { tags: await this.engine.tags(signal) }
+  }
+
+  /**
+   * Rebuild the in-memory index from disk, absorbing changes made outside the
+   * engine; the panel calls it when it opens.
+   * @param _request - unused
+   * @param signal - abort signal for cooperative cancellation
+   * @returns no data
+   */
+  @Remote('refresh')
+  async refresh(_request: KbEmptyRequest, signal: AbortSignal): Promise<KbEmptyResult> {
+    signal.throwIfAborted()
+    await this.engine.refresh(signal)
+    return {}
   }
 
   /**

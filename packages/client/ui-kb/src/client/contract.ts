@@ -50,6 +50,8 @@ export interface KbInject {
   remove: (path: string) => Promise<void>
   /** List the recoverable trash. */
   trash: () => Promise<KbTrashEntry[]>
+  /** Rebuild the engine index from disk, absorbing external changes. */
+  refresh: () => Promise<void>
   /** Restore a trashed document into a directory. */
   restore: (path: string, targetDirectory?: string) => Promise<void>
   /** Permanently clear one trashed document. */

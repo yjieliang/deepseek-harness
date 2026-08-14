@@ -296,3 +296,49 @@ describe('KbEngine trash retention sweep', () => {
     expect(Object.keys(registryOf(fs).entries)).toHaveLength(0)
   })
 })
+
+describe('KbEngine refresh', () => {
+  /** Seed one indexed library with a single document. */
+  async function bench(): Promise<{ fs: MemoryFs; engine: KbEngine }> {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    fs.seed('kb/00-inbox/2026-08-10-a.md', doc('甲', '2026-08-10'))
+    const engine = new KbEngine(fs, undefined)
+    await engine.ensureInit()
+    return { fs, engine }
+  }
+
+  it('absorbs documents added outside the engine', async () => {
+    const { fs, engine } = await bench()
+    expect((await engine.list({})).map(item => item.path)).toEqual(['00-inbox/2026-08-10-a.md'])
+    fs.seed('kb/10-技术/2026-08-15-外部.md', doc('外部新增', '2026-08-15'))
+    await engine.refresh()
+    const paths = (await engine.list({})).map(item => item.path)
+    expect(paths).toContain('10-技术/2026-08-15-外部.md')
+    expect((await engine.search('外部新增', 10)).total).toBe(1)
+  })
+
+  it('drops documents blanked outside the engine', async () => {
+    const { fs, engine } = await bench()
+    fs.entries.get('kb/00-inbox/2026-08-10-a.md')!.text = ' '
+    await engine.refresh()
+    expect((await engine.list({})).map(item => item.path)).toEqual([])
+  })
+
+  it('serves refreshed content for externally edited documents', async () => {
+    const { fs, engine } = await bench()
+    fs.entries.get('kb/00-inbox/2026-08-10-a.md')!.text = doc('甲改', '2026-08-15')
+    await engine.refresh()
+    const result = await engine.get({ path: '00-inbox/2026-08-10-a.md' })
+    expect(result.meta.title).toBe('甲改')
+  })
+
+  it('rewrites the on-disk index after a refresh', async () => {
+    const { fs, engine } = await bench()
+    fs.seed('kb/00-inbox/2026-08-15-外部.md', doc('外部新增', '2026-08-15'))
+    await engine.refresh()
+    const index = JSON.parse(fs.entries.get('kb/_meta/index.json')!.text) as { docs: Record<string, unknown> }
+    expect(index.docs['00-inbox/2026-08-15-外部.md']).toBeDefined()
+  })
+})

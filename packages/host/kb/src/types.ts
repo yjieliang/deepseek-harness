@@ -73,6 +73,10 @@ export interface KbDocMeta {
 export interface KbEmptyRequest {
 }
 
+/** Result type for Remote methods that return no data. */
+export interface KbEmptyResult {
+}
+
 /** Read request. */
 export interface KbGetRequest {
   /** Library-relative document path. */

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-15-kb-panel-three-column-workspace.md
-2026-08-15-kb-panel-three-column-workspace.md: 22943d024b6681aafb9581faac55b81fdc44c5de
-2026-08-15-kb-panel-three-column-workspace.zh.md: f3bd54192e8cffd6d325e6537ac0d9b25cf3b7b9
+2026-08-15-kb-panel-three-column-workspace.md: 2227f886e3646ef6ad51c9f5f24130c9393ee71f
+2026-08-15-kb-panel-three-column-workspace.zh.md: 2caf27c3ca383d4d95328568b4bd5f3572057324

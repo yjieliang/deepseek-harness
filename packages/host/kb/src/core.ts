@@ -214,7 +214,7 @@ export class KbEngine {
     }
   }
 
-  /** Recursively index every `*.md` under a directory. */
+  /** Recursively index every `*.md` under a directory; blank files are purged markers and stay out. */
   private async scan(relDir: string, signal: AbortSignal | undefined, sink: (rel: string, doc: KbDoc) => void): Promise<void> {
     signal?.throwIfAborted()
     const dir = await this.locate(relDir, signal)
@@ -226,9 +226,29 @@ export class KbEngine {
         await this.scan(relDir === '' ? entry.name : relDir + '/' + entry.name, signal, sink)
       } else if (entry.type === 'file' && entry.name.endsWith('.md')) {
         const rel = relDir === '' ? entry.name : relDir + '/' + entry.name
-        sink(rel, parseFrontmatter(await this.fs.readText(entry.target, signal)))
+        const text = await this.fs.readText(entry.target, signal)
+        // The engine blanks purged documents in place; a blank file is absent.
+        if (text.trim().length === 0) continue
+        sink(rel, parseFrontmatter(text))
       }
     }
+  }
+
+  /**
+   * Rebuild the in-memory index from disk, absorbing changes made outside the
+   * engine (agent file writes, manual edits). The browser panel calls it when
+   * it opens, so externally added or edited documents appear without a restart.
+   * @param signal - abort signal for cooperative cancellation
+   */
+  async refresh(signal?: AbortSignal): Promise<void> {
+    await this.ensureInit(signal)
+    this.docs.clear()
+    this.inverted.clear()
+    await this.scan('', signal, (rel, doc) => {
+      this.docs.set(rel, doc)
+      this.indexDoc(rel, doc)
+    })
+    await this.writeIndex(signal)
   }
 
   /** Rewrite `kb/_meta/index.json` from the in-memory index. */

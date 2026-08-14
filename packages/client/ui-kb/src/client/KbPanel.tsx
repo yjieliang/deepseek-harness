@@ -89,7 +89,7 @@ interface StatusMove {
  */
 export function KbPanel({
   list, search, get, dirs, save, create, move, remove, trash, restore, purge, stats, tags,
-  createDir, renameDir, assetUrl, close, useKbUi, t,
+  refresh, createDir, renameDir, assetUrl, close, useKbUi, t,
 }: KbPanelProps) {
   const state = useKbUi(snapshot => snapshot)
   const [docs, setDocs] = useState<KbDocSummary[]>([])
@@ -148,13 +148,25 @@ export function KbPanel({
     }).then(setDocs).catch((error: unknown) =>{  setLastError(messageOf(error)) })
   }
 
-  useEffect(() => {
+  /** Reload every read surface with the current query + filters. */
+  const reloadAll = (): void => {
     void dirs().then(setDirList).catch(() => {})
     void stats().then(setStatsInfo).catch(() => {})
     void tags().then(setTagList).catch(() => {})
-    loadList('', 'all', null, null)
+    loadList(query, status, dir, tag)
+  }
+
+  useEffect(() => {
+    reloadAll()
     // Inject callbacks are stable per registration; run once per mount.
   }, [])
+
+  /** Rebuild the engine index and reload whenever the panel opens, so external changes appear. */
+  useEffect(() => {
+    if (!state.open) return
+    void refresh().then(reloadAll).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+    // Re-run on every open; the closure carries the latest filters.
+  }, [state.open])
 
   /** Dismiss any open card menu or move picker on outside interaction. */
   useEffect(() => {
@@ -326,6 +338,15 @@ export function KbPanel({
           <button type="button" className={css.primaryBtn} onClick={() =>{  setCreateOpen(!createOpen) }}>
             ＋ {t('panel.new')}
           </button>
+          <button
+            type="button"
+            className={css.closeBtn}
+            aria-label={t('panel.refresh')}
+            title={t('panel.refresh')}
+            onClick={() => {
+              void refresh().then(reloadAll).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+            }}
+          >↻</button>
           <button type="button" className={css.closeBtn} aria-label={t('panel.close')} onClick={close}>✕</button>
         </div>
 

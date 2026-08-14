@@ -73,6 +73,7 @@ function makePanelProps() {
     move: vi.fn(async () => undefined),
     remove: vi.fn(async () => undefined),
     trash: vi.fn(async () => []),
+    refresh: vi.fn(async () => undefined),
     restore: vi.fn(async () => undefined),
     purge: vi.fn(async () => undefined),
     stats: vi.fn(async () => STATS),
@@ -205,6 +206,30 @@ describe('KbPanel three-column workspace', () => {
     await waitFor(() => {
       expect(panel.search).toHaveBeenCalledWith('甲')
       expect(screen.getByText('共 2 条')).toBeTruthy()
+    })
+  })
+
+  it('rebuilds the index and reloads every surface when the panel opens', async () => {
+    const panel = makePanelProps()
+    renderPanel(panel)
+
+    await waitFor(() => {
+      expect(panel.refresh).toHaveBeenCalled()
+    })
+    // The mount preload and the open refresh each reload the list.
+    expect(panel.list.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(panel.dirs.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('refreshes on demand through the header button', async () => {
+    const panel = makePanelProps()
+    renderPanel(panel)
+
+    const before = panel.refresh.mock.calls.length
+    const button = await screen.findByLabelText('刷新索引')
+    fireEvent.click(button)
+    await waitFor(() => {
+      expect(panel.refresh.mock.calls.length).toBeGreaterThan(before)
     })
   })
 })

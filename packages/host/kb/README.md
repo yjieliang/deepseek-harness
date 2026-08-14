@@ -24,7 +24,9 @@ The model-facing `kb_*` TOOLS are deliberately NOT registered here: they belong 
 
 ## Remote surface
 
-`kb.list` / `kb.search` / `kb.get` / `kb.dirs` / `kb.stats` / `kb.tags` / `kb.saveDoc` / `kb.createDoc` / `kb.moveDoc` / `kb.createDir` / `kb.renameDir` / `kb.deleteDoc` / `kb.trash` / `kb.restoreDoc` / `kb.purgeDoc` / `kb.resolveLink` — request and result vocabulary in `./types`.
+`kb.list` / `kb.search` / `kb.get` / `kb.dirs` / `kb.stats` / `kb.tags` / `kb.saveDoc` / `kb.createDoc` / `kb.moveDoc` / `kb.createDir` / `kb.renameDir` / `kb.deleteDoc` / `kb.trash` / `kb.restoreDoc` / `kb.purgeDoc` / `kb.refresh` / `kb.resolveLink` — request and result vocabulary in `./types`.
+
+Hot update: the engine keeps a lazy in-memory index and only sees its own writes. `kb.refresh` rebuilds the index from disk (blank files are purged markers and stay out), and the panel calls it whenever it opens, so documents added by agents or by direct file edits appear without a restart.
 
 Document ordering and pinning: `kb.list` returns pinned documents first, then most recently updated; the `pinned: true` frontmatter flag is written and cleared through `kb.saveDoc.pinned` and reported on every summary row.
 
