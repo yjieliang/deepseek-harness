@@ -30,7 +30,11 @@ export interface LookupResult {
   errors: string[]
 }
 
-/** Detect the translation direction: CJK text translates to English, other text to Chinese. */
+/**
+ * Detect the translation direction: CJK text translates to English, other text to Chinese.
+ * @param text - the selected word or phrase.
+ * @returns the direction code the sources consume.
+ */
 export function detectDirection(text: string): LookupDirection {
   return /[\u3400-\u9fff]/.test(text) ? 'zh-en' : 'en-zh'
 }
@@ -42,19 +46,32 @@ export class HttpError extends Error {
   }
 }
 
-/** True when a fetch failure means the queried term has no entry (an ordinary miss). */
+/**
+ * True when a fetch failure means the queried term has no entry (an ordinary miss).
+ * @param error - the thrown value to inspect.
+ * @returns whether the failure is a 404 {@link HttpError}.
+ */
 export function isNotFound(error: unknown): boolean {
   return error instanceof HttpError && error.status === 404
 }
 
-/** Fetch one JSON endpoint, throwing an {@link HttpError} on non-OK responses. */
+/**
+ * Fetch one JSON endpoint, throwing an {@link HttpError} on non-OK responses.
+ * @param url - the endpoint.
+ * @param signal - cancellation for the in-flight fetch.
+ * @returns the parsed JSON body.
+ */
 export async function fetchJson(url: string, signal: AbortSignal): Promise<unknown> {
   const response = await fetch(url, { signal })
   if (!response.ok) throw new HttpError(response.status)
   return response.json() as Promise<unknown>
 }
 
-/** Narrow an unknown MyMemory response to its translated text. */
+/**
+ * Narrow an unknown MyMemory response to its translated text.
+ * @param payload - the parsed response body.
+ * @returns the translation, or undefined when the shape does not carry one.
+ */
 export function parseMyMemory(payload: unknown): string | undefined {
   if (payload === null || typeof payload !== 'object') return undefined
   const data = payload as { responseData?: { translatedText?: unknown } }
@@ -62,7 +79,11 @@ export function parseMyMemory(payload: unknown): string | undefined {
   return typeof text === 'string' && text.length > 0 ? text : undefined
 }
 
-/** Narrow an unknown Free Dictionary entry to the facets the card renders. */
+/**
+ * Narrow an unknown Free Dictionary entry to the facets the card renders.
+ * @param payload - the parsed response body.
+ * @returns the phonetic and part-of-speech groups, or undefined for an empty entry.
+ */
 export function parseFreeDictionary(payload: unknown): { phonetic?: string; meanings: LookupMeaning[] } | undefined {
   const entries = Array.isArray(payload) ? payload as Array<{
     phonetic?: unknown
@@ -97,7 +118,11 @@ export function parseFreeDictionary(payload: unknown): { phonetic?: string; mean
   }
 }
 
-/** Narrow an unknown Wikipedia REST summary to the extract the card renders. */
+/**
+ * Narrow an unknown Wikipedia REST summary to the extract the card renders.
+ * @param payload - the parsed response body.
+ * @returns the extract with its title and desktop URL, or undefined for a non-standard page.
+ */
 export function parseWikipedia(payload: unknown): { extract?: string; title?: string; url?: string } | undefined {
   if (payload === null || typeof payload !== 'object') return undefined
   const page = payload as {
@@ -118,7 +143,11 @@ export function parseWikipedia(payload: unknown): { extract?: string; title?: st
   }
 }
 
-/** Narrow an unknown Google Translate gtx response to its translated text. */
+/**
+ * Narrow an unknown Google Translate gtx response to its translated text.
+ * @param payload - the parsed response body.
+ * @returns the joined translated segments, or undefined when the shape does not carry text.
+ */
 export function parseGoogleTranslate(payload: unknown): string | undefined {
   if (!Array.isArray(payload)) return undefined
   const outer = payload as unknown[]

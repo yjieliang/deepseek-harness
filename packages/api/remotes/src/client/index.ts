@@ -18,11 +18,12 @@ export type {
   LookupExplainResult,
 } from '@deepseek-ai/dsh-host-lookup-llm/types'
 export type {
-  KbCreateRequest, KbCreateResult, KbDeleteRequest, KbDeleteResult, KbDocStatus, KbDocSummary,
-  KbDirsResult, KbGetRequest, KbGetResult, KbListRequest, KbListResult, KbMoveRequest,
-  KbMoveResult, KbPurgeRequest, KbPurgeResult, KbResolveRequest, KbResolveResult,
-  KbRestoreRequest, KbRestoreResult, KbSaveRequest, KbSaveResult, KbSearchRequest, KbSearchResult,
-  KbStatsResult, KbStatusFilter, KbTagCount, KbTagsResult, KbTrashEntry, KbTrashResult,
+  KbCreateDirRequest, KbCreateDirResult, KbCreateRequest, KbCreateResult, KbDeleteRequest,
+  KbDeleteResult, KbDocStatus, KbDocSummary, KbDirsResult, KbGetRequest, KbGetResult,
+  KbListRequest, KbListResult, KbMoveRequest, KbMoveResult, KbPurgeRequest, KbPurgeResult,
+  KbRenameDirRequest, KbRenameDirResult, KbResolveRequest, KbResolveResult, KbRestoreRequest,
+  KbRestoreResult, KbSaveRequest, KbSaveResult, KbSearchRequest, KbSearchResult, KbStatsResult,
+  KbStatusFilter, KbTagCount, KbTagsResult, KbTrashEntry, KbTrashResult,
 } from '@deepseek-ai/dsh-host-kb/types'
 export type {} from '@deepseek-ai/dsh-commands/remote'
 export type {} from '@deepseek-ai/dsh-goal/remote'

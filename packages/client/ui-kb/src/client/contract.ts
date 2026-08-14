@@ -5,8 +5,9 @@
 // that compiles the surface (mirrors ui-user-questions).
 
 import type {
-  KbCreateRequest, KbCreateResult, KbDocSummary, KbGetResult, KbListRequest, KbSaveRequest,
-  KbSaveResult, KbTrashEntry,
+  KbCreateDirRequest, KbCreateRequest, KbCreateResult, KbDocSummary, KbGetResult, KbListRequest,
+  KbMoveRequest, KbRenameDirRequest, KbSaveRequest, KbSaveResult, KbStatsResult, KbTagCount,
+  KbTrashEntry,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -31,10 +32,10 @@ export interface KbInject {
     /** Panel open-state snapshot bound by the renderer as useKbUi. */
     kbUi: SnapshotStore<KbUiState>
   }
-  /** List documents, most recently updated first. */
+  /** List documents, pinned first then most recently updated. */
   list: (request: KbListRequest) => Promise<KbDocSummary[]>
-  /** 2-gram AND search over the library. */
-  search: (query: string) => Promise<KbDocSummary[]>
+  /** 2-gram AND search; `total` counts every match before the cap. */
+  search: (query: string) => Promise<{ hits: KbDocSummary[]; total: number }>
   /** Full read of one document. */
   get: (path: string) => Promise<KbGetResult>
   /** Available library directories. */
@@ -43,6 +44,8 @@ export interface KbInject {
   save: (request: KbSaveRequest) => Promise<KbSaveResult>
   /** Create a dated document. */
   create: (request: KbCreateRequest) => Promise<KbCreateResult>
+  /** Move a document into another directory. */
+  move: (request: KbMoveRequest) => Promise<void>
   /** Move a document into `.trash` (recoverable). */
   remove: (path: string) => Promise<void>
   /** List the recoverable trash. */
@@ -51,6 +54,14 @@ export interface KbInject {
   restore: (path: string, targetDirectory?: string) => Promise<void>
   /** Permanently clear one trashed document. */
   purge: (path: string) => Promise<void>
+  /** Library statistics: total and per-status counts. */
+  stats: () => Promise<KbStatsResult>
+  /** Tag index with document counts, most-used first. */
+  tags: () => Promise<KbTagCount[]>
+  /** Create a library directory through a `.keep` marker. */
+  createDir: (request: KbCreateDirRequest) => Promise<void>
+  /** Rename a library directory, relocating every entry beneath it. */
+  renameDir: (request: KbRenameDirRequest) => Promise<void>
   /** Absolute `/dsh-kb/...` URL for one library-relative asset path. */
   assetUrl: (path: string) => string
   /** Toggle the panel open state. */

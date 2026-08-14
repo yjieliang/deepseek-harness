@@ -6,11 +6,19 @@ The call is a one-shot auxiliary `llm.stream` (no session, no tools), framed as 
 
 ## Model Experience
 
-Every `explain` call costs one model request of up to 700 output tokens. The result is displayed to the user in the browser card; it is never fed back into any agent loop and does not enter any session log.
+### Explanation request
+
+#### What the model sees
+
+One auxiliary explanation request per call: the selected word, its detected language direction (en→zh or zh→en by script), an optional short surrounding-text snippet, and a strict-JSON output instruction. The call carries no session history, no tools, and no prior turns.
+
+#### Token effect
+
+Every `explain` call costs one model request capped at 700 output tokens; the input is the small prompt above.
 
 #### KV Cache effect
 
-None; the call is a fresh single-turn request without history.
+None; the call is a fresh single-turn request without history, so it reuses no conversation prefix.
 
 ## Known Limitations and Deferred Work
 

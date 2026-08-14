@@ -23,6 +23,8 @@ export interface KbDocSummary {
   status: KbDocStatus
   /** `updated` frontmatter date, empty when absent. */
   updated: string
+  /** Whether the document is pinned above its updated-date order. */
+  pinned: boolean
 }
 
 /** List request: optional status/tag/directory filters. */
@@ -62,7 +64,7 @@ export type KbFrontmatterValue = string | string[]
 
 /** Parsed frontmatter of one document plus the derived status. */
 export interface KbDocMeta {
-  [key: string]: KbFrontmatterValue | KbDocStatus
+  [key: string]: KbFrontmatterValue
   /** Derivable library status of the document. */
   status: KbDocStatus
 }
@@ -104,6 +106,8 @@ export interface KbStatsResult {
   byStatus: { inbox: number; filed: number; archived: number }
   /** Available directories, sorted. */
   dirs: string[]
+  /** The configured archive directory, so the panel can offer archive moves. */
+  archiveDir: string
 }
 
 /** One tag with its document count. */
@@ -127,6 +131,8 @@ export interface KbSaveRequest {
   summary?: string
   /** Replacement tag list; absent keeps the current one. */
   tags?: string[]
+  /** Replacement pinned flag; absent keeps the current one. */
+  pinned?: boolean
   /** Optimistic-lock version; a mismatch refuses the write with `conflict`. */
   expectVersion?: string
 }
@@ -155,6 +161,8 @@ export interface KbCreateRequest {
   source?: string
   /** One-sentence summary. */
   summary?: string
+  /** Initial pinned flag. */
+  pinned?: boolean
 }
 
 /** Create response. */
@@ -254,4 +262,34 @@ export interface KbResolveResult {
   path: string | null
   /** What the name resolved to. */
   kind: 'doc' | 'image' | 'missing'
+}
+
+/** Create-directory request. */
+export interface KbCreateDirRequest {
+  /** Library-relative directory path, e.g. `10-技术/12-前端`; reserved roots are refused. */
+  directory: string
+}
+
+/** Create-directory response. */
+export interface KbCreateDirResult {
+  /** The normalized directory path created. */
+  directory: string
+}
+
+/** Rename-directory request: relocates the directory and every entry beneath it. */
+export interface KbRenameDirRequest {
+  /** Library-relative directory to rename. */
+  directory: string
+  /** Replacement last path segment (no slashes). */
+  name: string
+}
+
+/** Rename-directory response. */
+export interface KbRenameDirResult {
+  /** Source directory. */
+  from: string
+  /** Renamed directory. */
+  to: string
+  /** Entries relocated under the new path. */
+  moved: number
 }

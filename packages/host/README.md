@@ -15,6 +15,7 @@ The host side of the dsh web GUI: the API gateway every client shape shares, and
 | [`directory-picker-auto/`](directory-picker-auto/README.md) | Host-adaptive picker composition | mounts a backend |
 | [`plugin-inventory/`](plugin-inventory/README.md) | Read-only projection of current Loader entries | Remote `pluginInventory/list` |
 | [`lookup-llm/`](lookup-llm/README.md) | Model-generated word explanations for the lookup overlay | Remote `lookupLlm/explain` |
+| [`kb/`](kb/README.md) | Knowledge-base panel data plane: markdown index and image route for the `kb/` root | Remote `kb` namespace |
 
 `apiproxy` remains transport-independent; [`client/connection`](../client/connection/README.md) supplies the browser/HTTP carrier. Picker implementations replace one another behind the shared seam.
 

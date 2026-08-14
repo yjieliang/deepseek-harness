@@ -56,7 +56,12 @@ function finishError(finish: FinishReason): Error | undefined {
   }
 }
 
-/** Narrow the model's text to the typed explanation result, validating every field. */
+/**
+ * Narrow the model's text to the typed explanation result, validating every field.
+ * @param text - the raw model output.
+ * @param word - the queried word, echoed through the result.
+ * @returns the validated explanation result.
+ */
 export function parseExplain(text: string, word: string): LookupExplainResult {
   const cleaned = text.trim()
     .replace(/^```(?:json)?\s*/i, '')

@@ -6,7 +6,7 @@ The overlay registers one entry in the layout-declared `shell.overlay` frame-wid
 
 ## Model Experience
 
-None directly: the browser-side dictionary fetches never reach a model. The model-generated explanation is an explicit user action (the card's `详细解释` button) served by [`@deepseek-ai/dsh-host-lookup-llm`](../../host/lookup-llm/README.md), which owns the token cost and Model Experience of that call.
+Indirectly, through the `lookupLlm/explain` Remote, the explanation button triggers one model request that [`@deepseek-ai/dsh-host-lookup-llm`](../../host/lookup-llm/README.md) owns, including its token cost and prompt; the browser-side dictionary fetches never reach a model.
 
 #### KV Cache effect
 
