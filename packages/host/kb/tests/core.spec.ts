@@ -211,3 +211,88 @@ describe('KbEngine purge image cascade', () => {
     expect(new TextDecoder().decode(result.bytes)).toBe('png-bytes')
   })
 })
+
+describe('KbEngine trash retention sweep', () => {
+  /** Seed one library with a document, an image, and the image registry. */
+  async function bench(body = ''): Promise<{ fs: MemoryFs; engine: KbEngine }> {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    fs.seed('kb/10-技术/11-AI/2026-08-14-a.md', doc('甲', '2026-08-14', '') + body)
+    fs.seed('kb/10-技术/11-AI/diagram.png', 'png-bytes')
+    fs.seed('kb/_meta/images.json', JSON.stringify({
+      schemaVersion: 1,
+      images: { '10-技术/11-AI/diagram.png': {} },
+    }))
+    const engine = new KbEngine(fs, undefined)
+    await engine.ensureInit()
+    return { fs, engine }
+  }
+
+  /** Registry file content as a plain object. */
+  function registryOf(fs: MemoryFs): { entries: Record<string, string> } {
+    return JSON.parse(fs.entries.get('kb/_meta/trash.json')!.text) as { entries: Record<string, string> }
+  }
+
+  /** Backdate the one registry entry to the given age in days. */
+  function backdate(fs: MemoryFs, days: number): void {
+    const registry = registryOf(fs)
+    const path = Object.keys(registry.entries)[0]!
+    registry.entries[path] = new Date(Date.now() - days * 86_400_000).toISOString()
+    fs.entries.get('kb/_meta/trash.json')!.text = JSON.stringify(registry)
+  }
+
+  it('records and reports when a document was deleted', async () => {
+    const { engine } = await bench()
+    await engine.remove({ path: '10-技术/11-AI/2026-08-14-a.md' })
+    const entries = await engine.trash()
+    expect(entries.docs).toHaveLength(1)
+    expect(entries.docs[0]?.deletedAt).toBeDefined()
+    expect(Date.parse(entries.docs[0]!.deletedAt!)).not.toBeNaN()
+  })
+
+  it('sweep purges entries older than the retention window and cascades their images', async () => {
+    const { fs, engine } = await bench('正文 ![[diagram.png]]')
+    await engine.remove({ path: '10-技术/11-AI/2026-08-14-a.md' })
+    backdate(fs, 40)
+    expect(await engine.sweepTrash(new Date(), 30)).toBe(1)
+    expect((await engine.trash()).docs).toHaveLength(0)
+    expect(fs.entries.get('kb/10-技术/11-AI/diagram.png')?.text.trim()).toBe('')
+  })
+
+  it('sweep keeps entries inside the retention window', async () => {
+    const { engine } = await bench()
+    await engine.remove({ path: '10-技术/11-AI/2026-08-14-a.md' })
+    expect(await engine.sweepTrash(new Date(), 30)).toBe(0)
+    expect((await engine.trash()).docs).toHaveLength(1)
+  })
+
+  it('sweep keeps entries that predate the timestamp registry', async () => {
+    const { fs, engine } = await bench()
+    fs.seed('kb/.trash/2026-08-01-旧文档.md', doc('旧文档', '2026-08-01'))
+    expect(await engine.sweepTrash(new Date(), 1)).toBe(0)
+    const entries = await engine.trash()
+    expect(entries.docs).toHaveLength(1)
+    expect(entries.docs[0]?.deletedAt).toBeUndefined()
+  })
+
+  it('sweep with retention 0 never purges', async () => {
+    const { fs, engine } = await bench()
+    await engine.remove({ path: '10-技术/11-AI/2026-08-14-a.md' })
+    backdate(fs, 40)
+    expect(await engine.sweepTrash(new Date(), 0)).toBe(0)
+    expect((await engine.trash()).docs).toHaveLength(1)
+  })
+
+  it('restore and purge forget the registry entry', async () => {
+    const { fs, engine } = await bench()
+    await engine.remove({ path: '10-技术/11-AI/2026-08-14-a.md' })
+    const first = await engine.trash()
+    const restored = await engine.restore({ path: first.docs[0]!.path })
+    expect(Object.keys(registryOf(fs).entries)).toHaveLength(0)
+    await engine.remove({ path: restored.to })
+    const second = await engine.trash()
+    await engine.purge({ path: second.docs[0]!.path })
+    expect(Object.keys(registryOf(fs).entries)).toHaveLength(0)
+  })
+})

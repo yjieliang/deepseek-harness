@@ -15,7 +15,7 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 // Typert-generated ./typert and ./remote artifacts import Zod at runtime.
 import type {} from 'zod'
 import { KbEngine } from './core.ts'
-import { DEFAULT_ARCHIVE_DIR, RESERVED_DIRS } from './core.ts'
+import { DEFAULT_ARCHIVE_DIR, DEFAULT_TRASH_RETENTION_DAYS, RESERVED_DIRS } from './core.ts'
 import type {
   KbCreateDirRequest, KbCreateDirResult, KbCreateRequest, KbCreateResult, KbDeleteRequest,
   KbDeleteResult, KbDirsResult, KbEmptyRequest, KbGetRequest, KbGetResult, KbListRequest,
@@ -30,10 +30,15 @@ export type * from './types.ts'
 /** Image-serving route prefix under the web server. */
 const IMAGE_ROUTE_PREFIX = '/dsh-kb'
 
-/** Gateway configuration: the archive directory's role is a deployment choice. */
+/** How often the trash retention sweep runs after its startup pass. */
+const TRASH_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
+
+/** Gateway configuration: archive directory and trash retention are deployment choices. */
 export interface KbGatewayConfig {
   /** Directory whose documents derive status `archived`; default `90-归档`. */
   archiveDir?: string
+  /** Days a trashed document is kept before automatic purge; `0` disables the sweep. Default 30. */
+  trashRetentionDays?: number
 }
 
 /** Validate a configured archive directory; misconfiguration fails at load. */
@@ -44,6 +49,15 @@ function archiveDirOf(config: KbGatewayConfig | undefined): string {
     throw new Error(`kb: archiveDir must be a single non-reserved directory name, got "${config.archiveDir}"`)
   }
   return dir
+}
+
+/** Validate configured trash retention; misconfiguration fails at load. */
+function trashRetentionOf(config: KbGatewayConfig | undefined): number {
+  const days = config?.trashRetentionDays ?? DEFAULT_TRASH_RETENTION_DAYS
+  if (!Number.isFinite(days) || days < 0) {
+    throw new Error(`kb: trashRetentionDays must be a non-negative number of days, got "${config?.trashRetentionDays}"`)
+  }
+  return days
 }
 
 /** One image served with its MIME type; a missing or oversized file answers 404. */
@@ -85,6 +99,8 @@ export class KbGateway extends TypertRemoteService {
     super(ctx, 'kb')
     const sandboxPolicy = ctx.get('sandboxPolicy') as { workspaceRoot?: string } | undefined
     this.engine = new KbEngine(ctx.fs, sandboxPolicy?.workspaceRoot, archiveDirOf(config))
+    const retention = trashRetentionOf(config)
+    if (retention > 0) this.startTrashSweep(ctx, retention)
     const webServer = ctx.get('webServer') as { register(route: WebRoute): () => void } | undefined
     if (webServer !== undefined) {
       ctx.effect(() => webServer.register({
@@ -102,6 +118,20 @@ export class KbGateway extends TypertRemoteService {
         },
       }), 'kb: image route')
     }
+  }
+
+  /** Run the retention sweep once at load and on the interval; the timer dies with the fiber. */
+  private startTrashSweep(ctx: Context, retentionDays: number): void {
+    ctx.effect(() => {
+      const sweep = (): void => {
+        this.engine.sweepTrash(new Date(), retentionDays).catch(() => {
+          // A failed sweep is retried on the next tick; it must not take the gateway down.
+        })
+      }
+      sweep()
+      const timer = setInterval(sweep, TRASH_SWEEP_INTERVAL_MS)
+      return () => { clearInterval(timer) }
+    }, 'kb: trash retention sweep')
   }
 
   /**

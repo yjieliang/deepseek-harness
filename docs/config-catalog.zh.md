@@ -794,14 +794,16 @@ export interface Config {
 Requires: `fs`
 
 ```ts config-catalog
-/** Gateway configuration: the archive directory's role is a deployment choice. */
+/** Gateway configuration: archive directory and trash retention are deployment choices. */
 export interface KbGatewayConfig {
   /** Directory whose documents derive status `archived`; default `90-归档`. */
   archiveDir?: string
+  /** Days a trashed document is kept before automatic purge; `0` disables the sweep. Default 30. */
+  trashRetentionDays?: number
 }
 ```
 
-来源：[`packages/host/kb/src/index.ts:34`](../packages/host/kb/src/index.ts)
+来源：[`packages/host/kb/src/index.ts:37`](../packages/host/kb/src/index.ts)
 
 <a id="deepseek-aidsh-host-webserver"></a>
 

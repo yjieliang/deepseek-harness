@@ -17,6 +17,7 @@ The panel is a near-fullscreen three-column workspace (8px breathing edge), with
 - **View column**: breadcrumbs, the document title, an operable metadata bar (status and directory moves through `kb.moveDoc`, tag chips through `kb.saveDoc`), split-source editing with Ctrl+S, a clickable backlinks panel, and a trash mode that renders a read-only preview with restore / purge.
 - **Configuration**: the archive directory moved from a hard-coded `90-归档` to a gateway `archiveDir` config (default `90-归档`), validated at load against the reserved roots; `kb.stats.archiveDir` exposes it so the panel can offer archive moves. Status derivation now honors it, and `01-inbox` joins `00-inbox` as an inbox root.
 - **Directory management**: `kb.createDir` creates directories through a `.keep` marker (reserved roots refused); `kb.renameDir` renames a directory and recursively relocates every entry beneath it, re-indexing moved documents. The text-only fs seam has no byte-write operation, so a directory whose entries include binary assets fails the rename loudly rather than half-relocating them.
+- **Trash retention**: deletion records an ISO timestamp in `kb/_meta/trash.json`; the gateway purges trashed documents older than the configurable `trashRetentionDays` (default 30, `0` disables) once at load and then daily, cascading to exclusively referenced images. Entries that predate the registry have no timestamp and are never auto-purged; `kb.trash` reports each entry's `deletedAt`.
 - Two pre-existing engine bugs fixed with the rename work: `move` and `remove` left the old path in the in-memory index (moved/deleted documents kept appearing in `kb.list`).
 
 ## Alternatives considered
@@ -42,4 +43,5 @@ Directory → status derivation already encodes the mapping; adding a status-edi
 ## Testing
 
 - Engine tests (`packages/host/kb/tests/core.spec.ts` over an in-memory fs fake) cover status derivation with a configured archive directory, pinned ordering and flag writes, directory create/rename (including nested relocation and index drops), and the moved/removed index fixes.
+- Trash retention tests cover timestamp recording and reporting, the sweep purging expired entries with the image cascade, fresh and legacy entries surviving, retention `0`, and restore/purge unregistering the registry entry.
 - Panel component tests (`packages/client/ui-kb/tests/kb-panel.client.spec.tsx`) cover the three-column render, document open with backlinks, card-menu pinning, edit/save, and the search total.

@@ -213,6 +213,8 @@ export interface KbTrashEntry {
   title: string
   /** Full Markdown body (frontmatter included). */
   body: string
+  /** ISO timestamp when the document was deleted; absent when the entry predates the registry. */
+  deletedAt?: string
 }
 
 /** Trash listing. */

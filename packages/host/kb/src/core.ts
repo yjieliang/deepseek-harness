@@ -2,7 +2,7 @@
  * Knowledge-base engine: the in-memory markdown index over the `kb/` workspace
  * root and every read/write operation the browser panel and the image route
  * need. Owns the 2-gram inverted index, frontmatter parsing, optimistic-lock
- * writes, and the `.trash` recycle path.
+ * writes, and the `.trash` recycle path with time-based retention sweep.
  *
  * The engine is lazy: the first operation scans the library and rebuilds
  * `kb/_meta/index.json`; later operations serve from memory and rewrite the
@@ -41,6 +41,12 @@ export const RESERVED_DIRS = new Set(['00-inbox', '01-inbox', '_meta', 'template
 
 /** Default archive directory; the engine's `archiveDir` configuration replaces it. */
 export const DEFAULT_ARCHIVE_DIR = '90-归档'
+
+/** Default retention window for trashed documents, in days; `0` disables the sweep. */
+export const DEFAULT_TRASH_RETENTION_DAYS = 30
+
+/** Sidecar registry of deletion timestamps, keyed by trash-relative path. */
+const TRASH_REGISTRY = '_meta/trash.json'
 
 /** Directories excluded from the document index and image scan. */
 const EXCLUDE_DIRS = new Set(['_meta', 'templates', '.trash'])
@@ -540,7 +546,8 @@ export class KbEngine {
   }
 
   /**
- * Move a document into `.trash` (recoverable), blanking the original.
+ * Move a document into `.trash` (recoverable), blanking the original and
+ * recording the deletion time for the retention sweep.
  * @param request - the delete request
  * @param signal - abort signal for cooperative cancellation
  * @returns the deleted and trash paths
@@ -557,12 +564,13 @@ export class KbEngine {
     await this.fs.writeText(from, ' ', undefined, signal)
     this.dropIndexed(rel)
     this.docs.delete(rel)
+    await this.recordTrash(trashRel, new Date(), signal)
     await this.writeIndex(signal)
     return { path: rel, trash: trashRel }
   }
 
   /**
- * List the recoverable trash.
+ * List the recoverable trash with their deletion times.
  * @param signal - abort signal for cooperative cancellation
  * @returns the trashed documents
  */
@@ -570,21 +578,37 @@ export class KbEngine {
     await this.ensureInit(signal)
     const dir = await this.locate('.trash', signal)
     if ((await this.fs.stat(dir, signal)) === undefined) return { docs: [] }
+    const registry = await this.readTrashRegistry(signal)
     const entries = await this.fs.listDir(dir, signal)
     const docs: KbTrashEntry[] = []
+    const survivors = new Set<string>()
     for (const entry of entries) {
       if (entry.type !== 'file' || !entry.name.endsWith('.md')) continue
+      const path = '.trash/' + entry.name
       const text = await this.fs.readText(entry.target, signal)
-      // A blank file is a purged entry: remove and purge blank in place
-      // because the fs seam has no delete primitive.
+      // A blank file is a purged entry: skip it and drop it from the registry
+      // below, because the fs seam has no delete primitive.
       if (text.trim().length === 0) continue
+      survivors.add(path)
       const doc = parseFrontmatter(text)
+      const when = registry[path]
       docs.push({
-        path: '.trash/' + entry.name,
+        path,
         name: entry.name,
         title: scalar(doc.meta.title) || entry.name.replace(/\.md$/, ''),
         body: doc.body,
+        ...when === undefined ? {} : { deletedAt: when },
       })
+    }
+    // Entries whose file is blank or gone are stale; rewrite the registry
+    // without them so it never grows unbounded.
+    if ([...Object.keys(registry)].some(path => !survivors.has(path))) {
+      const next: Record<string, string> = {}
+      for (const path of survivors) {
+        const when = registry[path]
+        if (when !== undefined) next[path] = when
+      }
+      await this.writeTrashRegistry(next, signal)
     }
     return { docs }
   }
@@ -611,6 +635,7 @@ export class KbEngine {
     const next = parseFrontmatter(text)
     this.docs.set(to, next)
     this.indexDoc(to, next)
+    await this.unregisterTrash(trashRel, signal)
     await this.writeIndex(signal)
     return { from: trashRel, to }
   }
@@ -635,7 +660,52 @@ export class KbEngine {
     // against the library root and fall back to the registry by basename.
     await this.cascadePurgeImages(extractImageRefs(text, ''), signal)
     await this.fs.writeText(target, ' ', undefined, signal)
+    await this.unregisterTrash(trashRel, signal)
     return { path: trashRel, purged: true }
+  }
+
+  /**
+   * Permanently clear every trashed document whose recorded deletion predates
+   * the retention window, cascading to images only that document referenced.
+   * Entries without a recorded timestamp (deleted before the registry existed)
+   * are kept: without an age, expiry cannot be judged.
+   * @param now - the sweep time
+   * @param retentionDays - retention window in days; `0` or negative disables
+   * @param signal - abort signal for cooperative cancellation
+   * @returns the number of purged entries
+   */
+  async sweepTrash(now: Date, retentionDays: number, signal?: AbortSignal): Promise<number> {
+    await this.ensureInit(signal)
+    if (retentionDays <= 0) return 0
+    const registry = await this.readTrashRegistry(signal)
+    const cutoff = now.getTime() - retentionDays * 86_400_000
+    const purged = new Set<string>()
+    for (const [trashRel, when] of Object.entries(registry)) {
+      signal?.throwIfAborted()
+      const deletedAt = Date.parse(when)
+      if (Number.isNaN(deletedAt) || deletedAt > cutoff) continue
+      const target = await this.target(trashRel, signal)
+      const info = await this.fs.stat(target, signal)
+      if (info !== undefined) {
+        let text = ' '
+        try {
+          text = await this.fs.readText(target, signal)
+        } catch {
+          // The file vanished mid-sweep; only the registry entry is stale.
+        }
+        await this.cascadePurgeImages(extractImageRefs(text, ''), signal)
+        await this.fs.writeText(target, ' ', undefined, signal)
+      }
+      purged.add(trashRel)
+    }
+    if (purged.size > 0) {
+      const next: Record<string, string> = {}
+      for (const [path, when] of Object.entries(registry)) {
+        if (!purged.has(path)) next[path] = when
+      }
+      await this.writeTrashRegistry(next, signal)
+    }
+    return purged.size
   }
 
   /** Blank and unregister referenced images that no other document uses. */
@@ -747,6 +817,52 @@ export class KbEngine {
     } catch {
       // A malformed registry is left alone; the blanked file 404s on its own.
     }
+  }
+
+  /** Read the deletion-timestamp registry; a missing or malformed one is empty. */
+  private async readTrashRegistry(signal?: AbortSignal): Promise<Record<string, string>> {
+    const target = await this.locate(TRASH_REGISTRY, signal)
+    try {
+      const parsed = JSON.parse(await this.fs.readText(target, signal)) as { entries?: Record<string, unknown> }
+      const entries: Record<string, string> = {}
+      if (parsed.entries !== undefined) {
+        for (const [path, when] of Object.entries(parsed.entries)) {
+          if (typeof when === 'string') entries[path] = when
+        }
+      }
+      return entries
+    } catch {
+      // A missing or malformed registry is empty; the next mutation rewrites it.
+      return {}
+    }
+  }
+
+  /** Persist the deletion-timestamp registry; a failed write is retried on the next mutation. */
+  private async writeTrashRegistry(entries: Record<string, string>, signal?: AbortSignal): Promise<void> {
+    const target = await this.locate(TRASH_REGISTRY, signal)
+    try {
+      await this.fs.writeText(target, JSON.stringify({ schemaVersion: 1, entries }, null, 2), undefined, signal)
+    } catch {
+      // Without the registry the entry is never auto-swept, only manually purged.
+    }
+  }
+
+  /** Record one deletion time; the delete succeeds even when the registry cannot. */
+  private async recordTrash(trashRel: string, deletedAt: Date, signal?: AbortSignal): Promise<void> {
+    const registry = await this.readTrashRegistry(signal)
+    registry[trashRel] = deletedAt.toISOString()
+    await this.writeTrashRegistry(registry, signal)
+  }
+
+  /** Forget one trash path; a stale entry is pruned by the next listing or sweep. */
+  private async unregisterTrash(trashRel: string, signal?: AbortSignal): Promise<void> {
+    const registry = await this.readTrashRegistry(signal)
+    if (!(trashRel in registry)) return
+    const next: Record<string, string> = {}
+    for (const [path, when] of Object.entries(registry)) {
+      if (path !== trashRel) next[path] = when
+    }
+    await this.writeTrashRegistry(next, signal)
   }
 
   /** Whether one document matches the list filters. */

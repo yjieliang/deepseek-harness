@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-host-kb
 
+English | [中文](README.zh.md)
+
 Knowledge-base host feature for the `kb/` workspace root. One `kb` Remote namespace over the Typert gateway serving the browser knowledge-base panel, plus the `/dsh-kb` image route for document images.
 
 The engine builds a lazy in-memory index of every `*.md` under `kb/` (2-gram inverted search over title/aliases/tags/summary/body), parses flat frontmatter, derives each document's status from its directory (`00-inbox/` or `01-inbox/` → inbox, the configured archive directory → archived, else filed), maintains `kb/_meta/index.json` after every mutation, and moves deletions into a recoverable `.trash`. Paths stay library-relative and are sandbox-checked through the `fs` service's `contains`.
@@ -12,10 +14,13 @@ The model-facing `kb_*` TOOLS are deliberately NOT registered here: they belong 
 - id: kb
   name: '@deepseek-ai/dsh-host-kb'
   config:
-    archiveDir: 90-归档   # optional; directory whose documents derive status "archived"
+    archiveDir: 90-归档           # optional; directory whose documents derive status "archived"
+    trashRetentionDays: 30       # optional; days a trashed document is kept before automatic purge; 0 disables
 ```
 
 `archiveDir` defaults to `90-归档` and must be a single non-reserved directory name (`00-inbox`/`01-inbox`/`_meta`/`templates`/`.trash` are refused at load). The engine creates the configured directory on first init, reports it through `kb.stats.archiveDir` (so the panel can offer archive moves), and derives every status from it, so existing documents re-classify immediately when the configuration changes.
+
+`trashRetentionDays` defaults to `30` and must be a non-negative number. Deletion records an ISO timestamp in `kb/_meta/trash.json`; the gateway purges trashed documents whose timestamp is older than the retention window once at load and then every 24 hours (the purge also cascades to exclusively referenced images). Entries deleted before the registry existed have no timestamp and are never auto-purged. `0` disables the sweep entirely.
 
 ## Remote surface
 
@@ -37,6 +42,6 @@ None.
 
 - **Index duplication with the preset** — the `knowledge-base` agent preset ships its own import-free copy of the engine for the model-facing tools; the two implementations can drift until the preset can depend on this package.
 - **No full-text ranking** — search is 2-gram AND intersection with recency sort; no TF-IDF or fuzzy matching.
-- **`.trash` is a plain directory** — trashed files are recoverable via the Remote but not automatically cleaned; `purgeDoc` blanks a file in place and the trash listing skips blank files, so a purged entry leaves the listing while its bytes stay on disk until the fs seam gains a delete primitive. Purging also blanks and unregisters images the document referenced, but only when no other document references them (by resolved registry path).
+- **`.trash` is a plain directory** — trashed files are recoverable via the Remote; entries older than `trashRetentionDays` are purged automatically (on load and daily), and `purgeDoc` also blanks a file in place. The trash listing skips blank files, so a purged entry leaves the listing while its bytes stay on disk until the fs seam gains a delete primitive. Purging also blanks and unregisters images the document referenced, but only when no other document references them (by resolved registry path).
 - **`renameDir` cannot move binary assets** — the text-only `fs` seam has no byte-write operation, so renaming a directory whose entries include binary files (e.g. images) fails loudly rather than half-relocating them; document-only directories rename cleanly.
 - **No per-directory counts** — the directory tree renders without document counts until a per-directory count endpoint lands.

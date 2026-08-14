@@ -17,6 +17,7 @@ Status: implemented
 - **阅读栏**：面包屑、文档标题、可操作元数据条（状态与目录移动走 `kb.moveDoc`，标签 chip 走 `kb.saveDoc`）、分屏编辑与 Ctrl+S、可点击的反链面板；回收站模式渲染只读预览与恢复／彻底删除。
 - **配置**：归档目录从写死的 `90-归档` 变为网关 `archiveDir` 配置（默认 `90-归档`），加载时对保留根目录校验；`kb.stats.archiveDir` 暴露它，面板因此能提供归档移动。状态推导随之生效，`01-inbox` 与 `00-inbox` 同为收集箱根。
 - **目录管理**：`kb.createDir` 经 `.keep` 标记建目录（拒绝保留根）；`kb.renameDir` 重命名目录并递归搬迁其下所有条目、重建索引。纯文本 fs 接口没有字节写入操作，因此含二进制资源（如图片）的目录重命名会响亮失败，而不是半搬迁。
+- **回收站保留期**：删除时在 `kb/_meta/trash.json` 记录 ISO 时间戳；网关在加载时及此后每天自动清除超过可配置 `trashRetentionDays`（默认 30，`0` 关闭）的回收站文档，并级联清除仅被其引用的图片。早于注册表存在的条目没有时间戳，永不自动清除；`kb.trash` 每条目上报 `deletedAt`。
 - 随重命名工作修复两个既有引擎 bug：`move` 与 `remove` 未从内存索引删除旧路径（移动／删除后的文档仍出现在 `kb.list` 里）。
 
 ## Alternatives considered
@@ -42,4 +43,5 @@ Status: implemented
 ## Testing
 
 - 引擎测试（`packages/host/kb/tests/core.spec.ts`，基于内存 fs 假件）覆盖：配置化归档目录的状态推导、置顶排序与标记写入、目录新建／重命名（含嵌套搬迁与索引删除），以及移动／删除的索引修复。
+- 回收站保留期测试覆盖：时间戳记录与上报、清扫过期条目并级联图片、新鲜与遗留条目幸存、保留期 `0`，以及恢复／彻底删除时注销注册表条目。
 - 面板组件测试（`packages/client/ui-kb/tests/kb-panel.client.spec.tsx`）覆盖：三栏渲染、带反链的文档打开、卡片菜单置顶、编辑保存与搜索总数。
