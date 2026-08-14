@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-host-lookup-llm
 
+English | [中文](README.zh.md)
+
 Model-generated word explanations for the web lookup overlay. One Remote endpoint over the Typert gateway: `lookupLlm/explain` translates a selected word (English to Chinese, Chinese to English by script detection) and returns a 2-4 sentence noun introduction plus an optional IPA phonetic and part-of-speech groups. The route comes from the `agentDefaultModel` service, so the explanation follows the deployment's default model.
 
 The call is a one-shot auxiliary `llm.stream` (no session, no tools), framed as strict JSON output and validated field by field before returning.

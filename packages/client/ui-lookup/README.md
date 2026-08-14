@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-client-ui-lookup
 
+English | [中文](README.zh.md)
+
 Web word-lookup feature: select a word anywhere in the app (the conversation is the primary surface), get a floating action bar at the selection end, and open a result card with translation, English dictionary meanings, and an encyclopedia introduction. The model-generated detailed explanation rides the `lookupLlm` Remote namespace mounted by api-remotes; the free dictionary sources (MyMemory translation, Free Dictionary API, Wikipedia REST summary) are fetched directly from the browser and never touch a model.
 
 The overlay registers one entry in the layout-declared `shell.overlay` frame-wide layer, so it composes through the slot system with no changes to ui-conversation or any other package. Selection handling is document-level (mouseup, Escape, scroll-to-dismiss), all state is component-local, and the explanation call arrives through the inject face over the caller's ctx.

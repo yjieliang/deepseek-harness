@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-client-ui-kb
 
+English | [中文](README.zh.md)
+
 Web knowledge-base feature for the DeepSeek Harness GUI: a native sidebar footer action above Settings that toggles a near-fullscreen three-column knowledge-base panel over the `kb` Remote namespace (`@deepseek-ai/dsh-host-kb`).
 
 - **Sidebar trigger** — `sidebar.footer.action` entry: icon + label in the wide column, icon-only on the 56px rail, exactly where the shell renders "footer actions above Settings".
