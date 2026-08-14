@@ -1,0 +1,43 @@
+/* Knowledge-base sidebar foot trigger. DSH theme tokens throughout. */
+
+.trigger,
+.triggerWide {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+  border-radius: 6px;
+  font-family: var(--dsw-font-family);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.trigger {
+  padding: 8px;
+  justify-content: center;
+}
+
+.triggerWide {
+  padding: 8px 12px;
+  width: 100%;
+}
+
+.trigger:hover,
+.triggerWide:hover {
+  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-label-primary);
+}
+
+.icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+}

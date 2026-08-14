@@ -98,6 +98,12 @@
     - id: lookup-llm
       name: '@deepseek-ai/dsh-host-lookup-llm'
 
+    # Knowledge base: the kb Remote namespace (browser panel data) and the
+    # /dsh-kb image route. The model-facing kb_* tools stay in the agent
+    # presets, not here.
+    - id: kb
+      name: '@deepseek-ai/dsh-host-kb'
+
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
     - id: api-gateway
@@ -278,6 +284,11 @@
     # introduction (dictionary sources plus the lookupLlm Remote explanation).
     - id: ui-lookup
       name: '@deepseek-ai/dsh-client-ui-lookup'
+
+    # Knowledge base: the sidebar footer trigger above Settings plus the
+    # browse/edit overlay panel, over the kb Remote namespace.
+    - id: ui-kb
+      name: '@deepseek-ai/dsh-client-ui-kb'
 
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
