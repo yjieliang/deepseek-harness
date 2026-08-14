@@ -542,7 +542,11 @@ export class KbEngine {
     const docs: KbTrashEntry[] = []
     for (const entry of entries) {
       if (entry.type !== 'file' || !entry.name.endsWith('.md')) continue
-      const doc = parseFrontmatter(await this.fs.readText(entry.target, signal))
+      const text = await this.fs.readText(entry.target, signal)
+      // A blank file is a purged entry: remove and purge blank in place
+      // because the fs seam has no delete primitive.
+      if (text.trim().length === 0) continue
+      const doc = parseFrontmatter(text)
       docs.push({
         path: '.trash/' + entry.name,
         name: entry.name,
@@ -580,11 +584,13 @@ export class KbEngine {
   }
 
   /**
- * Permanently clear one trashed document.
- * @param request - the trash path
- * @param signal - abort signal for cooperative cancellation
- * @returns the purged path
- */
+   * Permanently clear one trashed document. The fs seam has no delete
+   * primitive, so the file is blanked in place; the trash listing skips
+   * blank files, and the bytes stay on disk until a future fs delete lands.
+   * @param request - the trash path
+   * @param signal - abort signal for cooperative cancellation
+   * @returns the purged path
+   */
   async purge(request: KbPurgeRequest, signal?: AbortSignal): Promise<KbPurgeResult> {
     await this.ensureInit(signal)
     const trashRel = stripLeadingSlash(request.path)

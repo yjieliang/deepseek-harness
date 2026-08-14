@@ -130,6 +130,14 @@ describe('KbEngine directory management', () => {
     expect(paths).not.toContain('20-学习笔记/2026-08-12-a.md')
   })
 
+  it('purge removes a trashed document from the trash listing', async () => {
+    await engine.remove({ path: '10-技术/2026-08-12-a.md' })
+    const entries = await engine.trash()
+    expect(entries.docs).toHaveLength(1)
+    await engine.purge({ path: entries.docs[0]!.path })
+    expect((await engine.trash()).docs).toHaveLength(0)
+  })
+
   it('refuses to rename reserved roots, the archive directory, or onto an existing path', async () => {
     await expect(engine.renameDir({ directory: '00-inbox', name: 'x' })).rejects.toThrow(/保留目录不可重命名/)
     await expect(engine.renameDir({ directory: DEFAULT_ARCHIVE_DIR, name: 'x' })).rejects.toThrow(/保留目录不可重命名/)

@@ -198,8 +198,15 @@ export function KbPanel({
     if (selected === null) return
     void move({ path: selected, targetDirectory }).then(() => {
       loadList(query, status, dir, tag)
+      refreshAux()
       void get(selected).then((result) =>{  setMeta(result.meta) }).catch(() => {})
     }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+  }
+
+  /** Refresh the navigation-side indexes (tags, status counts) after a mutation. */
+  const refreshAux = (): void => {
+    void tags().then(setTagList).catch(() => {})
+    void stats().then(setStatsInfo).catch(() => {})
   }
 
   /** Replace the selected document's tags through the field-patch save. */
@@ -207,6 +214,7 @@ export function KbPanel({
     if (selected === null) return
     void save({ path: selected, tags: next }).then(() => {
       loadList(query, status, dir, tag)
+      refreshAux()
       void get(selected).then((result) =>{  setMeta(result.meta) }).catch(() => {})
     }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
   }
@@ -217,6 +225,7 @@ export function KbPanel({
     void remove(selected).then(() => {
       setSelected(null)
       loadList(query, status, dir, tag)
+      refreshAux()
     }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
   }
 
@@ -333,6 +342,7 @@ export function KbPanel({
                     setCreateOpen(false)
                     setNewTitle('')
                     loadList(query, status, dir, tag)
+                    refreshAux()
                     openDocument(result.path)
                   }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
                 }
@@ -350,6 +360,7 @@ export function KbPanel({
                   setCreateOpen(false)
                   setNewTitle('')
                   loadList(query, status, dir, tag)
+                  refreshAux()
                   openDocument(result.path)
                 }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
               }}
@@ -513,17 +524,18 @@ export function KbPanel({
                           onPin={path => void save({ path, pinned: !(docs.find(doc => doc.path === path)?.pinned ?? false) })
                             .then(() =>{  loadList(query, status, dir, tag) })
                             .catch((error: unknown) =>{  setLastError(messageOf(error)) })}
-                          onMovePick={(path) => { setMoveFor(moveFor === path ? null : path); setMenuFor(null) }}
+                          onMovePick={(path) => { setMoveFor(moveFor === path ? null : path) }}
                           onMoveTo={(path, targetDirectory) => {
                             setMoveFor(null)
                             setMenuFor(null)
-                            void move({ path, targetDirectory }).then(() =>{  loadList(query, status, dir, tag) })
+                            void move({ path, targetDirectory }).then(() =>{  loadList(query, status, dir, tag); refreshAux() })
                               .catch((error: unknown) =>{  setLastError(messageOf(error)) })
                           }}
                           onDelete={path => void remove(path).then(() => {
                             setMenuFor(null)
                             if (selected === path) setSelected(null)
                             loadList(query, status, dir, tag)
+                            refreshAux()
                           }).catch((error: unknown) =>{  setLastError(messageOf(error)) })}
                         />
                       ))}
@@ -546,17 +558,18 @@ export function KbPanel({
                           onPin={path => void save({ path, pinned: !(docs.find(doc => doc.path === path)?.pinned ?? false) })
                             .then(() =>{  loadList(query, status, dir, tag) })
                             .catch((error: unknown) =>{  setLastError(messageOf(error)) })}
-                          onMovePick={(path) => { setMoveFor(moveFor === path ? null : path); setMenuFor(null) }}
+                          onMovePick={(path) => { setMoveFor(moveFor === path ? null : path) }}
                           onMoveTo={(path, targetDirectory) => {
                             setMoveFor(null)
                             setMenuFor(null)
-                            void move({ path, targetDirectory }).then(() =>{  loadList(query, status, dir, tag) })
+                            void move({ path, targetDirectory }).then(() =>{  loadList(query, status, dir, tag); refreshAux() })
                               .catch((error: unknown) =>{  setLastError(messageOf(error)) })
                           }}
                           onDelete={path => void remove(path).then(() => {
                             setMenuFor(null)
                             if (selected === path) setSelected(null)
                             loadList(query, status, dir, tag)
+                            refreshAux()
                           }).catch((error: unknown) =>{  setLastError(messageOf(error)) })}
                         />
                       ))}
@@ -582,7 +595,7 @@ export function KbPanel({
                         className={css.primaryBtn}
                         onClick={() => void restore(trashEntry.path)
                           .then(() => trash())
-                          .then((next) => { setTrashDocs(next); setTrashSelected(null) })
+                          .then((next) => { setTrashDocs(next); setTrashSelected(null); refreshAux() })
                           .catch((error: unknown) =>{  setLastError(messageOf(error)) })}
                       >
                         {t('trash.restore')}
@@ -594,7 +607,7 @@ export function KbPanel({
                           if (window.confirm(t('trash.purgeConfirm'))) {
                             void purge(trashEntry.path)
                               .then(() => trash())
-                              .then((next) => { setTrashDocs(next); setTrashSelected(null) })
+                              .then((next) => { setTrashDocs(next); setTrashSelected(null); refreshAux() })
                               .catch((error: unknown) =>{  setLastError(messageOf(error)) })
                           }
                         }}

@@ -153,6 +153,49 @@ describe('KbPanel three-column workspace', () => {
     })
   })
 
+  it('keeps the card menu open and shows the move picker', async () => {
+    const panel = makePanelProps()
+    renderPanel(panel)
+
+    const cardTitle = (await screen.findAllByText('乙文档'))[0]
+    const card = cardTitle?.closest<HTMLElement>('[data-kb-menu]')
+    if (card === null || card === undefined) throw new Error('card container missing')
+    fireEvent.click(withinCard(card))
+    const moveButton = (await screen.findAllByText('移动到…'))
+      .find(el => el.closest('[data-kb-menu]') !== null)
+    if (moveButton === undefined) throw new Error('move menu item missing')
+    fireEvent.click(moveButton)
+    // The menu stays open and the directory picker appears in place.
+    const picker = card.querySelector('select')
+    if (picker === null) throw new Error('move picker missing')
+    fireEvent.change(picker, { target: { value: '10-技术' } })
+    await waitFor(() => {
+      expect(panel.move).toHaveBeenCalledWith({
+        path: '00-inbox/2026-08-10-乙.md',
+        targetDirectory: '10-技术',
+      })
+    })
+  })
+
+  it('refreshes the tag index after saving tags', async () => {
+    const panel = makePanelProps()
+    renderPanel(panel)
+
+    fireEvent.click(await screen.findByText('甲文档'))
+    // Wait for the document meta to load (its tag chips render from `meta`);
+    // the tag appears both in the nav index and the reader metadata bar.
+    await screen.findAllByText('#AI')
+    const tagInput = document.querySelector<HTMLInputElement>('input[placeholder="添加标签"]')
+    if (tagInput === null) throw new Error('tag input missing')
+    const callsBefore = panel.tags.mock.calls.length
+    fireEvent.change(tagInput, { target: { value: '新标签' } })
+    fireEvent.keyDown(tagInput, { key: 'Enter' })
+    await waitFor(() => {
+      expect(panel.save).toHaveBeenCalledWith({ path: '10-技术/2026-08-13-甲.md', tags: ['AI', '新标签'] })
+      expect(panel.tags.mock.calls.length).toBeGreaterThan(callsBefore)
+    })
+  })
+
   it('shows the search total and routes a query through search', async () => {
     const panel = makePanelProps()
     renderPanel(panel)
