@@ -29,7 +29,7 @@ import { en, zh, type ModelKey } from './locales.ts'
 export { ModelDirectory } from './directory.ts'
 export type { ModelDirectoryState } from './directory.ts'
 export { ModelDirectoryResolver } from './service.ts'
-export type { ModelSelectInjected } from './slots.ts'
+export type { ModelSelectInjected, ModelSelectOutcome } from './slots.ts'
 export type { ModelKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -167,8 +167,11 @@ export function apply(ctx: ClientContext): void {
             if (available) directory.load().catch(() => { /* surfaced on the store */ })
           },
           select: (selection: ModelSelection) => available
-            ? directory.select(selection).then(() => true, () => false)
-            : Promise.resolve(false),
+            ? directory.select(selection).then(
+              ({ imagesDegraded }) => ({ accepted: true, imagesDegraded }),
+              () => ({ accepted: false, imagesDegraded: false }),
+            )
+            : Promise.resolve({ accepted: false, imagesDegraded: false }),
         }
       },
     }, ModelSelect))

@@ -52,7 +52,7 @@ describe('ModelSelect reasoning effort', () => {
     const directory = createSnapshotStore<ModelDirectoryState>(state())
     const select = vi.fn(async (selection: ModelSelection) => {
       directory.set(state({ current: selection }))
-      return true
+      return { accepted: true, imagesDegraded: false }
     })
     render(<ModelSelect
       locked={false}
@@ -100,7 +100,7 @@ describe('ModelSelect reasoning effort', () => {
       available
       directory={directory}
       load={vi.fn()}
-      select={vi.fn().mockResolvedValue(true)}
+      select={vi.fn().mockResolvedValue({ accepted: true, imagesDegraded: false })}
       t={t}
     />)
 
@@ -116,7 +116,7 @@ describe('ModelSelect reasoning effort', () => {
     const directory = createSnapshotStore(state({
       current: { provider: 'deepseek-official', model: 'removed-model' },
     }))
-    const select = vi.fn().mockResolvedValue(true)
+    const select = vi.fn().mockResolvedValue({ accepted: true, imagesDegraded: false })
     render(<ModelSelect
       locked={false}
       available
@@ -146,8 +146,8 @@ describe('ModelSelect reasoning effort', () => {
     }]
     const directory = createSnapshotStore<ModelDirectoryState>(state({ groups }))
     const select = vi.fn(async () => {
-      directory.set(state({ groups, status: 'error', error: 'model-unavailable: session already contains images' }))
-      return false
+      directory.set(state({ groups, status: 'error', error: 'model-unavailable: route is gone' }))
+      return { accepted: false, imagesDegraded: false }
     })
     render(<ModelSelect
       locked={false}
@@ -162,9 +162,41 @@ describe('ModelSelect reasoning effort', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /模型/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: /DeepSeek-V4-Pro/ }))
     const toast = await screen.findByRole('alert')
-    expect(toast.textContent).toContain('模型操作失败：model-unavailable: session already contains images')
+    expect(toast.textContent).toContain('模型操作失败：model-unavailable: route is gone')
     // The selection failure does not render the in-menu load strip (no Retry).
     expect(screen.queryByRole('button', { name: '重试' })).toBeNull()
+  })
+
+  it('announces image degradation as a transient toast on an accepted switch', async () => {
+    const groups = [{
+      id: 'deepseek-official',
+      name: 'DeepSeek',
+      models: [
+        { id: 'deepseek-v4-flash', name: 'DeepSeek-V4-Flash', reasoning },
+        { id: 'deepseek-v4-pro', name: 'DeepSeek-V4-Pro' },
+      ],
+    }]
+    const directory = createSnapshotStore<ModelDirectoryState>(state({ groups }))
+    const select = vi.fn(async (selection: ModelSelection) => {
+      directory.set(state({ groups, current: selection }))
+      return { accepted: true, imagesDegraded: true }
+    })
+    render(<ModelSelect
+      locked={false}
+      available
+      directory={directory}
+      load={vi.fn()}
+      select={select}
+      t={t}
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: /选择模型|当前/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /模型/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /DeepSeek-V4-Pro/ }))
+    const toast = await screen.findByRole('alert')
+    expect(toast.textContent).toContain('已切换模型；该模型不支持图片输入，会话中的图片将以占位文本替代')
+    // An accepted switch closes the menu; no error strip renders.
+    expect(screen.queryByRole('menu')).toBeNull()
   })
 
   it('renders no Agent-bound control for an addressed subagent session', () => {
@@ -174,7 +206,7 @@ describe('ModelSelect reasoning effort', () => {
       available={false}
       directory={createSnapshotStore(state())}
       load={load}
-      select={vi.fn().mockResolvedValue(false)}
+      select={vi.fn().mockResolvedValue({ accepted: false, imagesDegraded: false })}
       t={t}
     />)
 

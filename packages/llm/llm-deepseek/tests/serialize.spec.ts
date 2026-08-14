@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
-import { createUserMessage, CallId, ReasoningEffortId, createMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, CallId, IMAGE_OMITTED_PLACEHOLDER, ReasoningEffortId, createMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import { serializeMessages, serializeRequest } from '../src/serialize.ts'
 
@@ -133,17 +133,40 @@ describe('serializeMessages', () => {
     expect(wire).toEqual([{ role: 'user', content: 'see chart' }])
   })
 
-  it('rejects image blocks instead of silently flattening them away', () => {
-    expect(() => serializeMessages([createUserMessage({
-      content: [{
-        type: 'image',
-        attachment: {
-          attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),
-          mediaType: 'image/png', bytes: 68, width: 1, height: 1,
+  it('degrades image blocks to the shared placeholder instead of failing the request', () => {
+    const wire = serializeMessages([createUserMessage({
+      content: [
+        { type: 'text', text: 'before ' },
+        {
+          type: 'image',
+          attachment: {
+            attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),
+            mediaType: 'image/png', bytes: 68, width: 1, height: 1,
+          },
         },
+        { type: 'text', text: ' after' },
+      ],
+      source: { kind: 'plugin', plugin: 'test' },
+    })])
+    expect(wire).toEqual([{ role: 'user', content: `before ${IMAGE_OMITTED_PLACEHOLDER} after` }])
+  })
+
+  it('degrades images nested inside tool results', () => {
+    const wire = serializeMessages([createUserMessage({
+      content: [{
+        type: 'tool-result',
+        toolCallId: CallId('call-1'),
+        content: [{
+          type: 'image',
+          attachment: {
+            attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),
+            mediaType: 'image/png', bytes: 68, width: 1, height: 1,
+          },
+        }],
       }],
       source: { kind: 'plugin', plugin: 'test' },
-    })])).toThrow(expect.objectContaining({ code: 'UNSUPPORTED_CONTENT' }))
+    })])
+    expect(wire).toEqual([{ role: 'tool', tool_call_id: 'call-1', content: IMAGE_OMITTED_PLACEHOLDER }])
   })
 
   it('emits an empty user message rather than dropping block-less messages', () => {

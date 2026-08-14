@@ -2,12 +2,13 @@
  * Serialize harness messages into DeepSeek chat completions. User text is joined; assistant text
  * becomes `content`, tool calls become `tool_calls`, and tool results become separate tool messages.
  * Assistant reasoning is replayed as `reasoning_content` only on tool-call turns, as required by
- * thinking-mode passback. Core image blocks are rejected explicitly because this wire route is text-only;
- * unknown declaration-merged block types retain the adapter's documented extension fallback.
+ * thinking-mode passback. This wire route is text-only: core image blocks degrade to the shared
+ * placeholder text rather than failing the request, so an image-bearing session can switch to this
+ * adapter; unknown declaration-merged block types retain the adapter's documented extension fallback.
  * @module dsh-llm-deepseek/serialize
  */
 
-import { contentHasImage, LlmError } from '@deepseek-ai/dsh-llm'
+import { degradeImages, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
 import type { WireMessage, WireRequest, WireTool } from './types.ts'
 
@@ -60,11 +61,9 @@ function flattenText(blocks: ContentBlock[]): string {
     .join('')
 }
 
-/** Reject core image content before any text-flattening path can silently erase it. */
-function assertTextOnly(blocks: readonly ContentBlock[]): void {
-  if (contentHasImage(blocks)) {
-    throw new LlmError('The DeepSeek chat-completions adapter does not support image content.', 'UNSUPPORTED_CONTENT')
-  }
+/** Degrade core image content to placeholder text before any text-flattening path can silently erase it. */
+function textOnlyContent(blocks: ContentBlock[]): ContentBlock[] {
+  return degradeImages(blocks)
 }
 
 /** Serialize one assistant message (text + reasoning + tool calls). */
@@ -112,19 +111,21 @@ function serializeAssistant(message: Message): WireMessage {
 export function serializeMessages(messages: Message[]): WireMessage[] {
   const wire: WireMessage[] = []
   for (const message of messages) {
-    assertTextOnly(message.content)
+    // Degrade once per message, so every flattening path below (user text,
+    // assistant text, tool results) sees placeholder text for image blocks.
+    const content = textOnlyContent(message.content)
     if (message.role === 'system') {
-      wire.push({ role: 'system', content: flattenText(message.content) })
+      wire.push({ role: 'system', content: flattenText(content) })
       continue
     }
     if (message.role === 'assistant') {
-      wire.push(serializeAssistant(message))
+      wire.push(serializeAssistant({ ...message, content }))
       continue
     }
     // user role: tool results ride in user messages in the harness
     // vocabulary, but DeepSeek wants them as role:'tool' messages.
-    const toolResults = message.content.filter(block => block.type === 'tool-result')
-    const text = flattenText(message.content)
+    const toolResults = content.filter(block => block.type === 'tool-result')
+    const text = flattenText(content)
     if (text.length > 0 || toolResults.length === 0) {
       wire.push({ role: 'user', content: text })
     }

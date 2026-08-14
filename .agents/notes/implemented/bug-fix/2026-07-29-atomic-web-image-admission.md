@@ -26,4 +26,4 @@ Provider adapters remain the final enforcement boundary. The host ordering only 
 
 ## Consequences
 
-An image prompt and a concurrent model selection have deterministic order, and a text-only target cannot strand an image that has been admitted but not yet published. Selection may wait for an in-flight image admission, while unrelated prompts retain their existing concurrency. Compaction can make a text-only target valid once no pending or derived image remains.
+An image prompt and a concurrent model selection have deterministic order, and a text-only target cannot strand an image that has been admitted but not yet published. Selection may wait for an in-flight image admission, while unrelated prompts retain their existing concurrency. Selection admits a text-only target even while images remain — adapters degrade them to placeholder text, and this ordering guarantees the response's degradation flag reflects the exact pending and derived image state ([image-degradation note](../feature/2026-08-15-text-only-switch-image-degradation.md)). Compaction can still remove old images from derived history.

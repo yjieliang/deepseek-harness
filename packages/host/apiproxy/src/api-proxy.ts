@@ -2294,15 +2294,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             })
             const pendingImage = [...found.agent.inbox.nextTurn, ...found.agent.inbox.nextStep]
               .some(message => contentHasImage(message.content))
+            // A text-only target no longer blocks the switch: adapters degrade
+            // history images to placeholder text. The response flags the
+            // degradation so the client can name it instead of the user
+            // discovering missing images in the model's answers.
+            let imagesDegraded = false
             if (pendingImage || messagesHaveImage(found.agent.session.deriveMessages())) {
               const info = await ctx.llm.resolveModelInfo(resolved.provider, resolved.model)
-              if (info.inputModalities !== undefined && !info.inputModalities.includes('image')) {
-                return err(request, {
-                  code: 'model-unavailable',
-                  message: `Model "${resolved.model}" does not accept image input, but this session already contains images; select an image-capable model.`,
-                  details: { provider, model },
-                })
-              }
+              imagesDegraded = info.inputModalities !== undefined && !info.inputModalities.includes('image')
             }
             const selected: ModelSelection = {
               provider: resolved.provider,
@@ -2319,7 +2318,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
                 `api-proxy: the model switch applies to this session but was not saved as the default: ${String(error)}`,
               )
             }
-            return ok(request, { selected: { ...selected } })
+            return ok(request, { selected: { ...selected }, ...imagesDegraded ? { imagesDegraded: true } : {} })
           } catch (error: unknown) {
             return err(request, {
               code: 'model-unavailable',

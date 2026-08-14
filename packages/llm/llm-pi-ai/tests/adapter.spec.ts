@@ -7,7 +7,7 @@ import type {
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
-import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, IMAGE_OMITTED_PLACEHOLDER, LlmError, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -765,20 +765,49 @@ describe('provider profile lifecycle', () => {
     expect(new LlmError('x', 'X')).toBeInstanceOf(Error)
   })
 
-  it('rejects unsupported or unresolved image input before provider I/O', async () => {
-    const adapter = adapterOf({ openai: {}, deepseek: {} })
+  it('degrades images for text-only routes instead of failing the request', async () => {
+    const server = await mockServer([{ events: textEvents }, { events: textEvents }])
+    const adapter = adapterOf({ deepseek: { baseURL: server.url } })
     const drain = async (options: Parameters<PiAiAdapter['stream']>[0]): Promise<void> => {
       for await (const _chunk of adapter.stream(options)) { /* drain */ }
     }
 
-    await expect(drain({
+    await drain({
       provider: 'deepseek',
       model: 'deepseek-v4-flash',
       messages: [createUserMessage({
         content: [{ type: 'image', attachment: IMAGE_REF }],
         source: { kind: 'plugin', plugin: 'test' },
       })],
-    })).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
+    })
+    expect(JSON.stringify(server.requests[0])).toContain(IMAGE_OMITTED_PLACEHOLDER)
+
+    // Images nested inside tool results degrade the same way.
+    await drain({
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      messages: [createUserMessage({
+        content: [{
+          type: 'tool-result',
+          toolCallId: 'call-outer' as never,
+          content: [{
+            type: 'tool-result',
+            toolCallId: 'call-inner' as never,
+            content: [{ type: 'image', attachment: IMAGE_REF }],
+          }],
+        }],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    })
+    expect(JSON.stringify(server.requests[1])).toContain(IMAGE_OMITTED_PLACEHOLDER)
+  })
+
+  it('rejects unresolved image input on image-capable routes before provider I/O', async () => {
+    const adapter = adapterOf({ openai: {} })
+    const drain = async (options: Parameters<PiAiAdapter['stream']>[0]): Promise<void> => {
+      for await (const _chunk of adapter.stream(options)) { /* drain */ }
+    }
+
     await expect(drain({
       provider: 'openai',
       model: 'gpt-4.1',

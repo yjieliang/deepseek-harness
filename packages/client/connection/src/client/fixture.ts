@@ -12,6 +12,7 @@ import {
   isTokenDelta,
 } from '@deepseek-ai/dsh-llm/message'
 import { CallId } from '@deepseek-ai/dsh-llm/brand'
+import { contentHasImage } from '@deepseek-ai/dsh-llm/content'
 import type {
   AssistantMessage,
   ContentBlock,
@@ -327,6 +328,22 @@ function fixtureModelGroups(): ModelProviderGroup[] {
       models: [{ id: 'gpt-5', name: 'GPT-5', reasoning: OPENAI_REASONING }],
     },
   ]
+}
+
+/**
+ * Fixture mirror of adapter-declared modalities: which served models accept
+ * image input. The wire catalog carries no modality column, so the fake
+ * server keeps its own table, exactly mirroring the host's text-only DeepSeek
+ * route and image-capable OpenAI route.
+ */
+const IMAGE_CAPABLE_MODELS: ReadonlySet<string> = new Set(['openai/gpt-5'])
+
+/** Whether any message event in the fixture log carries image content (nesting included). */
+function logHasImage(log: readonly SessionEvent[]): boolean {
+  return log.some((event) => {
+    const data = event.data as { content?: ContentBlock[] }
+    return data.content !== undefined && contentHasImage(data.content)
+  })
 }
 
 function sid(id: string): SessionId {
@@ -2393,7 +2410,11 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
             : { reasoningEffort: request.payload.reasoningEffort },
         }
         modelSelections.set(request.payload.sessionId, selected)
-        return ok(request, { selected })
+        // Mirror the host: an admitted text-only target over an image-bearing
+        // log flags the degradation so the client can name it.
+        const degraded = !IMAGE_CAPABLE_MODELS.has(`${request.payload.provider}/${request.payload.model}`)
+          && logHasImage(logs.get(request.payload.sessionId) ?? [])
+        return ok(request, { selected, ...degraded ? { imagesDegraded: true } : {} })
       },
       prompt: (request) => {
         const { sessionId: id, mode, content } = request.payload

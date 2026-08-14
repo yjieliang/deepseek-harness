@@ -15,7 +15,7 @@ import type { WebBootEntry } from '@deepseek-ai/dsh-client-modules/client'
 import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 
 /** Boot entries for the minimal assembled graph, each carrying the workspace bundle it loads. */
-const PLUGINS: readonly (WebBootEntry & { bundlePath: string })[] = [
+export const ASSEMBLED_PLUGINS: readonly (WebBootEntry & { bundlePath: string })[] = [
   { id: '@deepseek-ai/dsh-typert-registry', bundlePath: 'packages/typert/registry/lib/client.js', url: '/plugins/typert-registry.js', rev: 'fx', inject: [], immediately: true },
   { id: '@deepseek-ai/dsh-client-connection', bundlePath: 'packages/client/connection/lib/client.js', url: '/plugins/connection.js', rev: 'fx', inject: [], immediately: true },
   { id: '@deepseek-ai/dsh-api-gateway', bundlePath: 'packages/api/gateway/lib/client.js', url: '/plugins/api-gateway.js', rev: 'fx', inject: ['@deepseek-ai/dsh-typert-registry', '@deepseek-ai/dsh-client-connection'], immediately: true },
@@ -46,11 +46,6 @@ const PLUGINS: readonly (WebBootEntry & { bundlePath: string })[] = [
   { id: '@deepseek-ai/dsh-session-log-export', bundlePath: 'packages/session-query/session-log-export/lib/client.js', url: '/plugins/session-log-download.js', rev: 'fx', inject: ['@deepseek-ai/dsh-client-ui-commands', '@deepseek-ai/dsh-client-ui-conversation'] },
   { id: '@deepseek-ai/dsh-client-ui-trajectory', bundlePath: 'packages/client/ui-trajectory/lib/client.js', url: '/plugins/ui-trajectory.js', rev: 'fx', inject: ['@deepseek-ai/dsh-client-ui-conversation'] },
 ]
-
-const bundles = new Map(PLUGINS.map(plugin => [
-  plugin.url,
-  readFileSync(join(process.cwd(), plugin.bundlePath), 'utf8'),
-]))
 
 interface FixtureWindow extends Window {
   __DSH_BOOT__?: { rev: string; entries: WebBootEntry[] }
@@ -111,13 +106,23 @@ export function installAssembledBootEnv(): void {
 /**
  * Mount the assembled application on the fixture transport; the teardown
  * registered by installAssembledBootEnv disposes it.
+ * @param plugins - boot entries to load; defaults to the minimal assembled
+ *   graph. A scenario needing more of the real composition (e.g. the model
+ *   seat's plugin chain) appends its rows here rather than widening the
+ *   shared minimal graph every snapshot pays for.
  */
-export function mountAssembledApp(): void {
+export function mountAssembledApp(
+  plugins: readonly (WebBootEntry & { bundlePath: string })[] = ASSEMBLED_PLUGINS,
+): void {
+  const bundles = new Map(plugins.map(plugin => [
+    plugin.url,
+    readFileSync(join(process.cwd(), plugin.bundlePath), 'utf8'),
+  ]))
   history.replaceState(null, '', '/?fixture')
   const root = document.createElement('div')
   root.id = 'root'
   document.body.appendChild(root)
-  win.__DSH_BOOT__ = { rev: 'fx', entries: PLUGINS.map(({ bundlePath: _bundlePath, ...plugin }) => plugin) }
+  win.__DSH_BOOT__ = { rev: 'fx', entries: plugins.map(({ bundlePath: _bundlePath, ...plugin }) => plugin) }
   act(() => {
     const entry = new AppWebEntry(root, {
       loadBundle: async (url) => {

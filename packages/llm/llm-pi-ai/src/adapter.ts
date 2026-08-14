@@ -34,6 +34,7 @@ import type {
 import {
   attributionHeaders,
   contentHasImage,
+  degradeImages,
   LlmAdapter,
   LlmError,
   ReasoningEffortId,
@@ -300,16 +301,20 @@ export class PiAiAdapter extends LlmAdapter {
 
     try {
       const containsImage = options.messages.some(message => contentHasImage(message.content))
-      if (containsImage && !model.input.includes('image')) {
-        throw new LlmError(`pi-ai model "${model.id}" does not support image input`, 'UNSUPPORTED_CONTENT')
-      }
-      const attachments = containsImage ? this.config.resolveAttachments?.() : undefined
-      if (containsImage && attachments === undefined) {
+      // A text-only route degrades history images to the shared placeholder
+      // instead of failing, so an image-bearing session can switch to it;
+      // an image-capable route still resolves the durable bytes.
+      const resolvesImages = containsImage && model.input.includes('image')
+      const request = containsImage && !resolvesImages
+        ? { ...options, messages: options.messages.map(message => ({ ...message, content: degradeImages(message.content) })) }
+        : options
+      const attachments = resolvesImages ? this.config.resolveAttachments?.() : undefined
+      if (resolvesImages && attachments === undefined) {
         throw new LlmError('pi-ai image input requires the durable attachment service', 'UNSUPPORTED_CONTENT')
       }
       const context = attachments === undefined
-        ? toPiContext(options)
-        : await toPiContext(options, attachments)
+        ? toPiContext(request)
+        : await toPiContext(request, attachments)
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },

@@ -128,6 +128,14 @@ function registerTextOnly(ctx: Context): void {
   }('Text Only', []))
 }
 
+function registerImageCapable(ctx: Context): void {
+  ctx.llm.registerAdapter(['image-capable'], new class extends CatalogAdapter {
+    override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+      return Promise.resolve({ provider, id: model, name: model, inputModalities: ['text', 'image'] })
+    }
+  }('Image Capable', []))
+}
+
 describe('Web session model selection', () => {
   it('validates an ordered image batch before persisting any member', async () => {
     const { ctx, agent, sessionId } = await harness()
@@ -196,9 +204,10 @@ describe('Web session model selection', () => {
     await ctx.fiber.dispose()
   })
 
-  it('refuses a text-only selection while durable or pending image content remains visible', async () => {
+  it('admits a text-only selection over image content and flags the degradation', async () => {
     const { ctx, agent, sessionId } = await harness()
     registerTextOnly(ctx)
+    registerImageCapable(ctx)
     const api = createApiProxy(ctx, {
       defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
       cwd: '/tmp',
@@ -207,13 +216,20 @@ describe('Web session model selection', () => {
       type: 'image' as const,
       attachment: { attachmentId: 'att-history', mediaType: 'image/png' as const, bytes: 1, width: 1, height: 1 },
     }
+    // A durable image in the log no longer blocks the switch; the response flags the loss.
     agent.session.append('user/message', {
       id: 'image-message', role: 'user', source: { kind: 'user' }, content: [image],
     } as never, { surfaceOp: 'append' })
-    expect((await api.sessions.selectModel(request({
+    expect(expectValue(await api.sessions.selectModel(request({
       sessionId, provider: 'text-only', model: 'plain',
-    }))).result).toMatchObject({ ok: false, error: { code: 'model-unavailable' } })
+    })))).toEqual({ selected: { provider: 'text-only', model: 'plain' }, imagesDegraded: true })
 
+    // An image-capable target over the same history carries no flag.
+    expect(expectValue(await api.sessions.selectModel(request({
+      sessionId, provider: 'image-capable', model: 'vision',
+    })))).toEqual({ selected: { provider: 'image-capable', model: 'vision' } })
+
+    // A pending (not yet durable) image flags the same way...
     agent.session.append('user/message', {
       id: 'summary', role: 'user', source: { kind: 'plugin', plugin: 'compact' },
       content: [{ type: 'text', text: 'image summarized' }],
@@ -224,13 +240,15 @@ describe('Web session model selection', () => {
     ;(agent.inbox.nextTurn as UserMessage[]).push({
       id: 'pending-image', role: 'user', source: { kind: 'user' }, content: [image],
     } as never)
-    expect((await api.sessions.selectModel(request({
+    expect(expectValue(await api.sessions.selectModel(request({
       sessionId, provider: 'text-only', model: 'plain',
-    }))).result.ok).toBe(false)
+    })))).toEqual({ selected: { provider: 'text-only', model: 'plain' }, imagesDegraded: true })
+
+    // ...and with no image anywhere the flag is absent.
     ;(agent.inbox.nextTurn as UserMessage[]).length = 0
     expect(expectValue(await api.sessions.selectModel(request({
       sessionId, provider: 'text-only', model: 'plain',
-    }))).selected).toEqual({ provider: 'text-only', model: 'plain' })
+    })))).toEqual({ selected: { provider: 'text-only', model: 'plain' } })
     await ctx.fiber.dispose()
   })
 

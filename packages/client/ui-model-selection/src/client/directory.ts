@@ -90,8 +90,10 @@ export class ModelDirectory {
    * updates the shared current; failure surfaces on the store and throws so
    * each entry's own retry surface engages.
    * @param selection - provider, provider-owned model id, and optional adapter-owned effort.
+   * @returns whether accepted session images degrade to placeholder text for
+   *   the selected text-only model, as the host flagged.
  */
-  async select(selection: ModelSelection): Promise<void> {
+  async select(selection: ModelSelection): Promise<{ imagesDegraded: boolean }> {
     this.assertAvailable()
     const generation = ++this.generation
     this.store.update((s) => { s.status = 'selecting'; s.error = null })
@@ -105,7 +107,7 @@ export class ModelDirectory {
     })
     if (this.disposed || generation !== this.generation) {
       if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
-      return
+      return { imagesDegraded: false }
     }
     if (!result.ok) {
       this.store.update((s) => { s.status = 'error'; s.error = `${result.error.code}: ${result.error.message}` })
@@ -119,6 +121,7 @@ export class ModelDirectory {
       s.status = 'ready'
       s.error = null
     })
+    return { imagesDegraded: result.value.imagesDegraded === true }
   }
 
   /**
