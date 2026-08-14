@@ -631,20 +631,39 @@ export class KbEngine {
   }
 
   /**
- * Serve one image's raw bytes with its MIME type; throws when absent or oversized.
- * @param rel - the library-relative image path
- * @param signal - abort signal for cooperative cancellation
- * @returns the bytes and MIME type
- */
+   * Serve one image's raw bytes with its MIME type; throws when absent or
+   * oversized. A document whose relative image reference no longer resolves
+   * (it moved, was restored into another directory, or is previewed from the
+   * trash) falls back to the image registry by basename.
+   * @param rel - the library-relative image path
+   * @param signal - abort signal for cooperative cancellation
+   * @returns the bytes and MIME type
+   */
   async image(rel: string, signal?: AbortSignal): Promise<{ bytes: Uint8Array; mime: string }> {
     await this.ensureInit(signal)
-    const target = await this.target(rel, signal)
-    const info = await this.fs.stat(target, signal)
-    if (info === undefined || info.type !== 'file') throw new Error(`kb: 图片不存在: ${rel}`)
-    const ext = (rel.split('.').pop() ?? '').toLowerCase()
+    const resolved = await this.imageTarget(rel, signal)
+    const ext = (resolved.split('.').pop() ?? '').toLowerCase()
     const mime = IMAGE_MIME[ext] ?? 'application/octet-stream'
-    const bytes = await this.fs.readBytes(target, signal, 20 * 1024 * 1024)
+    const bytes = await this.fs.readBytes(await this.target(resolved, signal), signal, 20 * 1024 * 1024)
     return { bytes, mime }
+  }
+
+  /** Resolve one image path, falling back to the registry by basename when the exact path is absent. */
+  private async imageTarget(rel: string, signal?: AbortSignal): Promise<string> {
+    const info = await this.fs.stat(await this.target(rel, signal), signal)
+    if (info !== undefined && info.type === 'file') return rel
+    const name = rel.split('/').pop() ?? ''
+    const index = await this.locate('_meta/images.json', signal)
+    const indexInfo = await this.fs.stat(index, signal)
+    if (name.length === 0 || indexInfo === undefined) throw new Error(`kb: 图片不存在: ${rel}`)
+    try {
+      const parsed = JSON.parse(await this.fs.readText(index, signal)) as { images?: Record<string, unknown> }
+      const hit = Object.keys(parsed.images ?? {}).find(path => (path.split('/').pop() ?? '') === name)
+      if (hit !== undefined) return hit
+    } catch {
+      // A malformed registry is not an image-loading failure beyond the 404 below.
+    }
+    throw new Error(`kb: 图片不存在: ${rel}`)
   }
 
   /** Whether one document matches the list filters. */

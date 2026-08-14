@@ -147,3 +147,28 @@ describe('KbEngine directory management', () => {
     await expect(engine.renameDir({ directory: '10-技术', name: '20-学习笔记' })).rejects.toThrow(/目标目录已存在/)
   })
 })
+
+describe('KbEngine image fallback', () => {
+  it('resolves a moved document image through the registry by basename', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    fs.seed('kb/10-技术/11-AI/diagram.png', 'png-bytes')
+    fs.seed('kb/_meta/images.json', JSON.stringify({
+      schemaVersion: 1,
+      images: { '10-技术/11-AI/diagram.png': {} },
+    }))
+    const engine = new KbEngine(fs, undefined)
+    // The document's new directory does not carry the image; the registry does.
+    const result = await engine.image('00-inbox/diagram.png')
+    expect(new TextDecoder().decode(result.bytes)).toBe('png-bytes')
+    expect(result.mime).toBe('image/png')
+  })
+
+  it('still fails an unknown image', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const engine = new KbEngine(ctx.fs, undefined)
+    await expect(engine.image('00-inbox/missing.png')).rejects.toThrow(/图片不存在/)
+  })
+})
