@@ -94,6 +94,10 @@
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
 
+    # Model-generated word explanations for the browser lookup overlay.
+    - id: lookup-llm
+      name: '@deepseek-ai/dsh-host-lookup-llm'
+
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
     - id: api-gateway
@@ -269,6 +273,11 @@
 
     - id: ui-user-questions
       name: '@deepseek-ai/dsh-client-ui-user-questions'
+
+    # Word lookup: select a word in the conversation for translation and noun
+    # introduction (dictionary sources plus the lookupLlm Remote explanation).
+    - id: ui-lookup
+      name: '@deepseek-ai/dsh-client-ui-lookup'
 
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'

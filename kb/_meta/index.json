@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 3,
+  "savedAt": "2026-08-14T09:20:42.169Z",
+  "docs": {
+    "00-inbox/2026-08-14-测试文档.md": {
+      "title": "测试文档",
+      "tags": [],
+      "aliases": [],
+      "summary": "",
+      "source": "",
+      "created": "2026-08-14",
+      "updated": "2026-08-14",
+      "status": "inbox",
+      "links": []
+    },
+    "10-技术/11-AI/2026-08-14-RAG-核心概念.md": {
+      "title": "RAG 核心概念",
+      "tags": [
+        "AI",
+        "RAG"
+      ],
+      "aliases": [],
+      "summary": "RAG 通过检索外部知识增强大模型回答，核心是检索+生成两阶段。",
+      "source": "",
+      "created": "2026-08-14",
+      "updated": "2026-08-14",
+      "status": "filed",
+      "links": [
+        "DESIGN.md"
+      ]
+    },
+    "DESIGN.md": {
+      "title": "知识库设计方案",
+      "tags": [
+        "知识库",
+        "设计",
+        "DSH"
+      ],
+      "aliases": [],
+      "summary": "个人知识库完整设计方案：收集/整理/检索闭环、存储规范、双链图片、安全防护与实施路线。",
+      "source": "",
+      "created": "2026-08-14",
+      "updated": "2026-08-14",
+      "status": "filed",
+      "links": []
+    },
+    "10-技术/2026-08-14-知识库实现总结（2026-08-14）.md": {
+      "title": "知识库实现总结（2026-08-14）",
+      "tags": [
+        "知识库",
+        "DSH",
+        "个人知识管理",
+        "总结"
+      ],
+      "aliases": [],
+      "summary": "在 DSH 上从方案到实现完成个人知识库：设计文档、14 个 Host 工具、GUI 面板、双链/图片/回收站/模板/剪藏、文件管理优化与常驻预设，含踩坑记录。",
+      "source": "",
+      "created": "2026-08-14",
+      "updated": "2026-08-14",
+      "status": "filed",
+      "links": []
+    }
+  }
+}
