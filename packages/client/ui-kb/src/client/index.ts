@@ -60,7 +60,7 @@ export function apply(ctx: ClientContext): void {
     dirs: () => call(signal => ctx.remote.kb.dirs({}, signal)).then(result => result.dirs),
     save: request => call(signal => ctx.remote.kb.saveDoc(request, signal)),
     create: request => call(signal => ctx.remote.kb.createDoc(request, signal)),
-    move: request => call(signal => ctx.remote.kb.moveDoc(request, signal)).then(() => undefined),
+    move: request => call(signal => ctx.remote.kb.moveDoc(request, signal)),
     remove: path => call(signal => ctx.remote.kb.deleteDoc({ path }, signal)).then(() => undefined),
     trash: () => call(signal => ctx.remote.kb.trash({}, signal)).then(result => result.docs),
     refresh: () => call(signal => ctx.remote.kb.refresh({}, signal)).then(() => undefined),

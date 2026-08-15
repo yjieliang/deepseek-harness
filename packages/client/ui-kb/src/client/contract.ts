@@ -6,7 +6,7 @@
 
 import type {
   KbCreateDirRequest, KbCreateRequest, KbCreateResult, KbDocSummary, KbGetResult, KbListRequest,
-  KbMoveRequest, KbRenameDirRequest, KbSaveRequest, KbSaveResult, KbStatsResult, KbTagCount,
+  KbMoveRequest, KbMoveResult, KbRenameDirRequest, KbSaveRequest, KbSaveResult, KbStatsResult, KbTagCount,
   KbTrashEntry,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
@@ -45,7 +45,7 @@ export interface KbInject {
   /** Create a dated document. */
   create: (request: KbCreateRequest) => Promise<KbCreateResult>
   /** Move a document into another directory. */
-  move: (request: KbMoveRequest) => Promise<void>
+  move: (request: KbMoveRequest) => Promise<KbMoveResult>
   /** Move a document into `.trash` (recoverable). */
   remove: (path: string) => Promise<void>
   /** List the recoverable trash. */

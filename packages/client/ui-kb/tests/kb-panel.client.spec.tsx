@@ -70,7 +70,10 @@ function makePanelProps() {
     dirs: vi.fn(async () => ['00-inbox', '10-技术', '90-归档']),
     save: vi.fn(async () => ({ path: 'x', conflict: false })),
     create: vi.fn(async () => ({ path: '00-inbox/2026-08-15-新.md' })),
-    move: vi.fn(async () => undefined),
+    move: vi.fn(async ({ path, targetDirectory }: { path: string; targetDirectory: string }) => ({
+      from: path,
+      to: `${targetDirectory}/${path.split('/').pop() ?? path}`,
+    })),
     remove: vi.fn(async () => undefined),
     trash: vi.fn(async () => []),
     refresh: vi.fn(async () => undefined),
@@ -99,8 +102,8 @@ describe('KbPanel three-column workspace', () => {
     renderPanel(panel)
 
     expect(await screen.findByText('收集箱')).toBeTruthy()
+    expect(screen.getByText('已归类')).toBeTruthy()
     expect(screen.getByText('已归档')).toBeTruthy()
-    expect(screen.getByText('已存档')).toBeTruthy()
     expect(screen.getByText(/10-技术/)).toBeTruthy()
     expect(screen.getByText('甲文档')).toBeTruthy()
     expect(screen.getByText('甲的摘要')).toBeTruthy()
@@ -186,7 +189,7 @@ describe('KbPanel three-column workspace', () => {
     // Wait for the document meta to load (its tag chips render from `meta`);
     // the tag appears both in the nav index and the reader metadata bar.
     await screen.findAllByText('#AI')
-    const tagInput = document.querySelector<HTMLInputElement>('input[placeholder="添加标签"]')
+    const tagInput = document.querySelector<HTMLInputElement>('input[placeholder="输入后回车"]')
     if (tagInput === null) throw new Error('tag input missing')
     const callsBefore = panel.tags.mock.calls.length
     fireEvent.change(tagInput, { target: { value: '新标签' } })
@@ -203,10 +206,11 @@ describe('KbPanel three-column workspace', () => {
 
     const input = await screen.findByPlaceholderText('搜索知识库…')
     fireEvent.change(input, { target: { value: '甲' } })
+    // The search input debounces RPC calls so the panel does not search on every keystroke.
     await waitFor(() => {
       expect(panel.search).toHaveBeenCalledWith('甲')
       expect(screen.getByText('共 2 条')).toBeTruthy()
-    })
+    }, { timeout: 1000 })
   })
 
   it('rebuilds the index and reloads every surface when the panel opens', async () => {

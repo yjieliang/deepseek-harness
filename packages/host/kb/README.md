@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 Knowledge-base host feature for the `kb/` workspace root. One `kb` Remote namespace over the Typert gateway serving the browser knowledge-base panel, plus the `/dsh-kb` image route for document images.
 
-The engine builds a lazy in-memory index of every `*.md` under `kb/` (2-gram inverted search over title/aliases/tags/summary/body), parses flat frontmatter, derives each document's status from its directory (`00-inbox/` or `01-inbox/` → inbox, the configured archive directory → archived, else filed), maintains `kb/_meta/index.json` after every mutation, and moves deletions into a recoverable `.trash`. Paths stay library-relative and are sandbox-checked through the `fs` service's `contains`.
+The engine builds a lazy in-memory index of every `*.md` under `kb/` (field-weighted BM25 search over title/aliases/tags/summary/body, with ranked partial-query hits and one-character typo tolerance), parses flat frontmatter, derives each document's status from its directory (`00-inbox/` or `01-inbox/` → inbox, the configured archive directory → archived, else filed), maintains `kb/_meta/index.json` after every mutation, and moves deletions into a recoverable `.trash`. Paths stay library-relative and are sandbox-checked through the `fs` service's `contains`.
 
 The model-facing `kb_*` TOOLS are deliberately NOT registered here: they belong to the per-session agent preset (`knowledge-base`), so agents opt into them per session while the panel and the image route stay process-global.
 

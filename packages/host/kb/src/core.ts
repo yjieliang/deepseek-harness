@@ -155,7 +155,9 @@ export class KbEngine {
   private ready = false
   private initPromise: Promise<void> | null = null
   private readonly docs = new Map<string, KbDoc>()
-  private readonly inverted = new Map<string, Set<string>>()
+  private readonly inverted = new Map<string, Map<string, number>>()
+  private readonly docLen = new Map<string, number>()
+  private totalLen = 0
   /** Configured archive directory; documents beneath it derive status `archived`. */
   private readonly archiveDir: string
 
@@ -244,6 +246,8 @@ export class KbEngine {
     await this.ensureInit(signal)
     this.docs.clear()
     this.inverted.clear()
+    this.docLen.clear()
+    this.totalLen = 0
     await this.scan('', signal, (rel, doc) => {
       this.docs.set(rel, doc)
       this.indexDoc(rel, doc)
@@ -291,7 +295,13 @@ export class KbEngine {
   }
 
   /**
- * 2-gram AND search over title/aliases/tags/summary/body.
+ * 2-gram BM25 search over title/aliases/tags/summary/body.
+ *
+ * The inverted index is per-document weighted term counts, so hits are scored
+ * by field-weighted BM25 instead of strict AND membership: a partial query
+ * still returns ranked hits (docs matching more query grams rank first), and
+ * a query gram with no exact postings falls back to single-character
+ * neighbors, tolerating one-character typos in either language.
  * @param query - the search terms
  * @param topK - the result cap
  * @param signal - abort signal for cooperative cancellation
@@ -304,24 +314,40 @@ export class KbEngine {
     const qgrams = [...grams(q)]
     // A one-character query has no 2-grams and matches nothing.
     if (qgrams.length === 0) return { hits: [], total: 0 }
-    let candidates: Set<string> | undefined
-    for (const gram of qgrams) {
-      const set = this.inverted.get(gram)
-      if (set === undefined) return { hits: [], total: 0 }
-      const next = candidates === undefined
-        ? new Set(set)
-        : new Set([...candidates].filter(candidate => set.has(candidate)))
-      if (next.size === 0) return { hits: [], total: 0 }
-      candidates = next
+    const n = this.docs.size
+    if (n === 0) return { hits: [], total: 0 }
+    const avgLen = this.totalLen / n
+    const scores = new Map<string, number>()
+    const accumulate = (gram: string, weight: number): void => {
+      const posts = this.inverted.get(gram)
+      if (posts === undefined) return
+      const idf = Math.log((n - posts.size + 0.5) / (posts.size + 0.5) + 1)
+      for (const [rel, tf] of posts) {
+        const len = this.docLen.get(rel) ?? avgLen
+        const norm = len === 0 ? 0 : (tf * (BM25_K1 + 1)) / (tf + BM25_K1 * (1 - BM25_B + BM25_B * len / avgLen))
+        scores.set(rel, (scores.get(rel) ?? 0) + weight * idf * norm)
+      }
     }
-    const hits: KbDocSummary[] = []
-    for (const rel of candidates ?? new Set<string>()) {
+    for (const gram of qgrams) accumulate(gram, 1)
+    // A query gram without exact postings tolerates one-character typos by
+    // scoring its single-character neighbors at a discount.
+    for (const gram of qgrams) {
+      if (this.inverted.has(gram)) continue
+      for (const key of this.inverted.keys()) {
+        if (nearGram(key, gram)) accumulate(key, FUZZY_GRAM_WEIGHT)
+      }
+    }
+    if (scores.size === 0) return { hits: [], total: 0 }
+    const scored: Array<KbDocSummary & { score: number }> = []
+    for (const [rel, score] of scores) {
       const doc = this.docs.get(rel)
       if (doc === undefined) continue
-      hits.push(summaryOf(rel, doc, this.archiveDir))
+      scored.push({ ...summaryOf(rel, doc, this.archiveDir), score })
     }
-    const sorted = sortDocs(hits)
-    return { hits: sorted.slice(0, topK), total: sorted.length }
+    scored.sort((a, b) =>
+      b.score - a.score || Number(b.pinned) - Number(a.pinned) || b.updated.localeCompare(a.updated))
+    const hits = scored.slice(0, topK).map(({ score: _score, ...rest }) => rest)
+    return { hits, total: scored.length }
   }
 
   /**
@@ -920,31 +946,80 @@ export class KbEngine {
   private dropIndexed(rel: string): void {
     const doc = this.docs.get(rel)
     if (doc === undefined) return
-    for (const gram of grams(haystackOf(doc))) {
-      const set = this.inverted.get(gram)
-      if (set !== undefined) set.delete(rel)
+    const { counts, len } = weightedIndexOf(doc)
+    for (const gram of counts.keys()) {
+      const posts = this.inverted.get(gram)
+      if (posts === undefined) continue
+      posts.delete(rel)
+      if (posts.size === 0) this.inverted.delete(gram)
+    }
+    if (this.docLen.has(rel)) {
+      this.totalLen -= len
+      this.docLen.delete(rel)
     }
   }
 
-  /** Add one document's grams to the inverted index. */
+  /** Add one document's weighted grams to the inverted index. */
   private indexDoc(rel: string, doc: KbDoc): void {
-    for (const gram of grams(haystackOf(doc))) {
-      let set = this.inverted.get(gram)
-      if (set === undefined) {
-        set = new Set()
-        this.inverted.set(gram, set)
+    const { counts, len } = weightedIndexOf(doc)
+    this.docLen.set(rel, len)
+    this.totalLen += len
+    for (const [gram, tf] of counts) {
+      let posts = this.inverted.get(gram)
+      if (posts === undefined) {
+        posts = new Map()
+        this.inverted.set(gram, posts)
       }
-      set.add(rel)
+      posts.set(rel, tf)
     }
   }
 }
 
-/** The searchable haystack of one document. */
-function haystackOf(doc: KbDoc): string {
-  return [
-    scalar(doc.meta.title), arrayOf(doc.meta.aliases).join(' '), arrayOf(doc.meta.tags).join(' '),
-    scalar(doc.meta.summary), doc.body,
-  ].join(' ')
+/** Field weights used by the search scorer: headings and metadata outrank the body. */
+const FIELD_WEIGHTS: ReadonlyArray<readonly [keyof SearchFields, number]> = [
+  ['title', 3], ['aliases', 2.5], ['tags', 2], ['summary', 1.5], ['body', 1],
+]
+
+/** BM25 saturation and length-normalization parameters. */
+const BM25_K1 = 1.5
+const BM25_B = 0.75
+
+/** Score discount applied to single-character-neighbor grams (typo tolerance). */
+const FUZZY_GRAM_WEIGHT = 0.6
+
+/** The field texts of one document, each searched with its own weight. */
+interface SearchFields {
+  title: string
+  aliases: string
+  tags: string
+  summary: string
+  body: string
+}
+
+/** Weighted 2-gram term frequencies and weighted length of one document. */
+function weightedIndexOf(doc: KbDoc): { counts: Map<string, number>; len: number } {
+  const counts = new Map<string, number>()
+  let len = 0
+  for (const [field, weight] of FIELD_WEIGHTS) {
+    const text = fieldsOf(doc)[field]
+    if (text.length === 0) continue
+    len += weight * text.length
+    for (const [gram, count] of gramCounts(text)) {
+      counts.set(gram, (counts.get(gram) ?? 0) + weight * count)
+    }
+  }
+  return { counts, len }
+}
+
+/** The searchable fields of one document. */
+function fieldsOf(doc: KbDoc): SearchFields {
+  return {
+    title: scalar(doc.meta.title),
+    aliases: arrayOf(doc.meta.aliases).join(' '),
+    tags: arrayOf(doc.meta.tags).join(' '),
+    summary: scalar(doc.meta.summary),
+    body: doc.body,
+  }
 }
 
 /** All 2-grams of a lowercase, whitespace-collapsed string. */
@@ -953,6 +1028,28 @@ function grams(text: string): Set<string> {
   const out = new Set<string>()
   for (let i = 0; i < clean.length - 1; i++) out.add(clean.slice(i, i + 2))
   return out
+}
+
+/** Counts of each 2-gram in a lowercase, whitespace-collapsed string. */
+function gramCounts(text: string): Map<string, number> {
+  const clean = text.toLowerCase().replace(/\s+/g, ' ')
+  const out = new Map<string, number>()
+  for (let i = 0; i < clean.length - 1; i++) {
+    const gram = clean.slice(i, i + 2)
+    out.set(gram, (out.get(gram) ?? 0) + 1)
+  }
+  return out
+}
+
+/** Whether two same-length 2-grams differ in exactly one character. */
+function nearGram(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) diff++
+    if (diff > 1) return false
+  }
+  return diff === 1
 }
 
 /** A string frontmatter value, or ''. */

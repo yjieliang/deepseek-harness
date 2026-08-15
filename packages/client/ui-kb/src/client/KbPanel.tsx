@@ -14,6 +14,22 @@ import type {
   KbDocSummary, KbStatsResult, KbStatusFilter, KbTagCount, KbTrashEntry,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconBrowseOutline16,
+  IconChevronRightOutline14,
+  IconCloseFill14,
+  IconCloseOutline16,
+  IconEditOutline16,
+  IconEllipsisOutline16,
+  IconFolderClose16,
+  IconFolderOpen16,
+  IconPlusOutline16,
+  IconRefreshOutline16,
+  IconSearchOutline16,
+  IconTrashOutline16,
+  IconTriangleRightFill14,
+  IconWarningOutline16,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { KbPanelProps } from './contract.ts'
 import { kbMarkdown } from './markdown.ts'
 import css from './KbPanel.module.css'
@@ -76,11 +92,7 @@ function tagsOf(meta: Record<string, unknown> | null): string[] {
   return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === 'string') : []
 }
 
-/** The status directories a document may move into. */
-interface StatusMove {
-  value: string
-  label: string
-}
+const SEARCH_DEBOUNCE_MS = 300
 
 /**
  * Render the knowledge-base panel.
@@ -121,7 +133,9 @@ export function KbPanel({
   const [dirEdit, setDirEdit] = useState<{ mode: 'create' | 'rename'; parent: string } | null>(null)
   const [dirEditValue, setDirEditValue] = useState('')
   const [lastError, setLastError] = useState<string | null>(null)
+  const [purgeConfirming, setPurgeConfirming] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement | null>(null)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const tree = useMemo(() => dirTreeOf(dirList), [dirList])
   const byStatus = statsInfo?.byStatus ?? { inbox: 0, filed: 0, archived: 0 }
@@ -137,7 +151,7 @@ export function KbPanel({
       void search(q).then((result) => {
         setDocs(result.hits)
         setSearchTotal(result.total)
-      }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+      }).catch((error: unknown) => { setLastError(messageOf(error)) })
       return
     }
     setSearchTotal(null)
@@ -145,7 +159,16 @@ export function KbPanel({
       ...st === 'all' ? {} : { status: st },
       ...directory === null ? {} : { directory },
       ...selectedTag === null ? {} : { tag: selectedTag },
-    }).then(setDocs).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+    }).then(setDocs).catch((error: unknown) => { setLastError(messageOf(error)) })
+  }
+
+  /** Schedule a list reload so rapid keystrokes do not flood the search RPC. */
+  const scheduleSearch = (q: string, st: KbStatusFilter, directory: string | null, selectedTag: string | null): void => {
+    if (searchTimer.current !== null) clearTimeout(searchTimer.current)
+    searchTimer.current = setTimeout(() => {
+      searchTimer.current = null
+      loadList(q, st, directory, selectedTag)
+    }, SEARCH_DEBOUNCE_MS)
   }
 
   /** Reload every read surface with the current query + filters. */
@@ -158,13 +181,16 @@ export function KbPanel({
 
   useEffect(() => {
     reloadAll()
+    return () => {
+      if (searchTimer.current !== null) clearTimeout(searchTimer.current)
+    }
     // Inject callbacks are stable per registration; run once per mount.
   }, [])
 
   /** Rebuild the engine index and reload whenever the panel opens, so external changes appear. */
   useEffect(() => {
     if (!state.open) return
-    void refresh().then(reloadAll).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+    void refresh().then(reloadAll).catch((error: unknown) => { setLastError(messageOf(error)) })
     // Re-run on every open; the closure carries the latest filters.
   }, [state.open])
 
@@ -192,7 +218,7 @@ export function KbPanel({
       setMeta(result.meta)
       setBacklinks(result.backlinks)
       setDraft(result.content)
-    }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+    }).catch((error: unknown) => { setLastError(messageOf(error)) })
   }
 
   /** Persist the draft and leave the editor. */
@@ -202,17 +228,21 @@ export function KbPanel({
       setContent(draft)
       setEditing(false)
       loadList(query, status, dir, tag)
-    }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+    }).catch((error: unknown) => { setLastError(messageOf(error)) })
   }
 
-  /** Move the selected document into another directory and refresh its view. */
+  /** Move the selected document into another directory and keep the view on it. */
   const moveSelected = (targetDirectory: string): void => {
     if (selected === null) return
-    void move({ path: selected, targetDirectory }).then(() => {
-      loadList(query, status, dir, tag)
+    void move({ path: selected, targetDirectory }).then((result) => {
+      setSelected(result.to)
+      setStatus('all')
+      setDir(targetDirectory)
+      setTag(null)
+      loadList(query, 'all', targetDirectory, null)
       refreshAux()
-      void get(selected).then((result) =>{  setMeta(result.meta) }).catch(() => {})
-    }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+      void get(result.to).then((r) => { setMeta(r.meta) }).catch(() => {})
+    }).catch((error: unknown) => { setLastError(messageOf(error)) })
   }
 
   /** Refresh the navigation-side indexes (tags, status counts) after a mutation. */
@@ -227,8 +257,8 @@ export function KbPanel({
     void save({ path: selected, tags: next }).then(() => {
       loadList(query, status, dir, tag)
       refreshAux()
-      void get(selected).then((result) =>{  setMeta(result.meta) }).catch(() => {})
-    }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+      void get(selected).then((result) => { setMeta(result.meta) }).catch(() => {})
+    }).catch((error: unknown) => { setLastError(messageOf(error)) })
   }
 
   /** Delete the selected document into the trash. */
@@ -238,7 +268,7 @@ export function KbPanel({
       setSelected(null)
       loadList(query, status, dir, tag)
       refreshAux()
-    }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+    }).catch((error: unknown) => { setLastError(messageOf(error)) })
   }
 
   /** Switch the list scope, clearing competing axes. */
@@ -262,14 +292,6 @@ export function KbPanel({
   }
 
   if (!state.open) return null
-
-  const statusMoves: StatusMove[] = [
-    { value: '00-inbox', label: t('nav.inbox') },
-    ...selected !== null && dirOf(selected) !== '' && dirOf(selected) !== '00-inbox'
-      ? [{ value: dirOf(selected), label: `${t('nav.filed')} · ${dirOf(selected)}` }]
-      : [],
-    { value: archiveDir, label: t('nav.archived') },
-  ]
 
   const STATUS_LABELS: Record<'inbox' | 'filed' | 'archived', string> = {
     inbox: t('nav.inbox'),
@@ -317,37 +339,71 @@ export function KbPanel({
 
   return (
     <div className={css.overlay} onClick={close} onKeyDown={onKeyDown}>
-      <div className={css.panel} onClick={(event) =>{  event.stopPropagation() }}>
+      <div className={css.panel} onClick={(event) => { event.stopPropagation() }}>
         <div className={css.header}>
-          <span className={css.title}>📚 {t('panel.title')}</span>
+          <span className={css.title}>{t('panel.title')}</span>
           <div className={css.searchWrap}>
+            <span className={css.searchIcon}>
+              <IconSearchOutline16 size={14} />
+            </span>
             <input
               ref={searchRef}
               className={css.search}
               placeholder={t('panel.searchPlaceholder')}
               value={query}
               onChange={(event) => {
-                setQuery(event.target.value)
-                loadList(event.target.value, status, dir, tag)
+                const next = event.target.value
+                setQuery(next)
+                scheduleSearch(next, status, dir, tag)
               }}
             />
             {searchTotal !== null && (
               <span className={css.searchTotal}>{t('search.total', { count: searchTotal })}</span>
             )}
+            {query.length === 0 && (
+              <span className={css.searchHint}>
+                <kbd className={css.kbd}>{t('panel.searchShortcut')}</kbd>
+              </span>
+            )}
+            {query.length > 0 && (
+              <button
+                type="button"
+                className={css.searchClear}
+                aria-label={t('panel.clearSearch')}
+                onClick={() => {
+                  setQuery('')
+                  loadList('', status, dir, tag)
+                  searchRef.current?.focus()
+                }}
+              >
+                <IconCloseFill14 size={12} />
+              </button>
+            )}
           </div>
-          <button type="button" className={css.primaryBtn} onClick={() =>{  setCreateOpen(!createOpen) }}>
-            ＋ {t('panel.new')}
+          <button type="button" className={css.primaryBtn} onClick={() => { setCreateOpen(!createOpen) }}>
+            <IconPlusOutline16 size={14} />
+            {t('panel.new')}
           </button>
           <button
             type="button"
-            className={css.closeBtn}
+            className={css.iconBtn}
             aria-label={t('panel.refresh')}
             title={t('panel.refresh')}
             onClick={() => {
-              void refresh().then(reloadAll).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+              void refresh().then(reloadAll).catch((error: unknown) => { setLastError(messageOf(error)) })
             }}
-          >↻</button>
-          <button type="button" className={css.closeBtn} aria-label={t('panel.close')} onClick={close}>✕</button>
+          >
+            <IconRefreshOutline16 size={14} />
+          </button>
+          <button
+            type="button"
+            className={css.iconBtn}
+            aria-label={t('panel.close')}
+            title={t('panel.close')}
+            onClick={close}
+          >
+            <IconCloseOutline16 size={14} />
+          </button>
         </div>
 
         {createOpen && (
@@ -356,7 +412,7 @@ export function KbPanel({
               className={css.createTitle}
               placeholder={t('create.title')}
               value={newTitle}
-              onChange={(event) =>{  setNewTitle(event.target.value) }}
+              onChange={(event) => { setNewTitle(event.target.value) }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && newTitle.trim().length > 0) {
                   void create({ title: newTitle.trim(), directory: newDir }).then((result) => {
@@ -365,11 +421,11 @@ export function KbPanel({
                     loadList(query, status, dir, tag)
                     refreshAux()
                     openDocument(result.path)
-                  }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+                  }).catch((error: unknown) => { setLastError(messageOf(error)) })
                 }
               }}
             />
-            <select className={css.createDir} value={newDir} onChange={(event) =>{  setNewDir(event.target.value) }}>
+            <select className={css.createDir} value={newDir} onChange={(event) => { setNewDir(event.target.value) }}>
               {dirList.map(entry => <option key={entry} value={entry}>{entry}</option>)}
             </select>
             <button
@@ -383,19 +439,24 @@ export function KbPanel({
                   loadList(query, status, dir, tag)
                   refreshAux()
                   openDocument(result.path)
-                }).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+                }).catch((error: unknown) => { setLastError(messageOf(error)) })
               }}
             >
               {t('create.create')}
             </button>
-            <button type="button" className={css.ghostBtn} onClick={() =>{  setCreateOpen(false) }}>
+            <button type="button" className={css.ghostBtn} onClick={() => { setCreateOpen(false) }}>
               {t('create.cancel')}
             </button>
           </div>
         )}
 
         {lastError !== null && (
-          <div className={css.errorBar} role="alert">⚠ {lastError}</div>
+          <div className={css.errorBar} role="alert">
+            <span className={css.errorIcon}>
+              <IconWarningOutline16 size={14} />
+            </span>
+            {t('error.action', { message: lastError })}
+          </div>
         )}
 
         <div className={css.body}>
@@ -440,14 +501,14 @@ export function KbPanel({
                     setDirEditValue('')
                     void createDir({ directory: parent === '' ? name : `${parent}/${name}` })
                       .then(() => dirs()).then(setDirList)
-                      .catch((error: unknown) =>{  setLastError(messageOf(error)) })
+                      .catch((error: unknown) => { setLastError(messageOf(error)) })
                   }}
                   onRename={(path, name) => {
                     setDirEdit(null)
                     setDirEditValue('')
                     void renameDir({ directory: path, name })
                       .then(() => { void dirs().then(setDirList); loadList(query, status, dir, tag) })
-                      .catch((error: unknown) =>{  setLastError(messageOf(error)) })
+                      .catch((error: unknown) => { setLastError(messageOf(error)) })
                   }}
                 />
               ))}
@@ -472,7 +533,7 @@ export function KbPanel({
                     <button
                       type="button"
                       className={css.navLink}
-                      onClick={() =>{  setAllTags(!allTags) }}
+                      onClick={() => { setAllTags(!allTags) }}
                     >
                       {allTags ? '− ' : '＋ '}{t('nav.allTags')}
                     </button>
@@ -489,10 +550,13 @@ export function KbPanel({
                   setShowTrash(!showTrash)
                   setSelected(null)
                   setTrashSelected(null)
-                  if (!showTrash) void trash().then(setTrashDocs).catch((error: unknown) =>{  setLastError(messageOf(error)) })
+                  if (!showTrash) void trash().then(setTrashDocs).catch((error: unknown) => { setLastError(messageOf(error)) })
                 }}
               >
-                <span className={css.navLabel}>🗑 {t('nav.trash')}</span>
+                <span className={css.navLabel}>
+                  <IconTrashOutline16 size={14} className={css.treeIcon} />
+                  {t('nav.trash')}
+                </span>
               </button>
             </div>
           </nav>
@@ -500,12 +564,19 @@ export function KbPanel({
           <section className={css.list}>
             {showTrash ? (
               trashDocs.length === 0
-                ? <div className={css.empty}>{t('trash.empty')}</div>
+                ? (
+                  <div className={css.empty}>
+                    <span className={css.emptyIcon}>
+                      <IconTrashOutline16 size={32} />
+                    </span>
+                    {t('trash.empty')}
+                  </div>
+                )
                 : trashDocs.map(entry => (
                   <div
                     key={entry.path}
                     className={trashSelected === entry.path ? css.itemActive : css.item}
-                    onClick={() =>{  setTrashSelected(entry.path) }}
+                    onClick={() => { setTrashSelected(entry.path) }}
                   >
                     <div className={css.itemTitle}>{entry.title || entry.name}</div>
                     <div className={css.itemMeta}>{entry.name}</div>
@@ -514,7 +585,10 @@ export function KbPanel({
             ) : docs.length === 0
               ? (
                 <div className={css.empty}>
-                  {filtered ? t('list.emptyFiltered') : t('panel.empty')}
+                  <span className={css.emptyIcon}>
+                    <IconBrowseOutline16 size={32} />
+                  </span>
+                  <span>{filtered ? t('list.emptyFiltered') : t('panel.empty')}</span>
                   {filtered && (
                     <button
                       type="button"
@@ -522,6 +596,16 @@ export function KbPanel({
                       onClick={() => { setStatus('all'); setDir(null); setTag(null); loadList(query, 'all', null, null) }}
                     >
                       {t('list.clearFilter')}
+                    </button>
+                  )}
+                  {!filtered && (
+                    <button
+                      type="button"
+                      className={`${css.primaryBtn} ${css.emptyAction}`}
+                      onClick={() => { setCreateOpen(true) }}
+                    >
+                      <IconPlusOutline16 size={14} />
+                      {t('panel.new')}
                     </button>
                   )}
                 </div>
@@ -536,28 +620,28 @@ export function KbPanel({
                           key={doc.path}
                           doc={doc}
                           active={selected === doc.path}
-                          open={() =>{  openDocument(doc.path) }}
+                          open={() => { openDocument(doc.path) }}
                           menuFor={menuFor}
                           moveFor={moveFor}
                           dirList={dirList}
                           t={t}
                           onMenu={(path) => { setMenuFor(menuFor === path ? null : path); setMoveFor(null) }}
                           onPin={path => void save({ path, pinned: !(docs.find(doc => doc.path === path)?.pinned ?? false) })
-                            .then(() =>{  loadList(query, status, dir, tag) })
-                            .catch((error: unknown) =>{  setLastError(messageOf(error)) })}
+                            .then(() => { loadList(query, status, dir, tag) })
+                            .catch((error: unknown) => { setLastError(messageOf(error)) })}
                           onMovePick={(path) => { setMoveFor(moveFor === path ? null : path) }}
                           onMoveTo={(path, targetDirectory) => {
                             setMoveFor(null)
                             setMenuFor(null)
-                            void move({ path, targetDirectory }).then(() =>{  loadList(query, status, dir, tag); refreshAux() })
-                              .catch((error: unknown) =>{  setLastError(messageOf(error)) })
+                            void move({ path, targetDirectory }).then(() => { loadList(query, status, dir, tag); refreshAux() })
+                              .catch((error: unknown) => { setLastError(messageOf(error)) })
                           }}
                           onDelete={path => void remove(path).then(() => {
                             setMenuFor(null)
                             if (selected === path) setSelected(null)
                             loadList(query, status, dir, tag)
                             refreshAux()
-                          }).catch((error: unknown) =>{  setLastError(messageOf(error)) })}
+                          }).catch((error: unknown) => { setLastError(messageOf(error)) })}
                         />
                       ))}
                     </div>
@@ -570,28 +654,28 @@ export function KbPanel({
                           key={doc.path}
                           doc={doc}
                           active={selected === doc.path}
-                          open={() =>{  openDocument(doc.path) }}
+                          open={() => { openDocument(doc.path) }}
                           menuFor={menuFor}
                           moveFor={moveFor}
                           dirList={dirList}
                           t={t}
                           onMenu={(path) => { setMenuFor(menuFor === path ? null : path); setMoveFor(null) }}
                           onPin={path => void save({ path, pinned: !(docs.find(doc => doc.path === path)?.pinned ?? false) })
-                            .then(() =>{  loadList(query, status, dir, tag) })
-                            .catch((error: unknown) =>{  setLastError(messageOf(error)) })}
+                            .then(() => { loadList(query, status, dir, tag) })
+                            .catch((error: unknown) => { setLastError(messageOf(error)) })}
                           onMovePick={(path) => { setMoveFor(moveFor === path ? null : path) }}
                           onMoveTo={(path, targetDirectory) => {
                             setMoveFor(null)
                             setMenuFor(null)
-                            void move({ path, targetDirectory }).then(() =>{  loadList(query, status, dir, tag); refreshAux() })
-                              .catch((error: unknown) =>{  setLastError(messageOf(error)) })
+                            void move({ path, targetDirectory }).then(() => { loadList(query, status, dir, tag); refreshAux() })
+                              .catch((error: unknown) => { setLastError(messageOf(error)) })
                           }}
                           onDelete={path => void remove(path).then(() => {
                             setMenuFor(null)
                             if (selected === path) setSelected(null)
                             loadList(query, status, dir, tag)
                             refreshAux()
-                          }).catch((error: unknown) =>{  setLastError(messageOf(error)) })}
+                          }).catch((error: unknown) => { setLastError(messageOf(error)) })}
                         />
                       ))}
                     </div>
@@ -605,111 +689,140 @@ export function KbPanel({
               trashEntry === null
                 ? (
                   <div className={css.emptyView}>
+                    <span className={css.emptyIcon}>
+                      <IconTrashOutline16 size={32} />
+                    </span>
                     {t('trash.hint')}
                   </div>
                 )
                 : (
-                  <>
-                    <div className={css.toolbar}>
-                      <button
-                        type="button"
-                        className={css.primaryBtn}
-                        onClick={() => void restore(trashEntry.path)
-                          .then(() => trash())
-                          .then((next) => { setTrashDocs(next); setTrashSelected(null); refreshAux() })
-                          .catch((error: unknown) =>{  setLastError(messageOf(error)) })}
-                      >
-                        {t('trash.restore')}
-                      </button>
-                      <button
-                        type="button"
-                        className={css.ghostBtn}
-                        onClick={() => {
-                          if (window.confirm(t('trash.purgeConfirm'))) {
-                            void purge(trashEntry.path)
+                  <article className={css.trashView}>
+                    {purgeConfirming === trashEntry.path
+                      ? (
+                        <div className={css.confirmBar}>
+                          <span className={css.confirmHint}>{t('trash.purgeConfirm')}</span>
+                          <button
+                            type="button"
+                            className={css.ghostBtn}
+                            onClick={() => { setPurgeConfirming(null) }}
+                          >
+                            {t('menu.cancel')}
+                          </button>
+                          <button
+                            type="button"
+                            className={css.dangerBtn}
+                            onClick={() => {
+                              void purge(trashEntry.path)
+                                .then(() => trash())
+                                .then((next) => { setTrashDocs(next); setTrashSelected(null); setPurgeConfirming(null); refreshAux() })
+                                .catch((error: unknown) => { setLastError(messageOf(error)) })
+                            }}
+                          >
+                            <IconTrashOutline16 size={14} />
+                            {t('trash.purge')}
+                          </button>
+                        </div>
+                      )
+                      : (
+                        <div className={css.toolbar}>
+                          <button
+                            type="button"
+                            className={css.primaryBtn}
+                            onClick={() => void restore(trashEntry.path)
                               .then(() => trash())
                               .then((next) => { setTrashDocs(next); setTrashSelected(null); refreshAux() })
-                              .catch((error: unknown) =>{  setLastError(messageOf(error)) })
-                          }
-                        }}
-                      >
-                        {t('trash.purge')}
-                      </button>
-                    </div>
-                    <h1 className={css.docTitle}>{trashEntry.title || trashEntry.name}</h1>
-                    <div className={css.content}>
-                      {/* Trash previews render the body as-is; relative image
-                        references resolve against the library root and may 404. */}
-                      <MarkdownText text={kbMarkdown(trashEntry.body, '', assetUrl)} />
-                    </div>
-                  </>
-                )
-            ) : selected === null
-              ? <div className={css.emptyView}>{t('panel.emptyView')}</div>
-              : (
-                <>
-                  <div className={css.crumbs}>
-                    {dirOf(selected) !== '' && (
-                      <button
-                        type="button"
-                        className={css.crumb}
-                        onClick={() =>{  pickDir(dirOf(selected)) }}
-                      >
-                        {dirOf(selected)}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className={css.crumb}
-                      onClick={() => { setShowTrash(false); pickStatus('all') }}
-                    >
-                      {t('panel.back')}
-                    </button>
-                  </div>
-                  <div className={css.toolbar}>
-                    {editing
-                      ? (
-                        <>
-                          <button type="button" className={css.primaryBtn} onClick={saveCurrent}>
-                            {t('view.save')}
+                              .catch((error: unknown) => { setLastError(messageOf(error)) })}
+                          >
+                            {t('trash.restore')}
                           </button>
                           <button
                             type="button"
                             className={css.ghostBtn}
-                            onClick={() => { setEditing(false); setDraft(content) }}
+                            onClick={() => { setPurgeConfirming(trashEntry.path) }}
                           >
-                            {t('view.cancelEdit')}
+                            {t('trash.purge')}
                           </button>
-                          <span className={css.editHint}>{t('view.editing')}</span>
-                        </>
-                      )
-                      : (
-                        <>
-                          <button type="button" className={css.primaryBtn} onClick={() =>{  setEditing(true) }}>
-                            {t('view.edit')}
-                          </button>
-                          <button type="button" className={css.ghostBtn} onClick={deleteSelected}>
-                            {t('view.delete')}
-                          </button>
-                        </>
+                        </div>
                       )}
+                    <h1 className={css.docTitle}>{trashEntry.title || trashEntry.name}</h1>
+                    <div className={css.trashBody}>
+                      {/* Trash previews render the body as-is; relative image
+                        references resolve against the library root and may 404. */}
+                      <MarkdownText text={kbMarkdown(trashEntry.body, '', assetUrl)} />
+                    </div>
+                  </article>
+                )
+            ) : selected === null
+              ? (
+                <div className={css.emptyView}>
+                  <span className={css.emptyIcon}>
+                    <IconBrowseOutline16 size={32} />
+                  </span>
+                  {t('panel.emptyView')}
+                </div>
+              )
+              : (
+                <article className={css.article}>
+                  <div className={css.viewHeader}>
+                    <div className={css.crumbs}>
+                      {dirOf(selected) !== '' && (
+                        <button
+                          type="button"
+                          className={css.crumb}
+                          onClick={() => { pickDir(dirOf(selected)) }}
+                        >
+                          {dirOf(selected)}
+                        </button>
+                      )}
+                      {dirOf(selected) !== '' && (
+                        <span className={css.crumbSep}>
+                          <IconChevronRightOutline14 size={12} />
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className={css.crumb}
+                        onClick={() => { setShowTrash(false); pickStatus('all') }}
+                      >
+                        {t('panel.back')}
+                      </button>
+                    </div>
+                    <div className={css.toolbar}>
+                      {editing
+                        ? (
+                          <>
+                            <button type="button" className={css.primaryBtn} onClick={saveCurrent}>
+                              {t('view.save')}
+                            </button>
+                            <button
+                              type="button"
+                              className={css.ghostBtn}
+                              onClick={() => { setEditing(false); setDraft(content) }}
+                            >
+                              {t('view.cancelEdit')}
+                            </button>
+                            <span className={css.editHint}>{t('view.editing')}</span>
+                          </>
+                        )
+                        : (
+                          <>
+                            <button type="button" className={css.primaryBtn} onClick={() => { setEditing(true) }}>
+                              <IconEditOutline16 size={14} />
+                              {t('view.edit')}
+                            </button>
+                            <button type="button" className={css.ghostBtn} onClick={deleteSelected}>
+                              <IconTrashOutline16 size={14} />
+                              {t('view.delete')}
+                            </button>
+                          </>
+                        )}
+                    </div>
                   </div>
                   <h1 className={css.docTitle}>{docs.find(doc => doc.path === selected)?.title ?? selected}</h1>
                   <div className={css.metaBar}>
                     <label className={css.metaField}>
-                      <span>{t('view.status')}</span>
-                      <select
-                        value={dirOf(selected) === '00-inbox' ? '00-inbox' : dirOf(selected) === archiveDir ? archiveDir : dirOf(selected)}
-                        onChange={(event) =>{  moveSelected(event.target.value) }}
-                      >
-                        {statusMoves.map(entry => (
-                          <option key={entry.value} value={entry.value}>{entry.label}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className={css.metaField}>
-                      <span>{t('view.directory')}</span>
-                      <select value={dirOf(selected)} onChange={(event) =>{  moveSelected(event.target.value) }}>
+                      <span>{t('view.moveTo')}</span>
+                      <select value={dirOf(selected)} onChange={(event) => { moveSelected(event.target.value) }}>
                         {dirList.map(entry => <option key={entry} value={entry}>{entry}</option>)}
                       </select>
                     </label>
@@ -721,17 +834,18 @@ export function KbPanel({
                             key={name}
                             type="button"
                             className={css.tagChip}
-                            onClick={() =>{  saveTags(tagsOf(meta).filter(tagName => tagName !== name)) }}
+                            onClick={() => { saveTags(tagsOf(meta).filter(tagName => tagName !== name)) }}
                             title={name}
                           >
-                            #{name} ×
+                            #{name}
+                            <IconCloseFill14 size={10} />
                           </button>
                         ))}
                         <input
                           className={css.tagInput}
-                          placeholder={t('view.addTag')}
+                          placeholder={t('view.tagPlaceholder')}
                           value={tagDraft}
-                          onChange={(event) =>{  setTagDraft(event.target.value) }}
+                          onChange={(event) => { setTagDraft(event.target.value) }}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' && tagDraft.trim().length > 0) {
                               const next = [...tagsOf(meta), tagDraft.trim()]
@@ -749,7 +863,7 @@ export function KbPanel({
                         <textarea
                           className={css.textarea}
                           value={draft}
-                          onChange={(event) =>{  setDraft(event.target.value) }}
+                          onChange={(event) => { setDraft(event.target.value) }}
                           onKeyDown={(event) => {
                             if ((event.ctrlKey || event.metaKey) && event.key === 's') {
                               event.preventDefault()
@@ -775,14 +889,15 @@ export function KbPanel({
                           key={path}
                           type="button"
                           className={css.backlink}
-                          onClick={() =>{  openDocument(path) }}
+                          onClick={() => { openDocument(path) }}
                         >
-                          ▸ {path}
+                          <IconChevronRightOutline14 size={10} />
+                          {path}
                         </button>
                       ))}
                     </div>
                   )}
-                </>
+                </article>
               )}
           </section>
         </div>
@@ -819,7 +934,7 @@ function DirRow({
       <div
         className={active ? css.treeItemActive : css.treeItem}
         style={{ paddingLeft: 8 + depth * 14 }}
-        onClick={() =>{  onPick(node.path) }}
+        onClick={() => { onPick(node.path) }}
       >
         {hasChildren && (
           <button
@@ -828,10 +943,15 @@ function DirRow({
             aria-label={isCollapsed ? 'expand' : 'collapse'}
             onClick={(event) => { event.stopPropagation(); onToggle(node.path) }}
           >
-            {isCollapsed ? '▸' : '▾'}
+            <IconTriangleRightFill14 size={10} className={isCollapsed ? undefined : css.treeToggleExpanded} />
           </button>
         )}
-        <span className={css.treeName}>{hasChildren ? (isCollapsed ? '📁' : '📂') : '📄'} {node.name}</span>
+        <span className={css.treeIcon}>
+          {hasChildren
+            ? (isCollapsed ? <IconFolderClose16 size={14} /> : <IconFolderOpen16 size={14} />)
+            : <IconFolderClose16 size={14} />}
+        </span>
+        <span className={css.treeName}>{node.name}</span>
         {editable && (
           <span className={css.treeActions}>
             {editing && dirEdit.mode === 'rename' && (
@@ -839,8 +959,8 @@ function DirRow({
                 className={css.treeInput}
                 autoFocus
                 defaultValue={node.name}
-                onClick={(event) =>{  event.stopPropagation() }}
-                onChange={(event) =>{  onDirEditValue(event.target.value) }}
+                onClick={(event) => { event.stopPropagation() }}
+                onChange={(event) => { onDirEditValue(event.target.value) }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && dirEditValue.trim().length > 0) {
                     onRename(node.path, dirEditValue.trim())
@@ -863,7 +983,7 @@ function DirRow({
                 }
               }}
             >
-              ✎
+              <IconEditOutline16 size={12} />
             </button>
             <button
               type="button"
@@ -878,7 +998,7 @@ function DirRow({
                 }
               }}
             >
-              ＋
+              <IconPlusOutline16 size={12} />
             </button>
           </span>
         )}
@@ -890,7 +1010,7 @@ function DirRow({
           autoFocus
           placeholder="目录名"
           value={dirEditValue}
-          onChange={(event) =>{  onDirEditValue(event.target.value) }}
+          onChange={(event) => { onDirEditValue(event.target.value) }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && dirEditValue.trim().length > 0) {
               onCreateDir(node.path, dirEditValue.trim())
@@ -953,7 +1073,7 @@ function DocCard({
           aria-label="⋯"
           onClick={(event) => { event.stopPropagation(); onMenu(doc.path) }}
         >
-          ⋯
+          <IconEllipsisOutline16 size={14} />
         </button>
       </div>
       {doc.summary.length > 0 && <div className={css.itemSummary}>{doc.summary}</div>}
@@ -962,13 +1082,13 @@ function DocCard({
         {doc.updated.length > 0 && <span className={css.itemDate}>{doc.updated}</span>}
       </div>
       {menuFor === doc.path && (
-        <div className={css.menu} data-kb-menu="" onClick={(event) =>{  event.stopPropagation() }}>
+        <div className={css.menu} data-kb-menu="" onClick={(event) => { event.stopPropagation() }}>
           {!moveFor && (
-            <button type="button" className={css.menuItem} onClick={() =>{  onPin(doc.path) }}>
+            <button type="button" className={css.menuItem} onClick={() => { onPin(doc.path) }}>
               {doc.pinned ? t('menu.unpin') : t('menu.pin')}
             </button>
           )}
-          <button type="button" className={css.menuItem} onClick={() =>{  onMovePick(doc.path) }}>
+          <button type="button" className={css.menuItem} onClick={() => { onMovePick(doc.path) }}>
             {t('menu.move')}
           </button>
           {moveFor === doc.path && (
@@ -988,7 +1108,7 @@ function DocCard({
             </div>
           )}
           {!moveFor && (
-            <button type="button" className={css.menuItemDanger} onClick={() =>{  onDelete(doc.path) }}>
+            <button type="button" className={css.menuItemDanger} onClick={() => { onDelete(doc.path) }}>
               {t('menu.delete')}
             </button>
           )}

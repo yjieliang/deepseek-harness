@@ -342,3 +342,55 @@ describe('KbEngine refresh', () => {
     expect(index.docs['00-inbox/2026-08-15-外部.md']).toBeDefined()
   })
 })
+
+describe('KbEngine search ranking', () => {
+  /** Seed one library from path → markdown text and load the engine. */
+  async function bench(files: Record<string, string>): Promise<KbEngine> {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    for (const [path, text] of Object.entries(files)) fs.seed('kb/' + path, text)
+    const engine = new KbEngine(fs, undefined)
+    await engine.ensureInit()
+    return engine
+  }
+
+  it('ranks title matches above body-only matches', async () => {
+    const engine = await bench({
+      '10-技术/2026-08-10-title.md': '---\ntitle: 检索增强\nupdated: 2026-08-10\n---\n\n正文\n',
+      '20-学习笔记/2026-08-12-body.md': '---\ntitle: 笔记\nupdated: 2026-08-12\n---\n\n正文里提到检索相关概念\n',
+    })
+    const { hits } = await engine.search('检索', 10)
+    expect(hits.map(hit => hit.path)).toEqual(['10-技术/2026-08-10-title.md', '20-学习笔记/2026-08-12-body.md'])
+  })
+
+  it('returns ranked hits for a partial multi-term query instead of an empty AND result', async () => {
+    const engine = await bench({
+      '10-技术/2026-08-10-ai.md': '---\ntitle: 人工智能\nupdated: 2026-08-10\n---\n\n正文\n',
+      '20-学习笔记/2026-08-12-data.md': '---\ntitle: 数据处理\nupdated: 2026-08-12\n---\n\n正文\n',
+    })
+    const { hits, total } = await engine.search('人工数据', 10)
+    expect(total).toBe(2)
+    expect(hits.map(hit => hit.path).sort()).toEqual([
+      '10-技术/2026-08-10-ai.md', '20-学习笔记/2026-08-12-data.md',
+    ])
+  })
+
+  it('tolerates one-character typos through neighbor grams', async () => {
+    const engine = await bench({
+      '10-技术/2026-08-10-tech.md': '---\ntitle: 技术要点\nupdated: 2026-08-10\n---\n\n正文\n',
+    })
+    const { hits, total } = await engine.search('技束要点', 10)
+    expect(total).toBe(1)
+    expect(hits[0]?.path).toBe('10-技术/2026-08-10-tech.md')
+  })
+
+  it('ranks alias matches above body-only matches', async () => {
+    const engine = await bench({
+      '10-技术/2026-08-10-rag.md': '---\ntitle: 检索增强生成\naliases: [RAG]\nupdated: 2026-08-10\n---\n\n正文\n',
+      '20-学习笔记/2026-08-12-notes.md': '---\ntitle: 随手记\nupdated: 2026-08-12\n---\n\n正文中 RAG 概念\n',
+    })
+    const { hits } = await engine.search('RAG', 10)
+    expect(hits.map(hit => hit.path)).toEqual(['10-技术/2026-08-10-rag.md', '20-学习笔记/2026-08-12-notes.md'])
+  })
+})

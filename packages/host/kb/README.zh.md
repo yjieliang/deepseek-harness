@@ -4,7 +4,7 @@
 
 `kb/` 工作区根目录的知识库宿主特性：一个经 Typert 网关面向浏览器知识库面板的 `kb` Remote 命名空间，外加文档图片的 `/dsh-kb` 图片路由。
 
-引擎在 `kb/` 下维护一个惰性内存索引，覆盖所有 `*.md`（标题／别名／摘要／标签／正文的 2-gram 倒排搜索），解析扁平 frontmatter，从目录推导每篇文档的状态（`00-inbox/` 或 `01-inbox/` → inbox，配置的归档目录 → archived，其余 → filed），在每次变更后维护 `kb/_meta/index.json`，并把删除移入可恢复的 `.trash`。路径保持库相对并经由 `fs` 服务的 `contains` 做沙箱校验。
+引擎在 `kb/` 下维护一个惰性内存索引，覆盖所有 `*.md`（标题／别名／摘要／标签／正文的分字段加权 BM25 检索，支持部分命中排序召回与单字容错），解析扁平 frontmatter，从目录推导每篇文档的状态（`00-inbox/` 或 `01-inbox/` → inbox，配置的归档目录 → archived，其余 → filed），在每次变更后维护 `kb/_meta/index.json`，并把删除移入可恢复的 `.trash`。路径保持库相对并经由 `fs` 服务的 `contains` 做沙箱校验。
 
 模型面向的 `kb_*` 工具刻意不在这里注册：它们属于每次会话的 agent（智能体）preset（`knowledge-base`），因此智能体按会话选择加入，而面板与图片路由保持进程全局。
 
