@@ -3,7 +3,7 @@ import type {
   SessionId, SessionListState, SessionSummary, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  deriveFlat, deriveGroups, deriveSearchResults, workspaceLabel, relativeTime,
+  deriveArchived, deriveFlat, deriveGroups, deriveSearchResults, workspaceLabel, relativeTime,
   UNGROUPED_KEY, UNGROUPED_LABEL,
 } from '../src/client/tree.ts'
 import { createWorkspaceViewStore } from '../src/client/stores.ts'
@@ -388,6 +388,31 @@ describe('deriveSearchResults', () => {
     expect(backendMore.hasMore).toBe(true)
     expect(deriveSearchResults(list(), [], '  ', noArchive, { items: [], hasMore: true }, 3))
       .toEqual({ items: [], hasMore: false })
+  })
+})
+
+describe('deriveArchived', () => {
+  it('lists archived ids in archive order with their owning Workspace title', () => {
+    const sessions = list(
+      summary('a', 30, '/projects/first'),
+      summary('b', 20, '/projects/first'),
+      summary('loose', 10, '/other'),
+    )
+    const workspaces = [workspace('first', ['a', 'b'], 'First')]
+    const rows = deriveArchived(sessions, archived('b', 'a', 'loose'), workspaces)
+    expect(rows.map(row => row.id)).toEqual([sid('b'), sid('a'), sid('loose')])
+    expect(rows[0]).toMatchObject({ title: 'b', workspaceTitle: 'First' })
+    // An archived Ungrouped session has no owning Workspace title.
+    expect(rows[2]?.title).toBe('loose')
+    expect(rows[2]?.workspaceTitle).toBeUndefined()
+  })
+
+  it('falls back to the id for a summary absent from the session list', () => {
+    const rows = deriveArchived(list(summary('a', 30)), archived('ghost'), [])
+    expect(rows[0]?.id).toBe(sid('ghost'))
+    expect(rows[0]?.title).toBe('ghost')
+    expect(rows[0]?.workspaceTitle).toBeUndefined()
+    expect(rows[0]?.updatedAt).toBe(Number.NEGATIVE_INFINITY)
   })
 })
 

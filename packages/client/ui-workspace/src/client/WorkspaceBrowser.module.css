@@ -504,3 +504,43 @@
     transition: none;
   }
 }
+
+/* Trash-like archived entry: a muted footer row under the list. */
+.archivedEntryBar {
+  flex: none;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  padding: 4px 8px 4px 4px;
+}
+
+.archivedEntry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12.5px;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.archivedEntry:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.archivedCount {
+  margin-left: auto;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}

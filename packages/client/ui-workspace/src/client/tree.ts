@@ -393,6 +393,52 @@ export function deriveSearchResults(
 }
 
 /**
+ * One row of the trash-like archived view.
+ */
+export interface ArchivedNode {
+  id: SessionId
+  /** Display title; the id stands in when the summary is absent (deleted log). */
+  title: string
+  /** Owning Workspace title, or undefined for an archived Ungrouped session. */
+  workspaceTitle: string | undefined
+  updatedAt: number
+}
+
+/**
+ * Derive the trash-like archived view: every archived session in archive
+ * order, annotated with its owning Workspace title. Archived summaries are
+ * already present in the session list (the ids are hidden, not dropped at the
+ * source), so this derivation performs no reads; a summary that has vanished
+ * (its log deleted while archived) still yields a row keyed by the id so the
+ * restore action can reach it.
+ * @param list - sessions list snapshot.
+ * @param archivedSessionIds - registry-global archive set in archive order.
+ * @param workspaces - real Workspaces in stable Host order.
+ * @returns archived rows in archive order.
+ */
+export function deriveArchived(
+  list: SessionListState,
+  archivedSessionIds: readonly SessionId[],
+  workspaces: readonly WorkspaceView[],
+): ArchivedNode[] {
+  const workspaceBySession = new Map<SessionId, string>()
+  for (const workspace of workspaces) {
+    for (const sessionId of workspace.sessionIds) {
+      if (!workspaceBySession.has(sessionId)) workspaceBySession.set(sessionId, workspace.title)
+    }
+  }
+  return archivedSessionIds.map((id) => {
+    const summary = list.byId[id]
+    return {
+      id,
+      title: summary === undefined ? String(id) : sessionTitle(summary),
+      workspaceTitle: summary === undefined ? undefined : workspaceBySession.get(id),
+      updatedAt: summary?.updatedAt ?? Number.NEGATIVE_INFINITY,
+    }
+  })
+}
+
+/**
  * Compact relative time for session rows, as a structured bucket the
  * renderer localizes ("now"/"5min"/"3h"/"2d"/"4mo"/"1y" in en).
  * @param updatedAt - epoch ms of the session's last activity.

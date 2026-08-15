@@ -14,7 +14,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { StateDotState } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
-import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
+import type { ArchivedNode, GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
 import { relativeTime } from '../tree.ts'
 import css from './Rows.module.css'
 
@@ -471,5 +471,36 @@ export function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork
       copyLabel={t('copy')}
       copiedLabel={t('hover.copied')}
     />
+  )
+}
+
+/**
+ * One read-only archived-session row in the trash-like archived view: title,
+ * owning Workspace (or the Ungrouped fallback), and a restore action that
+ * commits without a dialog (non-destructive, mirroring the archive stance).
+ * @param props.node - derived archived node.
+ * @param props.onRestore - remove the session from the archive set.
+ * @param props.t - Workspace-browser translation seat.
+ * @returns the archived row.
+ */
+export function ArchivedSessionItem({ node, onRestore, t }: {
+  node: ArchivedNode
+  onRestore: (id: ArchivedNode['id']) => void
+  t: RowTranslate
+}) {
+  const workspace = node.workspaceTitle === undefined ? t('group.ungrouped') : node.workspaceTitle
+  return (
+    <div className={css.archivedRow} role="treeitem">
+      <div className={css.archivedHeading}>
+        <span className={css.slot}>
+          <IconArchiveOutline20 size={16} />
+        </span>
+        <span className={css.title}>{node.title}</span>
+        <button type="button" className={css.restoreButton} onClick={() => { onRestore(node.id) }}>
+          {t('archived.restore')}
+        </button>
+      </div>
+      <div className={css.archivedMeta}>{workspace}</div>
+    </div>
   )
 }
