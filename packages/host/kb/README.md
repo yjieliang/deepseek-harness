@@ -6,7 +6,7 @@ Knowledge-base host feature for the `kb/` workspace root. One `kb` Remote namesp
 
 The engine builds a lazy in-memory index of every `*.md` under `kb/` (field-weighted BM25 search over title/aliases/tags/summary/body, with ranked partial-query hits and one-character typo tolerance), parses flat frontmatter, derives each document's status from its directory (`00-inbox/` or `01-inbox/` → inbox, the configured archive directory → archived, else filed), maintains `kb/_meta/index.json` after every mutation, and moves deletions into a recoverable `.trash`. Paths stay library-relative and are sandbox-checked through the `fs` service's `contains`.
 
-The model-facing `kb_*` TOOLS are deliberately NOT registered here: they belong to the per-session agent preset (`knowledge-base`), so agents opt into them per session while the panel and the image route stay process-global.
+The gateway is a Cordis service registered as `ctx.kb` (a `TypertRemoteService`), so both the browser panel and the model-facing tools share one engine instance. The model-facing `kb_*` TOOLS are deliberately NOT registered here: they live in the first-class consumer package [`@deepseek-ai/dsh-tool-kb`](../tool-kb), which per-session agent presets opt into, while the panel, the service, and the image route stay process-global. The tool-facing surface adds plain (non-Remote) methods on `ctx.kb`: `searchFiltered` (field filters beyond the panel wire), `links` (outlinks + backlinks), and `images` (image registry rebuild + orphans).
 
 ## Config
 
@@ -34,7 +34,7 @@ Directory management: `kb.createDir` creates a library directory through a `.kee
 
 ## Model Experience
 
-Indirectly, through the `kb` Remote namespace and the `/dsh-kb` image route, this package is the panel's data plane and makes no model calls of its own; the model-facing `kb_*` tools live in the knowledge-base agent preset and own any model-visible effect.
+Indirectly, through the `kb` Remote namespace and the `/dsh-kb` image route, this package is the panel's data plane and makes no model calls of its own; the model-facing `kb_*` tools live in [`@deepseek-ai/dsh-tool-kb`](../tool-kb) and own any model-visible effect.
 
 #### KV Cache effect
 
@@ -42,8 +42,8 @@ None.
 
 ## Known Limitations and Deferred Work
 
-- **Index duplication with the preset** — the `knowledge-base` agent preset ships its own import-free copy of the engine for the model-facing tools; the two implementations can drift until the preset can depend on this package.
-- **No full-text ranking** — search is 2-gram AND intersection with recency sort; no TF-IDF or fuzzy matching.
+- **Keyword-only retrieval** — search is a field-weighted BM25 2-gram scorer with ranked partial-query hits and one-character typo tolerance; there is no semantic retrieval (the library's Phase 3 plan covers local embeddings).
 - **`.trash` is a plain directory** — trashed files are recoverable via the Remote; entries older than `trashRetentionDays` are purged automatically (on load and daily), and `purgeDoc` also blanks a file in place. The trash listing skips blank files, so a purged entry leaves the listing while its bytes stay on disk until the fs seam gains a delete primitive. Purging also blanks and unregisters images the document referenced, but only when no other document references them (by resolved registry path).
 - **`renameDir` cannot move binary assets** — the text-only `fs` seam has no byte-write operation, so renaming a directory whose entries include binary files (e.g. images) fails loudly rather than half-relocating them; document-only directories rename cleanly.
 - **No per-directory counts** — the directory tree renders without document counts until a per-directory count endpoint lands.
+- **The tool-facing surface is plain methods, not Remote** — `searchFiltered`/`links`/`images` exist for `@deepseek-ai/dsh-tool-kb` but are not exported on the Typert wire; a future GUI consumer would promote them to `@Remote` and regenerate the typert artifacts.

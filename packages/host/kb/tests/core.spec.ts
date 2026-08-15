@@ -393,4 +393,115 @@ describe('KbEngine search ranking', () => {
     const { hits } = await engine.search('RAG', 10)
     expect(hits.map(hit => hit.path)).toEqual(['10-技术/2026-08-10-rag.md', '20-学习笔记/2026-08-12-notes.md'])
   })
+
+  it('applies status, tag, directory, and title filters to ranked hits', async () => {
+    const engine = await bench({
+      '00-inbox/2026-08-10-inbox.md': '---\ntitle: 收集箱条目\ntags: [测试]\nupdated: 2026-08-10\n---\n\n正文\n',
+      '10-技术/2026-08-12-filed.md': '---\ntitle: 技术条目\ntags: [测试]\nupdated: 2026-08-12\n---\n\n正文\n',
+      '10-技术/11-AI/2026-08-13-ai.md': '---\ntitle: AI 笔记\ntags: [AI]\nupdated: 2026-08-13\n---\n\n正文\n',
+    })
+    expect((await engine.search('条目', 10, { status: 'inbox' })).hits.map(hit => hit.path))
+      .toEqual(['00-inbox/2026-08-10-inbox.md'])
+    expect((await engine.search('条目', 10, { tag: '测试' })).hits.map(hit => hit.path).sort())
+      .toEqual(['00-inbox/2026-08-10-inbox.md', '10-技术/2026-08-12-filed.md'])
+    expect((await engine.search('正文', 10, { directory: '10-技术/11-AI' })).hits.map(hit => hit.path))
+      .toEqual(['10-技术/11-AI/2026-08-13-ai.md'])
+    expect((await engine.search('正文', 10, { title: 'AI' })).hits.map(hit => hit.path))
+      .toEqual(['10-技术/11-AI/2026-08-13-ai.md'])
+    expect((await engine.search('正文', 10, { title: '不存在的标题' })).total).toBe(0)
+  })
+})
+
+describe('KbEngine links', () => {
+  it('reports outlinks and backlinks for one document', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    fs.seed('kb/10-技术/2026-08-12-a.md', doc('甲', '2026-08-12', '') + '见 [[乙]] 与 [[丙|显示]]')
+    fs.seed('kb/10-技术/2026-08-13-b.md', doc('乙', '2026-08-13', '') + '回链 [[甲]]')
+    const engine = new KbEngine(fs, undefined)
+    await engine.ensureInit()
+    const view = await engine.links('10-技术/2026-08-12-a.md')
+    expect(view.outLinks).toEqual(['乙', '丙'])
+    expect(view.backlinks).toEqual(['10-技术/2026-08-13-b.md'])
+  })
+
+  it('fails for an unknown document', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const engine = new KbEngine(ctx.fs, undefined)
+    await expect(engine.links('00-inbox/missing.md')).rejects.toThrow(/文档不存在/)
+  })
+})
+
+describe('KbEngine image registry rebuild', () => {
+  it('scans images, rebuilds the object-format registry, and lists orphans', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    fs.seed('kb/10-技术/2026-08-12-a.md', doc('甲', '2026-08-12', '') + '正文 ![[diagram.png]]')
+    fs.seed('kb/10-技术/diagram.png', 'png-bytes')
+    fs.seed('kb/10-技术/orphan.png', 'png-bytes')
+    fs.seed('kb/_meta/ignored.png', 'png-bytes')
+    const engine = new KbEngine(fs, undefined)
+    await engine.ensureInit()
+    const result = await engine.images()
+    expect(result.total).toBe(2)
+    expect(result.images.sort()).toEqual(['10-技术/diagram.png', '10-技术/orphan.png'])
+    expect(result.orphans).toEqual([{ path: '10-技术/orphan.png', name: 'orphan.png' }])
+    const registry = JSON.parse(fs.entries.get('kb/_meta/images.json')!.text) as
+      { images: Record<string, { name: string; referenced: boolean }> }
+    expect(registry.images['10-技术/diagram.png']).toEqual({ name: 'diagram.png', referenced: true })
+    expect(registry.images['10-技术/orphan.png']).toEqual({ name: 'orphan.png', referenced: false })
+  })
+
+  it('resolves a link to an image through the rebuilt object-format registry', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    fs.seed('kb/10-技术/diagram.png', 'png-bytes')
+    const engine = new KbEngine(fs, undefined)
+    await engine.ensureInit()
+    await engine.images()
+    const resolved = await engine.resolve({ name: 'diagram.png' })
+    expect(resolved).toEqual({ path: '10-技术/diagram.png', kind: 'image' })
+  })
+})
+
+describe('KbEngine optimistic-lock conflict', () => {
+  it('reports a stale expectVersion as a conflict without touching content or index', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    fs.seed('kb/00-inbox/2026-08-10-a.md', doc('甲', '2026-08-10'))
+    const engine = new KbEngine(fs, undefined)
+    await engine.ensureInit()
+    const before = await engine.get({ path: '00-inbox/2026-08-10-a.md' })
+    // An external write bumps the file version behind the client's back.
+    fs.entries.get('kb/00-inbox/2026-08-10-a.md')!.version++
+    const result = await engine.save({
+      path: '00-inbox/2026-08-10-a.md', content: '外部覆盖',
+      ...(before.version === undefined ? {} : { expectVersion: before.version }),
+    })
+    expect(result.conflict).toBe(true)
+    const after = await engine.get({ path: '00-inbox/2026-08-10-a.md' })
+    expect(after.content).toBe(before.content)
+    expect(after.content).not.toContain('外部覆盖')
+  })
+
+  it('writes through when expectVersion matches the current version', async () => {
+    const ctx = new Context()
+    await ctx.plugin(MemoryFs)
+    const fs = ctx.fs as MemoryFs
+    fs.seed('kb/00-inbox/2026-08-10-a.md', doc('甲', '2026-08-10'))
+    const engine = new KbEngine(fs, undefined)
+    await engine.ensureInit()
+    const before = await engine.get({ path: '00-inbox/2026-08-10-a.md' })
+    const result = await engine.save({
+      path: '00-inbox/2026-08-10-a.md', content: '正常更新',
+      ...(before.version === undefined ? {} : { expectVersion: before.version }),
+    })
+    expect(result.conflict).toBe(false)
+    expect((await engine.get({ path: '00-inbox/2026-08-10-a.md' })).content).toContain('正常更新')
+  })
 })

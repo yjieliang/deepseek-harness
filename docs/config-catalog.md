@@ -801,7 +801,7 @@ export interface KbGatewayConfig {
 }
 ```
 
-Source: [`packages/host/kb/src/index.ts:37`](../packages/host/kb/src/index.ts)
+Source: [`packages/host/kb/src/index.ts:45`](../packages/host/kb/src/index.ts)
 
 <a id="deepseek-aidsh-host-webserver"></a>
 
@@ -2496,6 +2496,28 @@ export type CompletionDelivery = 'quiet' | 'wakeup'
 ```
 
 Source: [`packages/jobs/tool-jobs/src/index.ts:32`](../packages/jobs/tool-jobs/src/index.ts)
+
+<a id="deepseek-aidsh-tool-kb"></a>
+
+## `@deepseek-ai/dsh-tool-kb`
+
+Requires: `tools` · `kb` · `systemPrompt`
+
+```ts config-catalog
+/** Plugin config; every key is optional and `Config` supplies the defaults. */
+export interface Config {
+  /** Default result cap for `kb_search` when the call omits `topK`. */
+  searchTopK?: number
+  /** Bulk operations at or above this many documents refuse without a prior preview. */
+  batchConfirmN?: number
+  /** Default age threshold (days) for `kb_archive` when the call omits `days`. */
+  archiveDays?: number
+  /** Maximum characters of a clipped page body kept by `kb_clip`. */
+  clipMaxBodyChars?: number
+}
+```
+
+Source: [`packages/host/tool-kb/src/index.ts:30`](../packages/host/tool-kb/src/index.ts)
 
 <a id="deepseek-aidsh-tool-lsp"></a>
 

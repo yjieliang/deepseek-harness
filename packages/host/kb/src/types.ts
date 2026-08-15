@@ -59,6 +59,58 @@ export interface KbSearchResult {
   total: number
 }
 
+/**
+ * Field filters accepted by the tool-facing search surface. The panel Remote
+ * wire keeps `query` + `topK` only; the tool layer parses `tag:`/`path:`/
+ * `status:`/`title:` prefixes into these filters.
+ */
+export interface KbSearchFilters {
+  /** Status filter; `all` or absent keeps every status. */
+  status?: KbStatusFilter
+  /** Only documents carrying this tag. */
+  tag?: string
+  /** Only documents under this directory prefix. */
+  directory?: string
+  /** Only documents whose title contains this term. */
+  title?: string
+}
+
+/** Tool-facing search request: the field-filtered surface beyond the panel wire. */
+export interface KbToolSearchRequest extends KbSearchFilters {
+  /** Search terms; field-prefixed tokens are parsed by the tool layer. */
+  query: string
+  /** Result cap, clamped to 1..50; defaults to 10. */
+  topK?: number
+}
+
+/** One document's link view for the tool surface. */
+export interface KbLinksResult {
+  /** Echoed library-relative path. */
+  path: string
+  /** `[[title]]` targets in the body, in document order. */
+  outLinks: string[]
+  /** Paths of documents linking to this one via `[[title]]`. */
+  backlinks: string[]
+}
+
+/** One orphaned image reported by the image registry rebuild. */
+export interface KbOrphanImage {
+  /** Library-relative image path. */
+  path: string
+  /** Image file name. */
+  name: string
+}
+
+/** Tool-facing image registry result: the rebuilt registry plus orphan list. */
+export interface KbImagesResult {
+  /** Total images scanned. */
+  total: number
+  /** Every scanned library-relative image path. */
+  images: string[]
+  /** Images no document references. */
+  orphans: KbOrphanImage[]
+}
+
 /** One frontmatter value crossing the wire: a scalar string or an inline array. */
 export type KbFrontmatterValue = string | string[]
 

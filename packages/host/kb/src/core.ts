@@ -11,13 +11,15 @@
  * @module @deepseek-ai/dsh-host-kb/core
  */
 
+import { FsError, FsVersion } from '@deepseek-ai/dsh-fs'
 import type { FileSystem, FsTarget } from '@deepseek-ai/dsh-fs'
 import type {
   KbCreateDirRequest, KbCreateDirResult, KbCreateRequest, KbCreateResult, KbDeleteRequest,
-  KbDeleteResult, KbDocStatus, KbDocSummary, KbGetRequest, KbGetResult, KbListRequest,
-  KbMoveRequest, KbMoveResult, KbPurgeRequest, KbPurgeResult, KbRenameDirRequest,
-  KbRenameDirResult, KbResolveRequest, KbResolveResult, KbRestoreRequest, KbRestoreResult,
-  KbSaveRequest, KbSaveResult, KbSearchResult, KbStatusFilter, KbTrashEntry, KbTrashResult,
+  KbDeleteResult, KbDocStatus, KbDocSummary, KbGetRequest, KbGetResult, KbImagesResult,
+  KbLinksResult, KbListRequest, KbMoveRequest, KbMoveResult, KbPurgeRequest, KbPurgeResult,
+  KbRenameDirRequest, KbRenameDirResult, KbResolveRequest, KbResolveResult, KbRestoreRequest,
+  KbRestoreResult, KbSaveRequest, KbSaveResult, KbSearchFilters, KbSearchResult,
+  KbStatusFilter, KbTrashEntry, KbTrashResult,
 } from './types.ts'
 
 /** One parsed document: frontmatter plus body. */
@@ -61,6 +63,9 @@ export const IMAGE_MIME: Record<string, string> = {
   svg: 'image/svg+xml',
   bmp: 'image/bmp',
 }
+
+/** File extensions the image scan recognizes, lowercased with the dot. */
+const IMAGE_EXT = Object.keys(IMAGE_MIME).map(ext => '.' + ext)
 
 /**
  * Derive the library status of a document from its path.
@@ -236,6 +241,24 @@ export class KbEngine {
     }
   }
 
+  /** Recursively collect every image path under a directory, excluding engine-owned dirs. */
+  private async scanImagePaths(
+    relDir: string, signal: AbortSignal | undefined, sink: (rel: string) => void,
+  ): Promise<void> {
+    signal?.throwIfAborted()
+    const dir = await this.locate(relDir, signal)
+    const entries = await this.fs.listDir(dir, signal)
+    for (const entry of entries) {
+      signal?.throwIfAborted()
+      if (entry.type === 'directory') {
+        if (EXCLUDE_DIRS.has(entry.name)) continue
+        await this.scanImagePaths(relDir === '' ? entry.name : relDir + '/' + entry.name, signal, sink)
+      } else if (entry.type === 'file' && IMAGE_EXT.some(ext => entry.name.toLowerCase().endsWith(ext))) {
+        sink(relDir === '' ? entry.name : relDir + '/' + entry.name)
+      }
+    }
+  }
+
   /**
    * Rebuild the in-memory index from disk, absorbing changes made outside the
    * engine (agent file writes, manual edits). The browser panel calls it when
@@ -301,13 +324,17 @@ export class KbEngine {
  * by field-weighted BM25 instead of strict AND membership: a partial query
  * still returns ranked hits (docs matching more query grams rank first), and
  * a query gram with no exact postings falls back to single-character
- * neighbors, tolerating one-character typos in either language.
+ * neighbors, tolerating one-character typos in either language. Optional
+ * field filters (status/tag/directory/title) restrict the scored candidates.
  * @param query - the search terms
  * @param topK - the result cap
+ * @param filters - optional field filters applied to the scored candidates
  * @param signal - abort signal for cooperative cancellation
  * @returns the top hits and the total match count
  */
-  async search(query: string, topK: number, signal?: AbortSignal): Promise<KbSearchResult> {
+  async search(
+    query: string, topK: number, filters?: KbSearchFilters, signal?: AbortSignal,
+  ): Promise<KbSearchResult> {
     await this.ensureInit(signal)
     const q = query.trim()
     if (q.length === 0) return { hits: [], total: 0 }
@@ -342,12 +369,60 @@ export class KbEngine {
     for (const [rel, score] of scores) {
       const doc = this.docs.get(rel)
       if (doc === undefined) continue
+      if (filters !== undefined && !this.matches(rel, doc, filters.status, filters.tag, filters.directory)) continue
+      const titleTerm = filters?.title
+      if (titleTerm !== undefined && !titleOf(rel, doc).toLowerCase().includes(titleTerm.toLowerCase())) continue
       scored.push({ ...summaryOf(rel, doc, this.archiveDir), score })
     }
     scored.sort((a, b) =>
       b.score - a.score || Number(b.pinned) - Number(a.pinned) || b.updated.localeCompare(a.updated))
     const hits = scored.slice(0, topK).map(({ score: _score, ...rest }) => rest)
     return { hits, total: scored.length }
+  }
+
+  /**
+ * One document's link view: outlinks and backlinks, for the tool surface.
+ * @param path - library-relative document path
+ * @param signal - abort signal for cooperative cancellation
+ * @returns outlinks, backlinks, and the echoed path
+ */
+  async links(path: string, signal?: AbortSignal): Promise<KbLinksResult> {
+    await this.ensureInit(signal)
+    const rel = stripLeadingSlash(path)
+    const doc = this.docs.get(rel)
+    if (doc === undefined) throw new Error(`kb: 文档不存在: ${rel}`)
+    return { path: rel, outLinks: extractLinks(doc.body), backlinks: this.backlinksOf(rel, doc) }
+  }
+
+  /**
+ * Rebuild the image registry from disk as the unified object format, list
+ * orphaned images, and return the scan. The registry maps each image path to
+ * `{ name, referenced }`; both `imageTarget` and `resolve` read this shape.
+ * @param signal - abort signal for cooperative cancellation
+ * @returns totals, every image path, and orphaned images
+ */
+  async images(signal?: AbortSignal): Promise<KbImagesResult> {
+    await this.ensureInit(signal)
+    const images: string[] = []
+    await this.scanImagePaths('', signal, rel => images.push(rel))
+    const referenced = new Set<string>()
+    for (const [rel, doc] of this.docs) {
+      const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : ''
+      for (const ref of extractImageRefs(doc.body, dir)) {
+        const target = await this.imageTarget(ref, signal)
+        if (target !== null) referenced.add(target)
+      }
+    }
+    const registry: Record<string, { name: string; referenced: boolean }> = {}
+    for (const image of images) registry[image] = { name: image.split('/').pop() ?? '', referenced: referenced.has(image) }
+    await this.fs.writeText(await this.locate('_meta/images.json', signal), JSON.stringify({
+      schemaVersion: 1, savedAt: new Date().toISOString(), images: registry,
+    }, null, 2))
+    return {
+      total: images.length,
+      images,
+      orphans: images.filter(image => !referenced.has(image)).map(image => ({ path: image, name: image.split('/').pop() ?? '' })),
+    }
   }
 
   /**
@@ -366,7 +441,7 @@ export class KbEngine {
       path: rel,
       content: doc.body,
       meta: { ...doc.meta, status: statusOf(rel, this.archiveDir) },
-      backlinks: this.backlinksOf(rel),
+      backlinks: this.backlinksOf(rel, doc),
       ...info === undefined ? {} : { version: String(info.version) },
     }
   }
@@ -436,7 +511,20 @@ export class KbEngine {
     const text = renderDoc(meta, request.content === undefined ? doc.body : request.content)
     let outcome
     if (request.expectVersion !== undefined && info !== undefined) {
-      outcome = await this.fs.writeText(target, text, { kind: 'replaceIfVersion', version: info.version }, signal)
+      try {
+        // The guard compares against the CLIENT's observed version, so a stale
+        // writer is rejected; the fresh stat is not the expected version.
+        outcome = await this.fs.writeText(
+          target, text, { kind: 'replaceIfVersion', version: FsVersion(request.expectVersion) }, signal,
+        )
+      } catch (error) {
+        // A stale optimistic lock refuses the write; report it as a conflict
+        // instead of throwing, and leave the in-memory index untouched.
+        if (error instanceof FsError && error.code === 'FS_STALE_VERSION') {
+          return { path: rel, conflict: true }
+        }
+        throw error
+      }
     } else {
       outcome = await this.fs.writeText(target, text, undefined, signal)
     }
@@ -791,9 +879,13 @@ export class KbEngine {
     const imageInfo = await this.fs.stat(imageIndex, signal)
     if (imageInfo !== undefined) {
       try {
-        const parsed = JSON.parse(await this.fs.readText(imageIndex, signal)) as { images?: { name?: string; path?: string }[] }
-        const hit = (parsed.images ?? []).find(image => image.name === name || image.name === name + '.png')
-        if (hit !== undefined && typeof hit.path === 'string') return { path: hit.path, kind: 'image' }
+        // The registry is the unified object format: path → { name, referenced }.
+        const parsed = JSON.parse(await this.fs.readText(imageIndex, signal)) as
+          { images?: Record<string, { name?: string } | undefined> }
+        for (const [path, entry] of Object.entries(parsed.images ?? {})) {
+          const entryName = entry?.name ?? path.split('/').pop() ?? ''
+          if (entryName === name || entryName === name + '.png') return { path, kind: 'image' }
+        }
       } catch {
         // A malformed image registry is not a link-resolution failure; fall through to fuzzy.
       }
@@ -926,11 +1018,13 @@ export class KbEngine {
   }
 
   /** Documents linking to `rel` by title, stem, or exact path. */
-  private backlinksOf(rel: string): string[] {
+  private backlinksOf(rel: string, doc: KbDoc): string[] {
     const out: string[] = []
-    for (const [other, doc] of this.docs) {
+    const title = titleOf(rel, doc)
+    for (const [other, otherDoc] of this.docs) {
       if (other === rel) continue
-      if (extractLinks(doc.body).some(link => link === rel || link === rel.replace(/\.md$/, ''))) out.push(other)
+      if (extractLinks(otherDoc.body).some(link =>
+        link === rel || link === rel.replace(/\.md$/, '') || (title.length > 0 && link === title))) out.push(other)
     }
     return out
   }

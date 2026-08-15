@@ -110,9 +110,15 @@ export class MemoryFs extends FileSystem {
     return bytes
   }
 
-  override async writeText(target: FsTarget, content: string, _expected?: FsWriteIntent): Promise<FsWriteOutcome> {
+  override async writeText(target: FsTarget, content: string, expected?: FsWriteIntent): Promise<FsWriteOutcome> {
     this.ensureParents(target.targetKey)
     const before = this.entries.get(target.targetKey)
+    if (expected?.kind === 'replaceIfVersion') {
+      const current = before === undefined ? undefined : FsVersion(String(before.version))
+      if (current !== expected.version) {
+        throw new FsError(`stale version: ${target.displayPath}`, 'FS_STALE_VERSION')
+      }
+    }
     const version = (before?.version ?? 0) + 1
     this.entries.set(target.targetKey, { kind: 'file', text: content, version })
     return {

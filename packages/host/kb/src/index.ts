@@ -19,13 +19,21 @@ import { DEFAULT_ARCHIVE_DIR, DEFAULT_TRASH_RETENTION_DAYS, RESERVED_DIRS } from
 import type {
   KbCreateDirRequest, KbCreateDirResult, KbCreateRequest, KbCreateResult, KbDeleteRequest,
   KbDeleteResult, KbDirsResult, KbEmptyRequest, KbEmptyResult, KbGetRequest, KbGetResult,
-  KbListRequest, KbListResult, KbMoveRequest, KbMoveResult, KbPurgeRequest, KbPurgeResult,
-  KbRenameDirRequest, KbRenameDirResult, KbResolveRequest, KbResolveResult, KbRestoreRequest,
-  KbRestoreResult, KbSaveRequest, KbSaveResult, KbSearchRequest, KbSearchResult, KbStatsResult,
-  KbTagsResult, KbTrashResult,
+  KbImagesResult, KbLinksResult, KbListRequest, KbListResult, KbMoveRequest, KbMoveResult,
+  KbPurgeRequest, KbPurgeResult, KbRenameDirRequest, KbRenameDirResult, KbResolveRequest,
+  KbResolveResult, KbRestoreRequest, KbRestoreResult, KbSaveRequest, KbSaveResult,
+  KbSearchRequest, KbSearchResult, KbStatsResult, KbTagsResult, KbToolSearchRequest,
+  KbTrashResult,
 } from './types.ts'
 
 export type * from './types.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** The knowledge-base service: the browser panel's Remote and the model-facing tools share one instance. */
+    kb: KbGateway
+  }
+}
 
 /** Image-serving route prefix under the web server. */
 const IMAGE_ROUTE_PREFIX = '/dsh-kb'
@@ -156,7 +164,45 @@ export class KbGateway extends TypertRemoteService {
   async search(request: KbSearchRequest, signal: AbortSignal): Promise<KbSearchResult> {
     signal.throwIfAborted()
     const topK = Math.max(1, Math.min(50, Number(request.topK) || 10))
-    return await this.engine.search(request.query, topK, signal)
+    return await this.engine.search(request.query, topK, undefined, signal)
+  }
+
+  /**
+ * Tool-facing search with field filters; not part of the panel Remote wire.
+ * @param request - the query, filters, and cap
+ * @param signal - abort signal for cooperative cancellation
+ * @returns the filtered hits and total
+ */
+  async searchFiltered(request: KbToolSearchRequest, signal: AbortSignal): Promise<KbSearchResult> {
+    signal.throwIfAborted()
+    const topK = Math.max(1, Math.min(50, Number(request.topK) || 10))
+    return await this.engine.search(request.query, topK, {
+      ...(request.status === undefined ? {} : { status: request.status }),
+      ...(request.tag === undefined ? {} : { tag: request.tag }),
+      ...(request.directory === undefined ? {} : { directory: request.directory }),
+      ...(request.title === undefined ? {} : { title: request.title }),
+    }, signal)
+  }
+
+  /**
+ * One document's link view (outlinks + backlinks); not part of the panel wire.
+ * @param path - library-relative document path
+ * @param signal - abort signal for cooperative cancellation
+ * @returns the link view
+ */
+  async links(path: string, signal: AbortSignal): Promise<KbLinksResult> {
+    signal.throwIfAborted()
+    return await this.engine.links(path, signal)
+  }
+
+  /**
+ * Rebuild the image registry, list orphaned images; not part of the panel wire.
+ * @param signal - abort signal for cooperative cancellation
+ * @returns the image scan result
+ */
+  async images(signal: AbortSignal): Promise<KbImagesResult> {
+    signal.throwIfAborted()
+    return await this.engine.images(signal)
   }
 
   /**

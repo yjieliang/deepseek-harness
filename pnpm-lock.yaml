@@ -1163,6 +1163,9 @@ importers:
       '@deepseek-ai/dsh-tool-jobs':
         specifier: workspace:^
         version: link:../../jobs/tool-jobs
+      '@deepseek-ai/dsh-tool-kb':
+        specifier: workspace:^
+        version: link:../../host/tool-kb
       '@deepseek-ai/dsh-tool-pwsh':
         specifier: workspace:^
         version: link:../../shell/tool-pwsh
@@ -5058,6 +5061,34 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:^
         version: link:../../typert/protocol
+
+  packages/host/tool-kb:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-host-kb':
+        specifier: workspace:^
+        version: link:../kb
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:^
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-system-prompt':
+        specifier: workspace:^
+        version: link:../../core/system-prompt
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:^
+        version: link:../../core/tools
+      '@deepseek-ai/dsh-web':
+        specifier: workspace:^
+        version: link:../../web/web
 
   packages/host/webserver:
     dependencies:

@@ -288,6 +288,7 @@
     { "path": "./packages/host/frontend-static" },
     { "path": "./packages/host/lookup-llm" },
     { "path": "./packages/host/kb" },
+    { "path": "./packages/host/tool-kb" },
     { "path": "./packages/host/plugin-inventory" },
     { "path": "./packages/host/webserver" },
     { "path": "./packages/sdk/client" },

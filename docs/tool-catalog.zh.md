@@ -29,6 +29,7 @@
 | `@deepseek-ai/dsh-tool-fs-search` | `glob`、`grep` | `ctx.tools`、`ctx.subprocess`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn 随包提供的 ripgrep 二进制文件（`@vscode/ripgrep`），并作为普通前台调用运行，绝不作为后台任务；无需在宿主机安装 `rg`，也不经过 shell 层。本目录使用 `sampleOverCapGlobResults: true`；部署必须显式选择该行为。结果超过上限时，会通过可选的 ctx.spillStore 后端保存完整的格式化列表；在共置部署中，如果后端公开本地路径，返回的定位信息可供后续读取／搜索。 |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`、`terminal_list`、`terminal_open`、`terminal_read`、`terminal_send`、`terminal_signal` | `ctx.tools`、`ctx.terminals`、`ctx.systemPrompt`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。 |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`、`get_goal`、`update_goal` | `ctx.tools`、`ctx.agents`、`ctx.goals`、`ctx.systemPrompt`、`a calling Agent in an authorized open turn` | `tool/call`、`goal/change for mutations`、`tool/result` | - | create、edit、pause 和 resume 要求直接来自人类的根权限；complete 和 blocked 也接受确切的当前 Goal Round。blocked 的默认下限是 3 个获准的 Round。 |
+| `@deepseek-ai/dsh-tool-kb` | `kb_add`、`kb_archive`、`kb_clip`、`kb_delete`、`kb_export`、`kb_get`、`kb_images`、`kb_import`、`kb_links`、`kb_move`、`kb_organize`、`kb_search`、`kb_stats`、`kb_tags`、`kb_update` | `ctx.tools`、`ctx.kb`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | 15 个 kb_* 工具是知识库能力在 ctx.kb 之上的 agent 平面消费方；批量操作以 batchConfirmN 门控并先预览后执行，未挂 web 服务时 kb_clip 降级为仅存 URL+标题。 |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`、`schedule_delete`、`schedule_list` | `ctx.tools`、`ctx.sessions`、Session 持久化、未来创建的 live 根 Agent | `tool/call`、`schedule/change create or delete`、`tool/result` | - | 仅在选择启用的 Schedule 插件加载后创建的 live 根 Agent scope 内注册。版本 1 接受 after_seconds、显式绝对 at 和有界固定速率 every_seconds，并披露 session-local 交付；管理读取与变更必须通过共享的 Session 持久化 barrier。 |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`、`ctx.lsp`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，因此其模型可见 schema 在更换提供方时保持稳定。运行时要求已注册提供方，例如 `@deepseek-ai/dsh-lsp-stdio`；如果没有提供方，查询会返回结构化 `LSP_UNAVAILABLE` 错误，而不会改变 schema。 |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`、`ctx.workflowEngine`、`ctx.subagents`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents every fresh round)` | `tool/call`、`tool/result`、`workflow and child session events during execution` | - | 固定的前台工作流会在每个 Round 启动一个全新的结构化子级；模型只能选择不可变目标和可选的 Round 上限。 |
@@ -1035,6 +1036,338 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 来源：[`packages/goal/tool-goal/src/index.ts`](../packages/goal/tool-goal/src/index.ts)
 
 create、edit、pause 和 resume 要求直接来自人类的根权限；complete 和 blocked 也接受确切的当前 Goal Round。blocked 的默认下限是 3 个获准的 Round。
+
+<a id="deepseek-aidsh-tool-kb"></a>
+
+## `@deepseek-ai/dsh-tool-kb`
+
+### `kb_add`
+
+向知识库新建一篇文档,默认落入收集箱(00-inbox);自动生成标题和 frontmatter
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "文档标题"
+    },
+    "content": {
+      "type": "string",
+      "description": "Markdown 正文,可选"
+    },
+    "directory": {
+      "type": "string",
+      "description": "目标目录,默认 00-inbox"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "标签列表"
+    },
+    "source": {
+      "type": "string",
+      "description": "原始来源 URL"
+    },
+    "summary": {
+      "type": "string",
+      "description": "一句话摘要"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_archive`
+
+将超过指定天数未更新的文档冷归档(dry-run 先行,默认只预览;超过确认阈值需先预览)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "days": {
+      "type": "integer",
+      "description": "阈值天数,默认 90"
+    },
+    "dryRun": {
+      "type": "boolean",
+      "description": "仅预览不执行,默认 true"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_clip`
+
+URL 剪藏:抓取网页正文存入知识库收集箱;抓取受限时降级为仅存 URL+标题
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "http(s) URL"
+    },
+    "title": {
+      "type": "string",
+      "description": "可选标题,默认用 URL"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "标签"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_delete`
+
+删除知识库文档(移入 .trash 回收站,不直接删除;可恢复)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "文档相对路径"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_export`
+
+导出知识库文档全文(path 省略则导出全部;返回文件列表)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "文档相对路径,可选;省略导出全部"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_get`
+
+读取知识库文档全文与元数据(含反向链接)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "文档相对路径,如 00-inbox/2026-08-14-测试文档.md"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_images`
+
+扫描知识库图片,重建 _meta/images.json,检测孤儿图片(未被任何文档引用)
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_import`
+
+批量导入文档到知识库(每项为 {title, content, directory?, tags?};超过确认阈值请分批)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "[{title, content, directory?, tags?}]"
+    },
+    "directory": {
+      "type": "string",
+      "description": "默认目标目录,默认 00-inbox"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_links`
+
+查看知识库文档的出链与反向链接(知识网络)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "文档相对路径"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_move`
+
+移动/重命名知识库文档(移动即改变状态: 进 00-inbox 为 inbox,进归档目录为 archived)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "文档相对路径"
+    },
+    "targetDirectory": {
+      "type": "string",
+      "description": "目标目录,如 10-技术/11-AI"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_organize`
+
+规则版整理报告(非 LLM):积压/重复/过期检测,供整理决策
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_search`
+
+检索知识库:关键词匹配标题/别名/摘要/标签/正文,支持 tag:xxx、path:xxx、status:inbox、title:xxx 语法
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "检索关键词,多词空格为 AND;支持 tag:/path:/status:/title: 前缀过滤器"
+    },
+    "topK": {
+      "type": "integer",
+      "description": "返回条数上限,默认 10"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_stats`
+
+知识库统计:文档总数、状态分布、目录、标签数
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_tags`
+
+列出知识库全部标签及其文档数
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+### `kb_update`
+
+更新知识库文档正文或元数据字段(带 expectVersion 乐观锁,冲突时提示重读)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "文档相对路径"
+    },
+    "content": {
+      "type": "string",
+      "description": "新的 Markdown 正文(不含 frontmatter),可选"
+    },
+    "summary": {
+      "type": "string",
+      "description": "更新摘要,可选"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "替换标签列表"
+    },
+    "expectVersion": {
+      "type": "string",
+      "description": "读取时得到的版本令牌;不匹配则写失败返回冲突"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
+15 个 kb_* 工具是知识库能力在 ctx.kb 之上的 agent 平面消费方；批量操作以 batchConfirmN 门控并先预览后执行，未挂 web 服务时 kb_clip 降级为仅存 URL+标题。
+
+
+
 
 <a id="deepseek-aidsh-schedule"></a>
 
