@@ -315,7 +315,9 @@ export function KbPanel({
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     if (event.key === 'Escape') {
-      if (query.length > 0) {
+      if (createOpen) {
+        setCreateOpen(false)
+      } else if (query.length > 0) {
         setQuery('')
         loadList('', status, dir, tag)
       } else if (editing) {
@@ -380,30 +382,33 @@ export function KbPanel({
               </button>
             )}
           </div>
-          <button type="button" className={css.primaryBtn} onClick={() => { setCreateOpen(!createOpen) }}>
-            <IconPlusOutline16 size={14} />
-            {t('panel.new')}
-          </button>
-          <button
-            type="button"
-            className={css.iconBtn}
-            aria-label={t('panel.refresh')}
-            title={t('panel.refresh')}
-            onClick={() => {
-              void refresh().then(reloadAll).catch((error: unknown) => { setLastError(messageOf(error)) })
-            }}
-          >
-            <IconRefreshOutline16 size={14} />
-          </button>
-          <button
-            type="button"
-            className={css.iconBtn}
-            aria-label={t('panel.close')}
-            title={t('panel.close')}
-            onClick={close}
-          >
-            <IconCloseOutline16 size={14} />
-          </button>
+          <div className={css.headerActions}>
+            <button type="button" className={css.primaryBtn} onClick={() => { setCreateOpen(!createOpen) }}>
+              <IconPlusOutline16 size={14} />
+              {t('panel.new')}
+            </button>
+            <span className={css.headerDivider} />
+            <button
+              type="button"
+              className={css.iconBtn}
+              aria-label={t('panel.refresh')}
+              title={t('panel.refresh')}
+              onClick={() => {
+                void refresh().then(reloadAll).catch((error: unknown) => { setLastError(messageOf(error)) })
+              }}
+            >
+              <IconRefreshOutline16 size={14} />
+            </button>
+            <button
+              type="button"
+              className={css.iconBtn}
+              aria-label={t('panel.close')}
+              title={t('panel.close')}
+              onClick={close}
+            >
+              <IconCloseOutline16 size={14} />
+            </button>
+          </div>
         </div>
 
         {createOpen && (
@@ -411,6 +416,7 @@ export function KbPanel({
             <input
               className={css.createTitle}
               placeholder={t('create.title')}
+              autoFocus
               value={newTitle}
               onChange={(event) => { setNewTitle(event.target.value) }}
               onKeyDown={(event) => {
@@ -425,7 +431,12 @@ export function KbPanel({
                 }
               }}
             />
-            <select className={css.createDir} value={newDir} onChange={(event) => { setNewDir(event.target.value) }}>
+            <select
+              className={css.createDir}
+              aria-label={t('create.directory')}
+              value={newDir}
+              onChange={(event) => { setNewDir(event.target.value) }}
+            >
               {dirList.map(entry => <option key={entry} value={entry}>{entry}</option>)}
             </select>
             <button
@@ -447,6 +458,7 @@ export function KbPanel({
             <button type="button" className={css.ghostBtn} onClick={() => { setCreateOpen(false) }}>
               {t('create.cancel')}
             </button>
+            <span className={css.createHint}>{t('create.hint')}</span>
           </div>
         )}
 
