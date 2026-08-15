@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "savedAt": "2026-08-15T07:18:08.345Z",
+  "savedAt": "2026-08-15T13:18:48.704Z",
   "docs": {
     "10-技术/2026-08-14-RAG-核心概念.md": {
       "title": "RAG 核心概念",
@@ -72,7 +72,7 @@
       "summary": "以 harness 设计理念（capability seam 三方、host/preset 平面、工具一等 package、preset 只组合行）重写收敛方案：保留 host 引擎并重塑为 ctx.kb 服务，工具收敛为 dsh-tool-kb 包，preset 只留一行。",
       "source": "",
       "created": "2026-08-15",
-      "updated": "2026-08-16",
+      "updated": "2026-08-15",
       "pinned": false,
       "status": "filed",
       "links": [
