@@ -1,7 +1,31 @@
 {
   "schemaVersion": 3,
-  "savedAt": "2026-08-15T13:18:48.704Z",
+  "savedAt": "2026-08-15T16:45:57.860Z",
   "docs": {
+    "10-技术/11-AI/2026-08-15-agent记忆开源项目调研-用户记忆与外部Memory-Provider.md": {
+      "title": "Agent 记忆开源项目调研:用户记忆与外部 Memory Provider",
+      "tags": [
+        "记忆",
+        "agent",
+        "调研",
+        "开源项目"
+      ],
+      "aliases": [
+        "记忆调研",
+        "memory provider 调研",
+        "用户记忆调研"
+      ],
+      "summary": "调研 Mem0、Letta(MemGPT)、Zep/Graphiti、LangMem、Basic Memory、Memobase、Cognee、Memary、MCP Memory Server 等热门开源项目,聚焦用户记忆(user memory)与外部 memory provider 两个方向的设计模式,提炼可借鉴要点。",
+      "source": "",
+      "created": "2026-08-15",
+      "updated": "2026-08-15",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "用户习惯记忆系统设计方案",
+        "RAG 核心概念"
+      ]
+    },
     "10-技术/2026-08-14-RAG-核心概念.md": {
       "title": "RAG 核心概念",
       "tags": [
@@ -55,6 +79,30 @@
       "pinned": true,
       "status": "filed",
       "links": []
+    },
+    "30-工作文档/2026-08-15-用户习惯记忆系统设计方案.md": {
+      "title": "用户习惯记忆系统设计方案",
+      "tags": [
+        "记忆",
+        "设计",
+        "DSH",
+        "agent"
+      ],
+      "aliases": [
+        "习惯记忆",
+        "用户记忆设计",
+        "memory habit",
+        "半自动记忆"
+      ],
+      "summary": "面向 DSH 的用户自定义习惯记忆系统设计(harness 理念优先版):habits 能力接缝三角色、读写契约与文件映射、写入口强制守卫、确定性合并、统一事件流、日志可重建注入链、全 Config 化,以及手动+半自动双写路径与用户使用设计。",
+      "source": "",
+      "created": "2026-08-15",
+      "updated": "2026-08-15",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "agent记忆开源项目调研-用户记忆与外部Memory-Provider"
+      ]
     },
     "30-工作文档/2026-08-15-知识库双引擎收敛实施方案.md": {
       "title": "知识库双引擎收敛实施方案",
