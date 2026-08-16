@@ -71,7 +71,7 @@ export class BootHomeController {
       status: 'ready',
       home: response.result.value.dshHome,
       source: response.result.value.dshHomeSource,
-      draft: response.result.value.dshHome,
+      draft: response.result.value.dshHome ?? '',
     })
   }
 

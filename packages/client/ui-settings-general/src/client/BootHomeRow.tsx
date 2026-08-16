@@ -58,6 +58,7 @@ export function BootHomeRow({ controller, useSnapshot, t }: BootHomeRowProps): R
   }
 
   const saveDisabled = state.saving || state.draft.trim() === state.home
+  const draft = state.draft
   return (
     <div className={css.row}>
       <label className={css.label} htmlFor="boot-home-input">
@@ -69,7 +70,7 @@ export function BootHomeRow({ controller, useSnapshot, t }: BootHomeRowProps): R
       <input
         id="boot-home-input"
         className={css.input}
-        value={state.draft}
+        value={draft}
         spellCheck={false}
         placeholder={t('bootHome.placeholder')}
         onChange={(event) => { controller.setDraft(event.target.value) }}
