@@ -1,0 +1,53 @@
+# Machine-level settings baseline, generated from the shipped init template on
+# the first boot only: existing files are never overwritten by the init step.
+#
+# Model providers below declare structure and API-key environment names only.
+# Set the key values in the environment (KIMI_API_KEY / OPENCODE_GO_API_KEY)
+# or edit this file freely afterwards.
+
+agent-default-model:
+  provider: opencode-go
+  model: deepseek-v4-pro
+  reasoningEffort: max
+
+llm-pi-ai:
+  providers:
+    kimi:
+      displayName: Kimi
+      apiKeyEnv: KIMI_API_KEY
+      api: openai-completions
+      baseURL: https://api.moonshot.cn/v1
+      models:
+        - id: kimi-k2-0711-preview
+          name: Kimi K2 0711 Preview
+          contextWindow: 1000000
+          maxTokens: 16384
+          input: [ text, image ]
+        - id: kimi-k3
+          name: kimi-k3
+          contextWindow: 1000000
+          maxTokens: 16384
+          input: [ text, image ]
+    opencode-go:
+      models:
+        - id: deepseek-v4-flash
+          name: DeepSeek V4 Flash
+          contextWindow: 1000000
+          maxTokens: 384000
+        - id: deepseek-v4-pro
+          name: DeepSeek V4 Pro
+          contextWindow: 1000000
+          maxTokens: 384000
+        - id: glm-5.2
+          name: GLM-5.2
+          contextWindow: 1000000
+          maxTokens: 131072
+        - id: kimi-k2.7-code
+          name: Kimi K2.7 Code
+          contextWindow: 262144
+          maxTokens: 262144
+        - id: kimi-k3
+          name: Kimi K3 (2x usage)
+          contextWindow: 1048576
+          maxTokens: 131072
+      apiKeyEnv: OPENCODE_GO_API_KEY
