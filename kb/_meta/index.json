@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "savedAt": "2026-08-15T16:45:57.860Z",
+  "savedAt": "2026-08-16T09:53:05.406Z",
   "docs": {
     "10-技术/11-AI/2026-08-15-agent记忆开源项目调研-用户记忆与外部Memory-Provider.md": {
       "title": "Agent 记忆开源项目调研:用户记忆与外部 Memory Provider",
@@ -24,6 +24,32 @@
       "links": [
         "用户习惯记忆系统设计方案",
         "RAG 核心概念"
+      ]
+    },
+    "10-技术/11-AI/2026-08-16-记忆模块问题记录-memory-add未生效.md": {
+      "title": "记忆模块问题记录:/memory add 未生效(习惯库为空)",
+      "tags": [
+        "记忆",
+        "user-habits",
+        "排查",
+        "问题记录",
+        "DSH"
+      ],
+      "aliases": [
+        "memory 未生效",
+        "记忆没生效",
+        "用户习惯未写入",
+        "中文回复习惯"
+      ],
+      "summary": "排查「默认用中文回复」记忆未生效问题:live habits 服务运行中但 entries 为空,/memory add 未真正写入习惯库;分析可能的根因(命令未注册/preset 装载)与证据。",
+      "source": "",
+      "created": "2026-08-16",
+      "updated": "2026-08-16",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "2026-08-15-用户习惯记忆系统设计方案",
+        "2026-08-15-agent记忆开源项目调研-用户记忆与外部Memory-Provider"
       ]
     },
     "10-技术/2026-08-14-RAG-核心概念.md": {
