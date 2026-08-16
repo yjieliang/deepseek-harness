@@ -251,9 +251,11 @@ function referencedImage(events: readonly SessionEvent[], attachmentId: string):
  * The agent-preset namespace carries one field — which preset a session with
  * no explicit choice is composed from — and both browser surfaces that offer
  * that choice write it through `settings.update`, so it has to cross the
- * configuration boundary or the pickers silently fail to persist.
+ * configuration boundary or the pickers silently fail to persist. The
+ * user-habits namespace is the habit store the settings Memory page edits
+ * through `settings.replace`, with the same requirement.
  */
-const PRODUCT_SETTINGS_NAMESPACES = new Set(['ui-onboarding', AGENT_PRESET_SETTINGS_NAMESPACE])
+const PRODUCT_SETTINGS_NAMESPACES = new Set(['ui-onboarding', AGENT_PRESET_SETTINGS_NAMESPACE, 'user-habits'])
 
 /** Strict browser-zone profile: UTC or an IANA Area/Location-style identifier. */
 const IANA_TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)+$/

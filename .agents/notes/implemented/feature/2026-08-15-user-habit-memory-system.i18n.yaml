@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-15-user-habit-memory-system.md
+2026-08-15-user-habit-memory-system.md: 1f5015e8b3762a867e38ddb54c665c073bf11471
+2026-08-15-user-habit-memory-system.zh.md: 770ff32f7d34ed62a43aff6d318fe7d9767ed319

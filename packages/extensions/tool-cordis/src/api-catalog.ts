@@ -710,6 +710,31 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'habits',
+    summary: 'The habits contract service (`ctx.habits`).',
+    description: 'The habits contract service (`ctx.habits`). Providers extend this class and implement the three storage hooks; consumers (tools, commands, prompt sections) depend on the concrete class only through this contract.',
+    methods: [
+      {
+        signature: 'list(layer?: HabitLayer): readonly HabitEntry[]',
+        description: 'List committed entries in stable id order, optionally filtered to one layer.',
+        parameters: [{ name: 'layer', description: 'optional ownership layer filter.' }],
+        returns: 'a fresh frozen array over the provider\'s current state.',
+      },
+      {
+        signature: 'async write(request: HabitWriteRequest, options?: { userConfirmed?: boolean }): Promise<HabitWriteOutcome>',
+        description: 'Validate, consolidate, persist, and commit one habit write. The guard hard-rejects hostile agent-proposed values and rejects user-authored hostile-looking values unless a human confirmed the warning; the budget always holds. Deterministic consolidation replaces the same-topic entry instead of appending a sibling, and an unchanged value is rejected as a duplicate.',
+        parameters: [{ name: 'request', description: 'layer, topic, raw value, and final author.' }, { name: 'options', description: 'optional `userConfirmed` override after a human saw the guard warning.' }],
+        returns: 'the committed entry, the operation, and the replaced entry on update.',
+      },
+      {
+        signature: 'async remove(id: HabitId): Promise<HabitEntry>',
+        description: 'Persist a removal and commit it. The removed entry\'s id leaves the store before the `user-habits/committed` remove event fires.',
+        parameters: [{ name: 'id', description: 'exact entry id (content-addressed `layer:topic`).' }],
+        returns: 'the removed entry.',
+      },
+    ],
+  },
+  {
     key: 'invariants',
     summary: 'Package-owned invariant registry with global and regex-based selection.',
     description: 'Package-owned invariant registry with global and regex-based selection.',
@@ -2691,6 +2716,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'exec', description: 'the execution object that traversed the pipeline.' }, { name: 'result', description: 'a deep-frozen snapshot of the final returned result.' }],
   },
   {
+    name: 'user-habits/committed',
+    mode: 'emit',
+    signature: '\'user-habits/committed\'(entry: HabitEntry, op: HabitOp): void',
+    summary: 'One durable habit mutation settled: the exact committed entry and the operation it entered by.',
+    description: 'One durable habit mutation settled: the exact committed entry and the operation it entered by. Emitted strictly after the provider persisted the change, so the store state already reflects the entry when listeners run — consumers read the authoritative data stream, never the payload alone.',
+    parameters: [{ name: 'entry', description: 'the committed entry (a remove carries the removed value).' }, { name: 'op', description: 'how the entry changed.' }],
+  },
+  {
     name: 'workflow/agent-end',
     mode: 'emit',
     signature: '\'workflow/agent-end\'(info: WorkflowRunInfo, agent: WorkflowAgentEndInfo): void',
@@ -3261,6 +3294,34 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'GoalView',
     declaration: 'export interface GoalView extends GoalSnapshot {\n    readonly roundsStarted: number;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n    readonly activation: GoalActivation;\n}',
+  },
+  {
+    name: 'HabitEntry',
+    declaration: 'export interface HabitEntry {\n    readonly id: HabitId;\n    readonly layer: HabitLayer;\n    readonly topic: string;\n    readonly value: string;\n    readonly source: HabitSource;\n    readonly guardConfirmed?: true;\n    readonly version: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'HabitId',
+    declaration: 'export type HabitId = Branded<\'HabitId\'>;',
+  },
+  {
+    name: 'HabitLayer',
+    declaration: 'export type HabitLayer = \'global\' | \'project\';',
+  },
+  {
+    name: 'HabitOp',
+    declaration: 'export type HabitOp = \'add\' | \'update\' | \'remove\';',
+  },
+  {
+    name: 'HabitSource',
+    declaration: 'export type HabitSource = \'user\' | \'agent-proposed\';',
+  },
+  {
+    name: 'HabitWriteOutcome',
+    declaration: 'export interface HabitWriteOutcome {\n    readonly entry: HabitEntry;\n    readonly op: \'add\' | \'update\';\n    readonly replaced?: HabitEntry;\n}',
+  },
+  {
+    name: 'HabitWriteRequest',
+    declaration: 'export interface HabitWriteRequest {\n    readonly layer: HabitLayer;\n    readonly topic: string;\n    readonly value: string;\n    readonly source: HabitSource;\n}',
   },
   {
     name: 'ImageAttachmentLimits',
@@ -4276,11 +4337,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SettingsRegisterOptions',
-    declaration: 'export interface SettingsRegisterOptions<T> {\n    base?: Partial<T>;\n    applies?: SettingsApplies;\n    validate?: (value: T) => void;\n}',
+    declaration: 'export interface SettingsRegisterOptions<T> {\n    base?: Partial<T>;\n    applies?: SettingsApplies;\n    validate?: (value: T, phase: SettingsValidatePhase) => void;\n}',
   },
   {
     name: 'SettingsUpdateSource',
     declaration: 'export type SettingsUpdateSource = \'update\' | \'provider\';',
+  },
+  {
+    name: 'SettingsValidatePhase',
+    declaration: 'export type SettingsValidatePhase = \'load\' | \'write\';',
   },
   {
     name: 'ShellExecRequest',

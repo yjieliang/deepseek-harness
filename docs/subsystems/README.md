@@ -46,6 +46,7 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [plan.md](plan.md) | plan mode: the log-only `plan/mode` state, pending-selection flush, `PlanModeConfig`, the `exit_plan_mode` review arc |
 | [invariants.md](invariants.md) | the runtime-invariant registry: selection `Config`, `InvariantInstaller`/`InvariantFailure`, the empty-companion contract |
 | [kb.md](kb.md) | the knowledge-base service: the `kb/` markdown library model, the `ctx.kb` wire vocabulary, and the engine/panel/tools split |
+| [user-habits.md](user-habits.md) | the user-habit memory system: `HabitEntry`/`HabitWriteRequest` vocabulary, the layered guard, and the settings-backed `ctx.habits` store |
 | [web-server.md](web-server.md) | the HTTP carrier: `WebRouteKind`/`WebRoute`, match order, the claimable fallback seat, index taps |
 | [storage.md](storage.md) | the storage subsystem: the backend contract (`StorageBackend`), `StorageForms`, `DomainSpec`/`Domain`, `domain/changed` |
 | [workspace.md](workspace.md) | the workspace registry: `Workspace`/`WorkspaceId`, registration and resolution, the session `cwd` relationship |

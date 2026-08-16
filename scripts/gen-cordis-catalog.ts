@@ -103,6 +103,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   tools: 'tools.md',
   typert: 'typert.md',
   typertGateway: 'typert.md',
+  habits: 'user-habits.md',
   userQuestions: 'user-questions.md',
   web: 'web.md',
   workflowEngine: 'workflow.md',
@@ -182,6 +183,7 @@ export const EVENT_SCOPE_PAGE: Record<string, string> = {
   'system-prompt': 'system-prompt.md',
   'session-telemetry': 'session-telemetry.md',
   'tools': 'tools.md',
+  'user-habits': 'user-habits.md',
   'workflow': 'workflow.md',
 }
 
@@ -560,6 +562,12 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   'z.core.ToJSONSchemaParams': 'zod projection parameters are owned by the zod v4 API',
   TypertDisposer: 'Typert lifecycle contract is owned by packages/typert/protocol/README.md',
   InvokeRemoteRequest: 'gateway invocation contract is owned by packages/api/gateway/README.md',
+  HabitEntry: 'user-habit entry contract is owned by packages/habits/user-habits/src/types.ts',
+  HabitId: 'user-habit entry id is owned by packages/habits/user-habits/src/types.ts',
+  HabitLayer: 'user-habit ownership layer is owned by packages/habits/user-habits/src/types.ts',
+  HabitOp: 'user-habit commit operation is owned by packages/habits/user-habits/src/types.ts',
+  HabitWriteOutcome: 'user-habit write outcome is owned by packages/habits/user-habits/src/types.ts',
+  HabitWriteRequest: 'user-habit write request is owned by packages/habits/user-habits/src/types.ts',
   LocaleDict: 'service-local dictionary fields are owned by packages/client/i18n/src/index.ts',
   ThemeTokens: 'service-local token dictionary is owned by packages/client/ui-theme/src/index.ts',
   Translate: 'service-local bound translator is owned by packages/client/i18n/src/index.ts',
