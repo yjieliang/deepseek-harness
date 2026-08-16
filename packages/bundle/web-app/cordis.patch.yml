@@ -104,6 +104,16 @@
     - id: kb
       name: '@deepseek-ai/dsh-host-kb'
 
+    # User-habit memory: the settings-backed `habits` store (global layer) and
+    # the budgeted resident prompt section. The model-facing memory_* tools and
+    # the /memory command stay in the agent presets, not here; the settings
+    # Memory page reads and edits this namespace through the wire.
+    - id: habits-settings
+      name: '@deepseek-ai/dsh-habits-settings'
+      config:
+        maxEntryChars: 200
+        residentTokenBudget: 600
+
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
     - id: api-gateway
@@ -446,4 +456,4 @@
     - id: agent-presets
       name: '@deepseek-ai/dsh-agent-presets'
       config:
-        default: standard
+        default: knowledge-base
