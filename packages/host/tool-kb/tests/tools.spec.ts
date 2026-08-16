@@ -6,6 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import type { ToolDefinition, ToolRunContext, ToolRuntime } from '@deepseek-ai/dsh-tools'
 import { KbGateway } from '../../kb/src/index.ts'
@@ -21,6 +23,7 @@ function doc(title: string, updated: string, extra = ''): string {
 /** One mounted tool suite over a fresh in-memory library. */
 async function bench(seed: Record<string, string>): Promise<{
   ctx: Context
+  root: string
   registry: Map<string, ToolDefinition>
   sections: unknown[]
   run: (name: string, args: unknown) => Promise<unknown>
@@ -28,9 +31,12 @@ async function bench(seed: Record<string, string>): Promise<{
   const ctx = new Context()
   await ctx.plugin(MemoryFs)
   const fs = ctx.fs as MemoryFs
-  for (const [path, text] of Object.entries(seed)) fs.seed('kb/' + path, text)
+  // A fresh absolute library root per suite; the memory fs keys by the path
+  // string, so the engine's `/`-joined library paths must match exactly.
+  const root = join(tmpdir(), `dsh-kb-tool-${Math.random().toString(36).slice(2)}`)
+  for (const [path, text] of Object.entries(seed)) fs.seed(`${root}/${path}`, text)
   // Retention 0 disables the trash sweep timer so the test process stays clean.
-  await ctx.plugin(KbGateway, { trashRetentionDays: 0 })
+  await ctx.plugin(KbGateway, { root, trashRetentionDays: 0 })
 
   const registry = new Map<string, ToolDefinition>()
   const sections: unknown[] = []
@@ -61,7 +67,7 @@ async function bench(seed: Record<string, string>): Promise<{
     if (def === undefined) throw new Error(`tool not registered: ${name}`)
     return await def.execute(args, exec())
   }
-  return { ctx, registry, sections, run }
+  return { ctx, root, registry, sections, run }
 }
 
 describe('tool-kb registration', () => {
@@ -110,12 +116,12 @@ describe('kb_add / kb_get / kb_update', () => {
   })
 
   it('reports a stale expectVersion as a conflict', async () => {
-    const { ctx, run } = await bench({
+    const { ctx, root, run } = await bench({
       '10-技术/2026-08-12-a.md': doc('甲', '2026-08-12'),
     })
     const read = await run('kb_get', { path: '10-技术/2026-08-12-a.md' }) as { version?: string }
     const fs = ctx.fs as MemoryFs
-    fs.entries.get('kb/10-技术/2026-08-12-a.md')!.version++
+    fs.entries.get(`${root}/10-技术/2026-08-12-a.md`)!.version++
     await expect(run('kb_update', {
       path: '10-技术/2026-08-12-a.md', content: '覆盖', expectVersion: read.version,
     })).rejects.toThrow(/版本冲突/)

@@ -2,9 +2,9 @@
 
 [English](README.md) | 中文
 
-`kb/` 工作区根目录的知识库宿主特性：一个经 Typert 网关面向浏览器知识库面板的 `kb` Remote 命名空间，外加文档图片的 `/dsh-kb` 图片路由。
+机器全局知识库根（默认 `$DSH_HOME/kb`，被本机所有工作区共享）的知识库宿主特性：一个经 Typert 网关面向浏览器知识库面板的 `kb` Remote 命名空间，外加文档图片的 `/dsh-kb` 图片路由。
 
-引擎在 `kb/` 下维护一个惰性内存索引，覆盖所有 `*.md`（标题／别名／摘要／标签／正文的分字段加权 BM25 检索，支持部分命中排序召回与单字容错），解析扁平 frontmatter，从目录推导每篇文档的状态（`00-inbox/` 或 `01-inbox/` → inbox，配置的归档目录 → archived，其余 → filed），在每次变更后维护 `kb/_meta/index.json`，并把删除移入可恢复的 `.trash`。路径保持库相对并经由 `fs` 服务的 `contains` 做沙箱校验。
+引擎在库根下维护一个惰性内存索引，覆盖所有 `*.md`（标题／别名／摘要／标签／正文的分字段加权 BM25 检索，支持部分命中排序召回与单字容错），解析扁平 frontmatter，从目录推导每篇文档的状态（`00-inbox/` 或 `01-inbox/` → inbox，配置的归档目录 → archived，其余 → filed），在每次变更后维护 `kb/_meta/index.json`，并把删除移入可恢复的 `.trash`。路径保持库相对并经由 `fs` 服务的 `contains` 做沙箱校验。
 
 网关是以 `ctx.kb` 注册的 Cordis 服务（`TypertRemoteService`），因此浏览器面板与模型面向的工具共享同一引擎实例。模型面向的 `kb_*` 工具刻意不在这里注册：它们位于一等消费方包 [`@deepseek-ai/dsh-tool-kb`](../tool-kb)，由每次会话的 agent preset 选择加入，而面板、服务与图片路由保持进程全局。工具面在 `ctx.kb` 上追加了普通（非 Remote）方法：`searchFiltered`（超出面板 wire 的字段过滤）、`links`（出链+反链）与 `images`（图片注册表重建+孤儿检测）。
 
@@ -14,9 +14,12 @@
 - id: kb
   name: '@deepseek-ai/dsh-host-kb'
   config:
-    archiveDir: 90-归档           # optional; directory whose documents derive status "archived"
-    trashRetentionDays: 30       # optional; days a trashed document is kept before automatic purge; 0 disables
+    root: $DSH_HOME/kb           # 可选；绝对库根，被本机所有工作区共享
+    archiveDir: 90-归档           # 可选；文档据此推导 "archived" 状态的目录
+    trashRetentionDays: 30       # 可选；回收站文档在自动清除前保留的天数；0 关闭
 ```
+
+`root` 默认 `$DSH_HOME/kb`，接受绝对路径或相对 harness home 的路径。因为库在工作区之外，部署还必须在 `workspace-write` 沙箱模式下放行该根：web-app bundle 在本行的 `root` 旁设置 `sandbox-policy.writableRoots: [$DSH_HOME/kb]`，自定义部署移动根时必须同步移动这两处。
 
 `archiveDir` 默认 `90-归档`，必须是单个非保留目录名（`00-inbox`／`01-inbox`／`_meta`／`templates`／`.trash` 在加载时被拒绝）。引擎在首次初始化时创建配置的目录，经 `kb.stats.archiveDir` 上报它（面板因此能提供归档移动），并从它推导每个状态，所以配置变更时既有文档立即重新归类。
 

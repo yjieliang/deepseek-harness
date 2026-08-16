@@ -72,6 +72,12 @@ export interface Config {
    * `process.cwd()`). Normal agent calls use their session cwd instead.
    */
   workspaceRoot?: string
+  /**
+   * Deployment-owned controlled write zones admitted under `workspace-write`
+   * beside the workspace (e.g. the global knowledge-base root). Absolute
+   * paths; canonicalized by the same rule as the workspace root.
+   */
+  writableRoots?: string[]
 }
 
 /** Inputs that select the sandbox policy for one capability call. */
@@ -95,12 +101,17 @@ export class SandboxPolicyService extends Service {
     // No schema default: process.cwd() is resolved in the constructor so the
     // stored root is always absolute regardless of how it was supplied.
     workspaceRoot: z.string(),
+    // Deployment-owned controlled write zones admitted under `workspace-write`
+    // beside the workspace itself (e.g. the global knowledge-base root).
+    writableRoots: z.array(z.string()).default([]),
   })
 
   /** The deployment default mode — the fallback beneath a session override. */
   readonly defaultMode: SandboxMode
   /** The absolute `workspace-write` fallback root for calls without a session cwd. */
   readonly workspaceRoot: string
+  /** The deployment-declared additional writable roots, kept as configured. */
+  private readonly additionalRoots: readonly string[]
   constructor(ctx: Context, config: Config) {
     super(ctx, 'sandboxPolicy')
     // schemastery (static Config) already filled `mode`; the cast records that
@@ -108,6 +119,7 @@ export class SandboxPolicyService extends Service {
     // the process cwd is real branching, resolved absolute either way.
     this.defaultMode = config.mode as SandboxMode
     this.workspaceRoot = resolveWorkspaceRoot(config.workspaceRoot ?? process.cwd())
+    this.additionalRoots = config.writableRoots ?? []
 
     ctx.inject(['systemPrompt'], (scope: Context) => {
       scope.systemPrompt.context({
@@ -137,6 +149,7 @@ export class SandboxPolicyService extends Service {
     return {
       mode: request.mode ?? (session === undefined ? undefined : this.overrideOf(session)) ?? this.defaultMode,
       workspaceRoot: resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot),
+      writableRoots: this.additionalRoots,
       ...session === undefined ? {} : { sessionId: session.id },
     }
   }

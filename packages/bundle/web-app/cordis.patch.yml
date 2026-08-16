@@ -18,6 +18,17 @@
     persona: >-
       You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
 
+# The global knowledge base lives at $DSH_HOME/kb, outside any workspace, so
+# `workspace-write` must also admit that controlled root. The base row keeps
+# the deployment default; this restatement carries the Web-owned writable zone
+# in lock-step with the `kb` row's `root` below.
+- id: sandbox-policy
+  config:
+    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+    workspaceRoot: !!js process.cwd()
+    writableRoots:
+      - !!js dshHomePath('kb')
+
 # TODO: Re-enable shared HMR for Web after its reload lifecycle is tested.
 - id: hmr
   disabled: true
@@ -100,9 +111,12 @@
 
     # Knowledge base: the kb Remote namespace (browser panel data) and the
     # /dsh-kb image route. The model-facing kb_* tools stay in the agent
-    # presets, not here.
+    # presets, not here. The library root is machine-global (shared by every
+    # workspace); the sandbox-policy row above admits it under workspace-write.
     - id: kb
       name: '@deepseek-ai/dsh-host-kb'
+      config:
+        root: !!js dshHomePath('kb')
 
     # User-habit memory: the settings-backed `habits` store (global layer) and
     # the budgeted resident prompt section. The model-facing memory_* tools and

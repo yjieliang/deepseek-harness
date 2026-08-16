@@ -14,7 +14,7 @@ import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import SandboxPolicyService, { SANDBOX_MODES, effectiveSandboxMode, setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import SystemPrompt, { renderContextSnapshot, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 
-async function mounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string } = {}) {
+async function mounted(config: { mode?: 'read-only' | 'workspace-write' | 'danger-full-access'; workspaceRoot?: string; writableRoots?: string[] } = {}) {
   const ctx = new Context()
   await ctx.plugin(SandboxPolicyService, config)
   return ctx
@@ -57,6 +57,7 @@ describe('SandboxPolicyService', () => {
     expect(ctx.sandboxPolicy.resolve()).toEqual({
       mode: 'workspace-write',
       workspaceRoot: resolve('/fallback'),
+      writableRoots: [],
     })
   })
 
@@ -70,17 +71,20 @@ describe('SandboxPolicyService', () => {
       mode: 'workspace-write',
       workspaceRoot: resolve('/projects/first'),
       sessionId: 'sess-first',
+      writableRoots: [],
     })
     expect(ctx.sandboxPolicy.resolve({ session: second })).toEqual({
       mode: 'read-only',
       workspaceRoot: resolve('/projects/second'),
       sessionId: 'sess-second',
+      writableRoots: [],
     })
     expect(ctx.sandboxPolicy.overrideOf(first)).toBeUndefined()
     expect(ctx.sandboxPolicy.overrideOf(second)).toBe('read-only')
     expect(ctx.sandboxPolicy.resolve()).toEqual({
       mode: 'workspace-write',
       workspaceRoot: resolve('/fallback'),
+      writableRoots: [],
     })
   })
 
@@ -101,6 +105,7 @@ describe('SandboxPolicyService', () => {
         mode: 'workspace-write',
         workspaceRoot: realpathSync.native(physical),
         sessionId: 'sess-symlink-parent',
+        writableRoots: [],
       })
     } finally {
       rmSync(root, { recursive: true, force: true })
@@ -115,12 +120,22 @@ describe('SandboxPolicyService', () => {
       mode: 'danger-full-access',
       workspaceRoot: resolve('/projects/approved'),
       sessionId: 'sess-approved',
+      writableRoots: [],
     })
   })
 
   it('uses the configured root when a session has no cwd', async () => {
     const ctx = await mounted({ workspaceRoot: '/fallback' })
     expect(ctx.sandboxPolicy.resolve({ session: session('sess-no-cwd') }).workspaceRoot).toBe(resolve('/fallback'))
+  })
+
+  it('carries deployment-declared additional writable roots through resolve', async () => {
+    const ctx = await mounted({ mode: 'workspace-write', workspaceRoot: '/fallback', writableRoots: ['/extra/kb'] })
+    expect(ctx.sandboxPolicy.resolve()).toEqual({
+      mode: 'workspace-write',
+      workspaceRoot: resolve('/fallback'),
+      writableRoots: ['/extra/kb'],
+    })
   })
 
   it('rejects a mode outside the closed vocabulary at load', async () => {

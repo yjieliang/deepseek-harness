@@ -2,9 +2,9 @@
 
 English | [中文](README.zh.md)
 
-Knowledge-base host feature for the `kb/` workspace root. One `kb` Remote namespace over the Typert gateway serving the browser knowledge-base panel, plus the `/dsh-kb` image route for document images.
+Knowledge-base host feature for the machine-global library root (default `$DSH_HOME/kb`, shared by every workspace). One `kb` Remote namespace over the Typert gateway serving the browser knowledge-base panel, plus the `/dsh-kb` image route for document images.
 
-The engine builds a lazy in-memory index of every `*.md` under `kb/` (field-weighted BM25 search over title/aliases/tags/summary/body, with ranked partial-query hits and one-character typo tolerance), parses flat frontmatter, derives each document's status from its directory (`00-inbox/` or `01-inbox/` → inbox, the configured archive directory → archived, else filed), maintains `kb/_meta/index.json` after every mutation, and moves deletions into a recoverable `.trash`. Paths stay library-relative and are sandbox-checked through the `fs` service's `contains`.
+The engine builds a lazy in-memory index of every `*.md` under the library root (field-weighted BM25 search over title/aliases/tags/summary/body, with ranked partial-query hits and one-character typo tolerance), parses flat frontmatter, derives each document's status from its directory (`00-inbox/` or `01-inbox/` → inbox, the configured archive directory → archived, else filed), maintains `kb/_meta/index.json` after every mutation, and moves deletions into a recoverable `.trash`. Paths stay library-relative and are sandbox-checked through the `fs` service's `contains`.
 
 The gateway is a Cordis service registered as `ctx.kb` (a `TypertRemoteService`), so both the browser panel and the model-facing tools share one engine instance. The model-facing `kb_*` TOOLS are deliberately NOT registered here: they live in the first-class consumer package [`@deepseek-ai/dsh-tool-kb`](../tool-kb), which per-session agent presets opt into, while the panel, the service, and the image route stay process-global. The tool-facing surface adds plain (non-Remote) methods on `ctx.kb`: `searchFiltered` (field filters beyond the panel wire), `links` (outlinks + backlinks), and `images` (image registry rebuild + orphans).
 
@@ -14,9 +14,12 @@ The gateway is a Cordis service registered as `ctx.kb` (a `TypertRemoteService`)
 - id: kb
   name: '@deepseek-ai/dsh-host-kb'
   config:
+    root: $DSH_HOME/kb           # optional; absolute library root, shared by every workspace on this host
     archiveDir: 90-归档           # optional; directory whose documents derive status "archived"
     trashRetentionDays: 30       # optional; days a trashed document is kept before automatic purge; 0 disables
 ```
+
+`root` defaults to `$DSH_HOME/kb` and accepts an absolute path or a path relative to the harness home. Because the library lives outside the workspace, the deployment must also admit that root under the `workspace-write` sandbox mode: the web-app bundle sets `sandbox-policy.writableRoots: [$DSH_HOME/kb]` beside this row's `root`, and a custom deployment moving the root must move both together.
 
 `archiveDir` defaults to `90-归档` and must be a single non-reserved directory name (`00-inbox`/`01-inbox`/`_meta`/`templates`/`.trash` are refused at load). The engine creates the configured directory on first init, reports it through `kb.stats.archiveDir` (so the panel can offer archive moves), and derives every status from it, so existing documents re-classify immediately when the configuration changes.
 

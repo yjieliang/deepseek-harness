@@ -10,6 +10,8 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { isAbsolute, join } from 'node:path'
+import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 // Typert-generated ./typert and ./remote artifacts import Zod at runtime.
@@ -41,12 +43,25 @@ const IMAGE_ROUTE_PREFIX = '/dsh-kb'
 /** How often the trash retention sweep runs after its startup pass. */
 const TRASH_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
 
-/** Gateway configuration: archive directory and trash retention are deployment choices. */
+/** Gateway configuration: library root, archive directory, and trash retention are deployment choices. */
 export interface KbGatewayConfig {
+  /**
+   * Absolute library root. Defaults to the machine-level `$DSH_HOME/kb`, so the
+   * library is shared by every workspace on this host; set an absolute path to
+   * move it elsewhere. A relative value is resolved against the harness home.
+   */
+  root?: string
   /** Directory whose documents derive status `archived`; default `90-归档`. */
   archiveDir?: string
   /** Days a trashed document is kept before automatic purge; `0` disables the sweep. Default 30. */
   trashRetentionDays?: number
+}
+
+/** Resolve the library root: absolute as given, relative against the harness home. */
+function rootOf(config: KbGatewayConfig | undefined): string {
+  const value = config?.root
+  if (value === undefined) return join(resolveDshHome(), 'kb')
+  return isAbsolute(value) ? value : join(resolveDshHome(), value)
 }
 
 /** Validate a configured archive directory; misconfiguration fails at load. */
@@ -105,8 +120,7 @@ export class KbGateway extends TypertRemoteService {
 
   constructor(ctx: Context, config?: KbGatewayConfig) {
     super(ctx, 'kb')
-    const sandboxPolicy = ctx.get('sandboxPolicy') as { workspaceRoot?: string } | undefined
-    this.engine = new KbEngine(ctx.fs, sandboxPolicy?.workspaceRoot, archiveDirOf(config))
+    this.engine = new KbEngine(ctx.fs, rootOf(config), archiveDirOf(config))
     const retention = trashRetentionOf(config)
     if (retention > 0) this.startTrashSweep(ctx, retention)
     const webServer = ctx.get('webServer') as { register(route: WebRoute): () => void } | undefined

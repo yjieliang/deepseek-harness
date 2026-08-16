@@ -2,11 +2,11 @@
 
 English | [中文](kb.zh.md)
 
-The knowledge-base capability serves the `kb/` markdown library under the workspace root: the host service (`ctx.kb`), the browser panel, and the model-facing tools share one engine and one write path. The engine, the index, and the wire vocabulary live in [`packages/host/kb`](../../packages/host/kb/README.md); the tools live in [`@deepseek-ai/dsh-tool-kb`](../../packages/host/tool-kb/README.md); the panel lives in [`@deepseek-ai/dsh-client-ui-kb`](../../packages/client/ui-kb/README.md). The single-engine convergence decision is recorded in the [engine-convergence Agent Note](../../.agents/notes/implemented/feature/2026-08-15-kb-engine-convergence-tool-package.md).
+The knowledge-base capability serves the machine-global markdown library (default `$DSH_HOME/kb`, shared by every workspace): the host service (`ctx.kb`), the browser panel, and the model-facing tools share one engine and one write path. The engine, the index, and the wire vocabulary live in [`packages/host/kb`](../../packages/host/kb/README.md); the tools live in [`@deepseek-ai/dsh-tool-kb`](../../packages/host/tool-kb/README.md); the panel lives in [`@deepseek-ai/dsh-client-ui-kb`](../../packages/client/ui-kb/README.md). The single-engine convergence decision is recorded in the [engine-convergence Agent Note](../../.agents/notes/implemented/feature/2026-08-15-kb-engine-convergence-tool-package.md).
 
 ## Library model
 
-Every `*.md` under `kb/` is a document: a flat frontmatter block (title, aliases, tags, summary, source, created, updated, pinned) plus a Markdown body. Status is derived from the containing directory — `00-inbox/` or `01-inbox/` → `inbox`, the configured archive directory → `archived`, else `filed` — so moving a document changes its status and no second source of truth exists. Deletions move documents into a recoverable `.trash`; `kb/_meta/index.json` is a rebuildable registry written by the engine after every mutation.
+Every `*.md` under the library root is a document: a flat frontmatter block (title, aliases, tags, summary, source, created, updated, pinned) plus a Markdown body. Status is derived from the containing directory — `00-inbox/` or `01-inbox/` → `inbox`, the configured archive directory → `archived`, else `filed` — so moving a document changes its status and no second source of truth exists. Deletions move documents into a recoverable `.trash`; `kb/_meta/index.json` is a rebuildable registry written by the engine after every mutation.
 
 The engine keeps a lazy in-memory 2-gram inverted index and scores hits with field-weighted BM25 over title/aliases/tags/summary/body (ranked partial-query hits, one-character typo tolerance through single-character neighbor grams). `kb.refresh` rebuilds the index from disk so externally added or edited documents appear without a restart.
 
@@ -190,5 +190,5 @@ async images(signal: AbortSignal): Promise<KbImagesResult>
 @Remote('resolveLink') async resolveLink(request: KbResolveRequest, signal: AbortSignal): Promise<KbResolveResult>
 ```
 
-Source: [`packages/host/kb/src/index.ts:101`](../../packages/host/kb/src/index.ts)
+Source: [`packages/host/kb/src/index.ts:116`](../../packages/host/kb/src/index.ts)
 <!-- END GENERATED cordis-surface -->

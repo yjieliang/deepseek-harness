@@ -2,11 +2,11 @@
 
 [English](kb.md) | 中文
 
-知识库能力服务于工作区根目录下的 `kb/` markdown 库：宿主服务（`ctx.kb`）、浏览器面板与模型面向的工具共享同一引擎与同一写路径。引擎、索引与 wire 词汇位于 [`packages/host/kb`](../../packages/host/kb/README.md)；工具位于 [`@deepseek-ai/dsh-tool-kb`](../../packages/host/tool-kb/README.md)；面板位于 [`@deepseek-ai/dsh-client-ui-kb`](../../packages/client/ui-kb/README.md)。单引擎收敛决策记录在[引擎收敛 Agent Note](../../.agents/notes/implemented/feature/2026-08-15-kb-engine-convergence-tool-package.md)。
+知识库能力服务于机器全局 markdown 库（默认 `$DSH_HOME/kb`，被本机所有工作区共享）：宿主服务（`ctx.kb`）、浏览器面板与模型面向的工具共享同一引擎与同一写路径。引擎、索引与 wire 词汇位于 [`packages/host/kb`](../../packages/host/kb/README.md)；工具位于 [`@deepseek-ai/dsh-tool-kb`](../../packages/host/tool-kb/README.md)；面板位于 [`@deepseek-ai/dsh-client-ui-kb`](../../packages/client/ui-kb/README.md)。单引擎收敛决策记录在[引擎收敛 Agent Note](../../.agents/notes/implemented/feature/2026-08-15-kb-engine-convergence-tool-package.md)。
 
 ## 库模型
 
-`kb/` 下的每个 `*.md` 都是一篇文档：扁平 frontmatter 块（title、aliases、tags、summary、source、created、updated、pinned）加 Markdown 正文。状态由所在目录推导——`00-inbox/` 或 `01-inbox/` → `inbox`，配置的归档目录 → `archived`，其余 → `filed`——因此移动文档即改变其状态，不存在第二事实源。删除把文档移入可恢复的 `.trash`；`kb/_meta/index.json` 是引擎每次变更后重写的可重建注册表。
+库根下的每个 `*.md` 都是一篇文档：扁平 frontmatter 块（title、aliases、tags、summary、source、created、updated、pinned）加 Markdown 正文。状态由所在目录推导——`00-inbox/` 或 `01-inbox/` → `inbox`，配置的归档目录 → `archived`，其余 → `filed`——因此移动文档即改变其状态，不存在第二事实源。删除把文档移入可恢复的 `.trash`；`kb/_meta/index.json` 是引擎每次变更后重写的可重建注册表。
 
 引擎维护惰性内存 2-gram 倒排索引，并以标题/别名/标签/摘要/正文的分字段加权 BM25 打分（部分命中排序召回，经单字符邻居 gram 容错单字笔误）。`kb.refresh` 从磁盘重建索引，因此外部新增或编辑的文档无需重启即可出现。
 
@@ -190,5 +190,5 @@ async images(signal: AbortSignal): Promise<KbImagesResult>
 @Remote('resolveLink') async resolveLink(request: KbResolveRequest, signal: AbortSignal): Promise<KbResolveResult>
 ```
 
-Source: [`packages/host/kb/src/index.ts:101`](../../packages/host/kb/src/index.ts)
+Source: [`packages/host/kb/src/index.ts:116`](../../packages/host/kb/src/index.ts)
 <!-- END GENERATED cordis-surface -->

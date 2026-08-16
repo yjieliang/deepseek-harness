@@ -168,7 +168,7 @@ export class KbEngine {
 
   constructor(
     private readonly fs: FileSystem,
-    private readonly workspaceRoot: string | undefined,
+    private readonly root: string,
     archiveDir = DEFAULT_ARCHIVE_DIR,
   ) {
     this.archiveDir = stripSlashes(archiveDir)
@@ -183,13 +183,10 @@ export class KbEngine {
     return target
   }
 
-  /** Resolve a library-relative path under `kb/`, absolute against the workspace root. */
+  /** Resolve a library-relative path to an absolute target under the library root (library paths stay `/`-separated). */
   private async locate(rel: string, signal?: AbortSignal): Promise<FsTarget> {
-    const opts: { cwd: string } | { signal: AbortSignal } | { cwd: string; signal: AbortSignal } | undefined
-      = this.workspaceRoot === undefined
-        ? (signal === undefined ? undefined : { signal })
-        : (signal === undefined ? { cwd: this.workspaceRoot } : { cwd: this.workspaceRoot, signal })
-    return await this.fs.resolve(rel === '' ? 'kb' : 'kb/' + rel, opts)
+    const path = rel === '' ? this.root : `${this.root}/${rel}`
+    return await this.fs.resolve(path, signal === undefined ? undefined : { signal })
   }
 
   /**
