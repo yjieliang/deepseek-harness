@@ -314,10 +314,11 @@ describe('host domain schemas', () => {
     expect(hostDescribeRequestSchema.parse({})).toEqual({})
     const value = hostDescribeValueSchema.parse({
       version: '1', cwd: '/x', provider: 'p', model: 'm', attachedSessions: 2, canOpenPath: true,
+      dshHome: '/x/.dsh', dshHomeSource: 'boot-file',
     })
-    expect(value).toMatchObject({ provider: 'p', model: 'm', attachedSessions: 2, canOpenPath: true })
+    expect(value).toMatchObject({ provider: 'p', model: 'm', attachedSessions: 2, canOpenPath: true, dshHome: '/x/.dsh', dshHomeSource: 'boot-file' })
     expect(hostDescribeValueSchema.parse({
-      version: '1', cwd: '/x', attachedSessions: 0, canOpenPath: false,
+      version: '1', cwd: '/x', attachedSessions: 0, canOpenPath: false, dshHome: '/x/.dsh', dshHomeSource: 'default',
     }).provider).toBeUndefined()
     expect(() => hostDescribeValueSchema.parse({
       version: '1', cwd: '/x', attachedSessions: 0,

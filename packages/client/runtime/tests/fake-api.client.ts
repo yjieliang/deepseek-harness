@@ -109,10 +109,14 @@ export class FakeApiClient implements IApiClient {
     cwd: string
     attachedSessions: number
     canOpenPath: boolean
+    dshHome: string
+    dshHomeSource: 'default' | 'env' | 'boot-file' | 'configured'
   }>> =
     () => Promise.resolve(ok({
-      version: '0-fake', cwd: '/f', attachedSessions: 0, canOpenPath: true,
+      version: '0-fake', cwd: '/f', attachedSessions: 0, canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default',
     }))
+  onSetDshHome: (payload: unknown) => Promise<RpcResponse<{ nextHome: string; source: 'boot-file' | 'default' | 'env' }>> =
+    () => Promise.resolve(ok({ nextHome: '/f/.dsh', source: 'default' }))
   onPickDirectory: (payload: unknown) => Promise<RpcResponse<{ path: string | null }>> =
     () => Promise.resolve(ok({ path: null }))
   onOpenPath: (payload: unknown) => Promise<RpcResponse<{ opened: true }>> =
@@ -176,6 +180,7 @@ export class FakeApiClient implements IApiClient {
 
   readonly host: IApiClient['host'] = {
     describe: (payload: unknown) => this.record('host.describe', payload, this.onDescribe(payload)),
+    setDshHome: (payload: unknown) => this.record('host.setDshHome', payload, this.onSetDshHome(payload)),
     pickDirectory: (payload: unknown) => this.record('host.pickDirectory', payload, this.onPickDirectory(payload)),
     listDirectory: (payload: unknown) => this.record('host.listDirectory', payload, this.onListDirectory(payload)),
     createDirectory: (payload: unknown) => this.record('host.createDirectory', payload, this.onCreateDirectory(payload)),

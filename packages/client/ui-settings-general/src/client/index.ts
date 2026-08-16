@@ -26,6 +26,9 @@ import { GeneralSection } from './GeneralSection.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
 import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
 import { refreshDocumentIfLoaded, SettingsDocumentStore } from './settings-document-store.ts'
+import { BootHomeController } from './boot-home-controller.ts'
+import { BootHomeRow } from './BootHomeRow.tsx'
+import type { BootHomeRowInjected } from './BootHomeRow.tsx'
 import { en, zh, type SettingsKey } from './locales.ts'
 
 export type {
@@ -175,4 +178,22 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     children: { 'settings.general.item': { kind: 'list', scope: 'root' } },
   }, GeneralSection))
+
+  // The harness-home row: where user data lives, and the next-boot override.
+  // Loopback-only like the open-document action — the write touches the host's
+  // own home file, so a remote browser must not offer it.
+  if (connection.isLoopback) {
+    const bootHome = new BootHomeController(connection.api)
+    const bootHomeInjected = (): BootHomeRowInjected => ({
+      controller: bootHome,
+      useSnapshot: bindSnapshotSelector(bootHome.store),
+    })
+    ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+      name: 'settings.general.item',
+      id: 'boot-home',
+      order: 30,
+      locale: NS,
+      inject: bootHomeInjected,
+    }, BootHomeRow))
+  }
 }

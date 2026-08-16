@@ -32,6 +32,12 @@ export interface DirectoryListing {
   truncated: boolean
 }
 
+/**
+ * Source of the current harness-home path, for a settings row that explains
+ * why the value is what it is and whether editing it will stick.
+ */
+export type DshHomeSource = 'default' | 'env' | 'boot-file' | 'configured'
+
 /** Host-level unary methods. */
 export interface HostApi {
   /**
@@ -41,7 +47,8 @@ export interface HostApi {
    * applied when a new agent doesn't specify them explicitly, absent when the host configures
    * no explicit default (the adapter falls back internally);
    * attachedSessions = count of currently attached sessions (those with a live agent);
-   * canOpenPath = whether this deployment can hand a path to a user-visible native desktop.
+   * canOpenPath = whether this deployment can hand a path to a user-visible native desktop;
+   * dshHome = the harness home the running process resolved (source in dshHomeSource).
    */
   describe(request: RpcRequest<{}>): Promise<RpcResponse<{
     version: string
@@ -50,7 +57,21 @@ export interface HostApi {
     model?: string
     attachedSessions: number
     canOpenPath: boolean
+    dshHome: string
+    dshHomeSource: DshHomeSource
   }>>
+
+  /**
+   * Persist the harness-home override for the NEXT boot by writing the
+   * `~/.dsh-boot` file (or removing it with null). The running process keeps
+   * its current home; the change applies from the next launch, and the
+   * response names what that launch will resolve. When a `DSH_HOME`
+   * environment variable is set, it outranks the file and the response says
+   * so (`source: 'env'`).
+   */
+  setDshHome(
+    request: RpcRequest<{ path: string | null }>,
+  ): Promise<RpcResponse<{ nextHome: string; source: 'boot-file' | 'default' | 'env' }>>
 
   /**
    * Open the operating system's single-directory picker; cancellation returns

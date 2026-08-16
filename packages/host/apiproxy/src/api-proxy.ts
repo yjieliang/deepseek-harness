@@ -5,8 +5,9 @@
 
 import { randomUUID } from 'node:crypto'
 import { mkdir, stat } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
+import { DSH_HOME_ENV, defaultDshHome, readBootHome, resolveDshHome, writeBootHome } from '@deepseek-ai/dsh-home-paths'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
@@ -1922,6 +1923,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     return defaults.openPath !== undefined || canOpenNativePath()
   }
 
+  /** Where the resolved harness home came from, mirroring resolveDshHome's precedence. */
+  function dshHomeSource(): 'default' | 'env' | 'boot-file' {
+    const envHome = process.env[DSH_HOME_ENV]
+    if (envHome !== undefined && envHome.trim().length > 0) return 'env'
+    if (readBootHome() !== undefined) return 'boot-file'
+    return 'default'
+  }
+
   /** Missing-service report shared by the credentials domain. */
   function credentialsAbsent(): RpcError {
     return { code: 'internal', message: 'credentials service is absent: this deployment does not mount a credential provider (e.g. @deepseek-ai/dsh-credentials-local) in its composition', details: {} }
@@ -2944,6 +2953,23 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           model: selection.model,
           attachedSessions: ctx.agents.list().length,
           canOpenPath: canOpenPaths(),
+          dshHome: resolveDshHome(),
+          dshHomeSource: dshHomeSource(),
+        }))
+      },
+
+      setDshHome(request) {
+        const envHome = process.env[DSH_HOME_ENV]
+        if (envHome !== undefined && envHome.trim().length > 0) {
+          // A launch-time environment variable outranks the persisted file:
+          // store nothing and report that the variable will keep winning.
+          return Promise.resolve(ok(request, { nextHome: resolveDshHome(), source: 'env' }))
+        }
+        writeBootHome(request.payload.path)
+        const nextHome = resolveDshHome()
+        return Promise.resolve(ok(request, {
+          nextHome,
+          source: nextHome === resolve(defaultDshHome()) ? 'default' : 'boot-file',
         }))
       },
 
