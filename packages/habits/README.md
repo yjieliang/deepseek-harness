@@ -1,5 +1,7 @@
 # Habits
 
+English | [中文](README.zh.md)
+
 User-habit memory capability family: the contract seam, the settings-backed provider, and the model/human consumers.
 
 | Package | Role | `ctx` key |

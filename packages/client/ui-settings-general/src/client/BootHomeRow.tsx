@@ -2,8 +2,7 @@
 
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-web-react'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { BootHomeController, BootHomeState, BootHomeSource } from './boot-home-controller.ts'
 import type { SettingsKey } from './locales.ts'
 import css from './BootHomeRow.module.css'

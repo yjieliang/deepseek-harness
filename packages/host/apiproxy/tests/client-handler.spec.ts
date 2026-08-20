@@ -72,7 +72,7 @@ function scriptedApi(overrides: {
     },
     host: {
       describe: r => ok(r, {
-        version: '0-test', cwd: '/t', attachedSessions: 0, canOpenPath: true,
+        version: '0-test', cwd: '/t', attachedSessions: 0, home: '/h', canOpenPath: true,
         dshHome: '/t/.dsh', dshHomeSource: 'default',
       }),
       setDshHome: r => ok(r, { nextHome: '/t/.dsh', source: 'default' }),

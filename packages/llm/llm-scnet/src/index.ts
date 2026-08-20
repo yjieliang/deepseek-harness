@@ -14,7 +14,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { assertUsableApiKey, LlmError, resolveRetryPolicy, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
-import type { RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
+import type { ModelModality, RetryPolicyConfig } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
@@ -22,6 +22,7 @@ import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { getOrCreateAnonymousUserId, type AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import {
   DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_MAX_REQUEST_IMAGE_BYTES,
   DEFAULT_MAX_TOKENS,
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   ScnetAdapter,
@@ -30,6 +31,7 @@ import type { ScnetCatalogModel, ScnetConnectionOptions } from './adapter.ts'
 
 export {
   DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_MAX_REQUEST_IMAGE_BYTES,
   DEFAULT_MAX_TOKENS,
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   ScnetAdapter,
@@ -49,6 +51,8 @@ const PROVIDER = 'scnet'
 const DEFAULT_MODELS: ScnetCatalogModel[] = [
   { id: 'DeepSeek-V4-Flash-0731', name: 'DeepSeek-V4-Flash-0731', contextWindow: DEFAULT_CONTEXT_WINDOW },
 ]
+
+const MODEL_MODALITIES = ['text', 'image'] as const satisfies readonly ModelModality[]
 
 /**
  * Plugin config, validated by the same-named schemastery schema and doubling
@@ -75,6 +79,8 @@ export interface Config {
   models?: ScnetCatalogModel[]
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
+  /** Maximum accumulated base64 image payload per request (default 20 MiB). */
+  maxRequestImageBytes?: number
   /** Provider-owned model-request retry policy; omission uses normal defaults. */
   retryPolicy?: RetryPolicyConfig
 }
@@ -85,6 +91,7 @@ const catalogModel: z<ScnetCatalogModel> = z.object({
   description: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
+  inputModalities: z.array(z.union(MODEL_MODALITIES)).min(1).default(['text']),
 })
 
 export const Config: z<Config> = z.object({
@@ -96,6 +103,7 @@ export const Config: z<Config> = z.object({
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
   models: z.array(catalogModel).default(DEFAULT_MODELS),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  maxRequestImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_REQUEST_IMAGE_BYTES),
   retryPolicy: RetryPolicySchema,
 })
 
@@ -133,6 +141,18 @@ function resolveModels(models: readonly ScnetCatalogModel[] | undefined): ScnetC
         `llm-scnet: catalog model "${model.id}" maxTokens must be a positive integer`,
       )
     }
+    const inputModalities = model.inputModalities ?? ['text']
+    if (inputModalities.length === 0) {
+      throw new Error(`llm-scnet: catalog model "${model.id}" inputModalities must not be empty`)
+    }
+    if (inputModalities.some(modality => !MODEL_MODALITIES.includes(modality))) {
+      throw new Error(
+        `llm-scnet: catalog model "${model.id}" inputModalities must contain only "text" and "image"`,
+      )
+    }
+    if (new Set(inputModalities).size !== inputModalities.length) {
+      throw new Error(`llm-scnet: catalog model "${model.id}" inputModalities must not contain duplicates`)
+    }
     if (seen.has(model.id)) throw new Error(`llm-scnet: duplicate catalog model "${model.id}"`)
     seen.add(model.id)
     return {
@@ -141,6 +161,7 @@ function resolveModels(models: readonly ScnetCatalogModel[] | undefined): ScnetC
       ...model.description === undefined ? {} : { description: model.description },
       ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
       ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+      inputModalities: [...inputModalities],
     }
   })
 }
@@ -179,6 +200,10 @@ export function resolveAdapterOptions(config: Config, environment?: LaunchEnviro
       `llm-scnet: streamIdleTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
     )
   }
+  const maxRequestImageBytes = config.maxRequestImageBytes ?? DEFAULT_MAX_REQUEST_IMAGE_BYTES
+  if (!Number.isSafeInteger(maxRequestImageBytes) || maxRequestImageBytes <= 0) {
+    throw new Error('llm-scnet: maxRequestImageBytes must be a positive safe integer')
+  }
   return {
     apiKeyEnv: credentialRef(config.apiKeyEnv ?? DEFAULT_API_KEY_ENV),
     baseURL: config.baseURL
@@ -192,6 +217,7 @@ export function resolveAdapterOptions(config: Config, environment?: LaunchEnviro
     defaultContextWindow: config.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
     models: resolveModels(config.models),
     streamIdleTimeoutMs,
+    maxRequestImageBytes,
     retryPolicy: resolveRetryPolicy(config.retryPolicy, 'llm-scnet: retryPolicy'),
   }
 }
@@ -246,7 +272,12 @@ export function apply(ctx: Context, config: Config): void {
 
   let userId: AnonymousUserId | undefined
   const resolveUserId = (): AnonymousUserId => userId ??= getOrCreateAnonymousUserId()
-  const adapter = new ScnetAdapter({ options, resolveApiKey, resolveUserId })
+  const adapter = new ScnetAdapter({
+    options,
+    resolveApiKey,
+    resolveUserId,
+    resolveAttachments: () => ctx.get('attachments'),
+  })
   ctx.llm.registerConfigurableProviders([
     { provider: PROVIDER, displayName: 'SCNet', settingsNs: NS, settingsPath: [] },
   ])

@@ -8,18 +8,9 @@
 // `imagesDegraded` flag over its own modality table.
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { expect, it } from 'vitest'
-import type { WebBootEntry } from '@deepseek-ai/dsh-client-modules/client'
-import { ASSEMBLED_PLUGINS, installAssembledBootEnv, mountAssembledApp } from './assembled-boot.ts'
+import { installAssembledBootEnv, mountAssembledApp } from './assembled-boot.ts'
 
 installAssembledBootEnv()
-
-/** The minimal graph plus the model seat's plugin chain. */
-const PLUGINS: readonly (WebBootEntry & { bundlePath: string })[] = [
-  ...ASSEMBLED_PLUGINS,
-  { id: '@deepseek-ai/dsh-client-ui-input-trigger', bundlePath: 'packages/client/ui-input-trigger/lib/client.js', url: '/plugins/ui-input-trigger.js', rev: 'fx', inject: ['@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-locale'] },
-  { id: '@deepseek-ai/dsh-client-ui-commands', bundlePath: 'packages/client/ui-commands/lib/client.js', url: '/plugins/ui-commands.js', rev: 'fx', inject: ['@deepseek-ai/dsh-api-remotes', '@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-locale', '@deepseek-ai/dsh-client-ui-input-trigger', '@deepseek-ai/dsh-client-ui-conversation'] },
-  { id: '@deepseek-ai/dsh-client-ui-model-selection', bundlePath: 'packages/client/ui-model-selection/lib/client.js', url: '/plugins/ui-model-selection.js', rev: 'fx', inject: ['@deepseek-ai/dsh-client-locale', '@deepseek-ai/dsh-client-runtime', '@deepseek-ai/dsh-client-ui-commands', '@deepseek-ai/dsh-api-remotes'] },
-]
 
 /** Open the fixture history session (the alpha log carrying the turn-72 image pair). */
 async function openFixtureSession(): Promise<void> {
@@ -76,7 +67,7 @@ async function chooseModel(name: string): Promise<void> {
 }
 
 it('admits a text-only switch over an image-bearing session and announces the degradation', async () => {
-  mountAssembledApp(PLUGINS)
+  mountAssembledApp()
   await openFixtureSession()
 
   // An image-capable target over the same history carries no notice.

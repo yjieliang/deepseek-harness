@@ -74,12 +74,13 @@ export class FakeApiClient implements IApiClient {
     version: string
     cwd: string
     attachedSessions: number
+    home: string
     canOpenPath: boolean
     dshHome: string
     dshHomeSource: 'default' | 'env' | 'boot-file' | 'configured'
   }>> =
     () => Promise.resolve(ok({
-      version: '0-fake', cwd: '/f', attachedSessions: 0, canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default',
+      version: '0-fake', cwd: '/f', attachedSessions: 0, home: '/h', canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default',
     }))
   onSetDshHome: (payload: unknown) => Promise<RpcResponse<{ nextHome: string; source: 'boot-file' | 'default' | 'env' }>> =
     () => Promise.resolve(ok({ nextHome: '/f/.dsh', source: 'default' }))

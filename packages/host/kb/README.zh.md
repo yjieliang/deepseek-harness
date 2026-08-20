@@ -14,9 +14,9 @@
 - id: kb
   name: '@deepseek-ai/dsh-host-kb'
   config:
-    root: $DSH_HOME/kb           # 可选；绝对库根，被本机所有工作区共享
-    archiveDir: 90-归档           # 可选；文档据此推导 "archived" 状态的目录
-    trashRetentionDays: 30       # 可选；回收站文档在自动清除前保留的天数；0 关闭
+    root: $DSH_HOME/kb           # optional; absolute library root, shared by every workspace on this host
+    archiveDir: 90-归档           # optional; directory whose documents derive status "archived"
+    trashRetentionDays: 30       # optional; days a trashed document is kept before automatic purge; 0 disables
 ```
 
 `root` 默认 `$DSH_HOME/kb`，接受绝对路径或相对 harness home 的路径。因为库在工作区之外，部署还必须在 `workspace-write` 沙箱模式下放行该根：web-app bundle 在本行的 `root` 旁设置 `sandbox-policy.writableRoots: [$DSH_HOME/kb]`，自定义部署移动根时必须同步移动这两处。

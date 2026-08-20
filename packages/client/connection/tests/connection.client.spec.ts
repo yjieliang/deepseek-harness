@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ConnectionController: stream pumping into sinks, the strict readiness
  * handshake (describe + both streams' onOpen, timeout-guarded), generation
  * abort on loss, backoff reconnection, state transitions, and sink-exception
@@ -80,7 +80,7 @@ describe('connection lifecycle', () => {
     try {
       await vi.waitFor(() => { expect(describeCalls).toBe(2) }) // retried after backoff
       expect(connected).toBe(0) // never announced during the failed generation
-      gate.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
+      gate.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, home: '/h', canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
       await vi.waitFor(() => { expect(connected).toBe(1) })
     } finally {
       controller.stop()
@@ -102,7 +102,7 @@ describe('connection lifecycle', () => {
           },
         })
       }
-      return Promise.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
+      return Promise.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, home: '/h', canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
     }
     let connected = 0
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
@@ -188,7 +188,7 @@ describe('connection lifecycle', () => {
       describeCalls++
       return describeCalls === 1
         ? firstDescribe.promise
-        : Promise.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
+        : Promise.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, home: '/h', canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
     }
     const states: ConnectionState[] = []
     let connected = 0
@@ -201,7 +201,7 @@ describe('connection lifecycle', () => {
     try {
       await vi.waitFor(() => { expect(api.openMuxCount).toBe(1) })
       api.endStreams()
-      firstDescribe.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
+      firstDescribe.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, home: '/h', canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
 
       await vi.waitFor(() => { expect(describeCalls).toBe(2) })
       await vi.waitFor(() => { expect(connected).toBe(1) })
@@ -283,7 +283,7 @@ describe('connection lifecycle', () => {
     controller.start()
     try {
       await vi.waitFor(() => { expect(describeCalls).toBe(3) })
-      gate.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
+      gate.resolve(ok({ version: '0', cwd: '/f', attachedSessions: 0, home: '/h', canOpenPath: true, dshHome: '/f/.dsh', dshHomeSource: 'default' }))
       await vi.waitFor(() => { expect(connected).toBe(1) })
       expect(states).toEqual(['reconnecting', 'connected']) // two failures, one reconnecting emission
     } finally {

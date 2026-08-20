@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-tool-memory
 
+English | [中文](README.zh.md)
+
 Model-facing user-habit tools over the habits seam (`ctx.habits`): `memory_add`, `memory_list`, `memory_remove`, and `memory_propose`, plus the tool-guidance prompt section. Schemas, boundary validation, the user-confirmation flow, and the pinned model-visible result text live here; the guard, consolidation, and storage live in [`@deepseek-ai/dsh-user-habits`](../user-habits/README.md) and its provider, so every caller passes the same enforcement.
 
 `memory_propose` is the semi-automatic path: the model proposes an observed habit with evidence, the guard pre-checks the candidate (agent-proposed content is hard-rejected before anyone is asked), a user question asks `要记住这条用户习惯吗?` with `[记住]`/`[忽略]`, and only an accepted proposal reaches the write path. Rejected proposals are remembered inside the dedup TTL window.

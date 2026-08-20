@@ -1,8 +1,10 @@
-# Agent Note: Archived Session Management
+# Agent Note: 归档会话管理
 
 Status: implemented
 
-## Problem
+[English](2026-08-15-archived-session-management.md) | 中文
+
+## 问题
 
 [`session-archive-global-set`](../../implemented/feature/2026-07-31-session-archive-global-set.md) 已经交付了 `workspace.archiveSession` 与注册表全局的 `archivedSessionIds` 集合，但从用户角度看归档是单向手势：没有界面显示*哪些*会话已被归档，也没有 RPC 能撤销归档。注册表 JSDoc 记录了这一意图——"未来的 unarchive 恢复其位置"——却一直未实现。唯一的恢复途径是手改 `workspace.json` 并重启宿主（运行中的宿主把 domain global 缓存在内存里）。
 

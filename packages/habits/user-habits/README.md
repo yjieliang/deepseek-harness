@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-user-habits
 
+English | [中文](README.zh.md)
+
 User-habit memory seam for the DeepSeek Harness. This package is the **Service Definition**: the abstract `HabitService` contract, the write-time safety guard, deterministic topic consolidation, the branded `HabitId`, typed `HabitError`s, the `user-habits/committed` event, and the canonical resident-section renderer. Providers implement the three storage hooks; tools, commands, and prompt sections depend on the contract only.
 
 Design record: `kb/30-工作文档/2026-08-15-用户习惯记忆系统设计方案.md` (user-habit memory system design).

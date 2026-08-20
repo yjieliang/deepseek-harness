@@ -47,6 +47,7 @@ export interface HostApi {
    * applied when a new agent doesn't specify them explicitly, absent when the host configures
    * no explicit default (the adapter falls back internally);
    * attachedSessions = count of currently attached sessions (those with a live agent);
+   * home = the host account home directory (Web display abbreviation on POSIX);
    * canOpenPath = whether this deployment can hand a path to a user-visible native desktop;
    * dshHome = the harness home the running process resolved (source in dshHomeSource).
    */
@@ -56,6 +57,7 @@ export interface HostApi {
     provider?: string
     model?: string
     attachedSessions: number
+    home: string
     canOpenPath: boolean
     dshHome: string
     dshHomeSource: DshHomeSource

@@ -313,15 +313,18 @@ describe('host domain schemas', () => {
   it('validates describe request/value', () => {
     expect(hostDescribeRequestSchema.parse({})).toEqual({})
     const value = hostDescribeValueSchema.parse({
-      version: '1', cwd: '/x', provider: 'p', model: 'm', attachedSessions: 2, canOpenPath: true,
+      version: '1', cwd: '/x', provider: 'p', model: 'm', attachedSessions: 2, home: '/h', canOpenPath: true,
       dshHome: '/x/.dsh', dshHomeSource: 'boot-file',
     })
-    expect(value).toMatchObject({ provider: 'p', model: 'm', attachedSessions: 2, canOpenPath: true, dshHome: '/x/.dsh', dshHomeSource: 'boot-file' })
+    expect(value).toMatchObject({ provider: 'p', model: 'm', attachedSessions: 2, home: '/h', canOpenPath: true, dshHome: '/x/.dsh', dshHomeSource: 'boot-file' })
     expect(hostDescribeValueSchema.parse({
-      version: '1', cwd: '/x', attachedSessions: 0, canOpenPath: false, dshHome: '/x/.dsh', dshHomeSource: 'default',
+      version: '1', cwd: '/x', attachedSessions: 0, home: '/h', canOpenPath: false, dshHome: '/x/.dsh', dshHomeSource: 'default',
     }).provider).toBeUndefined()
     expect(() => hostDescribeValueSchema.parse({
       version: '1', cwd: '/x', attachedSessions: 0,
+    })).toThrow()
+    expect(() => hostDescribeValueSchema.parse({
+      version: '1', cwd: '/x', attachedSessions: 0, canOpenPath: true,
     })).toThrow()
   })
 

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-08-15-archived-session-management.zh.md)
+
 ## Problem
 
 [`session-archive-global-set`](../../implemented/feature/2026-07-31-session-archive-global-set.md) shipped `workspace.archiveSession` and the registry-global `archivedSessionIds` set, but archiving was one-way from the user's point of view: no surface showed *which* sessions were archived and no RPC undid an archive. The registry JSDoc recorded the intent — "a future unarchive restores its position" — unrealized. The only recovery path was hand-editing `workspace.json` plus a host restart (the running host caches the domain global in memory).

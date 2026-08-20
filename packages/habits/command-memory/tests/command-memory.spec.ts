@@ -47,7 +47,7 @@ const mount = async (ask?: (request: AskUserQuestionRequest) => Promise<{ answer
 
 /** Invoke the command handler with minimal plumbing. */
 const run = async (command: CommandDefinition, rawInput: string) =>
-  command.handler({ commandId: 'cmd-1' as never, agent: undefined as never, rawInput, signal: new AbortController().signal })
+  command.handler({ commandId: 'cmd-1' as never, agent: undefined as never, rawInput, attachments: [], signal: new AbortController().signal })
 
 describe('command-memory', () => {
   it('registers the /memory command recording raw input for traceability', async () => {

@@ -1,21 +1,23 @@
 # @deepseek-ai/dsh-tool-memory
 
-habits 接缝(`ctx.habits`)上的面向模型用户习惯工具:`memory_add`、`memory_list`、`memory_remove` 与 `memory_propose`,以及工具引导提示段。schema、边界校验、用户确认流与钉死的模型可见结果文本在这里;守卫、合并与存储在 [`@deepseek-ai/dsh-user-habits`](../user-habits/README.md) 及其提供方,所有调用方经过同一执法。
+[English](README.md) | 中文
 
-`memory_propose` 是半自动路径:模型带依据提议观察到的习惯,守卫预检候选(agent 提议内容在询问任何人之前硬拒),用户问题询问 `要记住这条用户习惯吗?`(`[记住]`/`[忽略]`),只有被采纳的提议才进入写入路径。被拒的提议在去重 TTL 窗口内被记住。
+habits seam（`ctx.habits`）上的面向模型用户习惯工具：`memory_add`、`memory_list`、`memory_remove` 与 `memory_propose`，以及工具引导提示段。schema、边界校验、用户确认流与钉死的模型可见结果文本在这里；守卫、合并与存储在 [`@deepseek-ai/dsh-user-habits`](../user-habits/README.md) 及其提供方中，因此所有调用方都经过同一执法。
+
+`memory_propose` 是半自动路径：模型带依据提议观察到的习惯，守卫预检候选（agent 提议内容在询问任何人之前硬拒绝），用户问题询问 `要记住这条用户习惯吗?`（`[记住]`/`[忽略]`），只有被采纳的提议才进入写入路径。被拒绝的提议在去重 TTL 窗口内被记住。
 
 ## 配置
 
 | 键 | 默认 | 含义 |
-|---|---:|---|
+|---|---|---:|
 | `userQuestionAsk` | `true` | `memory_propose` 写入前是否询问用户 |
-| `proposalDedupTtlMs` | `604800000`(7 天) | 相同提议不再重复询问的窗口 |
+| `proposalDedupTtlMs` | `604800000`（7 天） | 相同提议不再重复询问的窗口 |
 
-## Model Experience
+## 模型体验
 
 ### 模型看到什么
 
-一个固定引导段(order `101`)+ 四个工具 schema:
+一个固定引导段（order `101`）加四个工具 schema：
 
 ```markdown
 用户习惯(memory)工具:
@@ -26,22 +28,22 @@ habits 接缝(`ctx.habits`)上的面向模型用户习惯工具:`memory_add`、`
 - 记忆内容如需修改或删除,用 memory_list 查看后再 memory_remove。
 ```
 
-用户看到的确认问题本身也是模型可见的钉死文本:问题 `要记住这条用户习惯吗?`,选项 `记住`/`忽略`,detail `[{topic}] {value}\n依据:{evidence}\n想调整内容?选「忽略」后直接说要记住什么。`。
+用户看到的确认问题本身也是模型可见的钉死文本：问题 `要记住这条用户习惯吗?`，选项 `记住`/`忽略`，detail `[{topic}] {value}\n依据:{evidence}\n想调整内容?选「忽略」后直接说要记住什么。`。
 
-工具结果是钉死的纯文本,如 `已记住:[style] 简洁` / `(无已记录习惯)` / `已删除:[style] 简洁` / `已记录:[style] 简洁` / `未记录,已忽略该建议。`;守卫拒绝会带出契约的类型化 `HabitError` 消息。
+工具结果是钉死的纯文本，例如 `已记住:[style] 简洁` / `(无已记录习惯)` / `已删除:[style] 简洁` / `已记录:[style] 简洁` / `未记录,已忽略该建议。`；守卫拒绝会带出契约的类型化 `HabitError` 消息。
 
-### Token 效应
+### Token 影响
 
-挂载时每次请求一个固定精简引导段;结果随数据变化,保留在工具历史中直到压缩。
+挂载时每次请求一个固定精简引导段；结果随数据变化，保留在工具历史中直到压缩。
 
-### KV Cache 效应
+### KV Cache 影响
 
 插件与引导文本不变时前缀稳定。
 
-## 已知边界与暂缓工作
+## 已知限制与暂缓事项
 
-- 提议去重是进程内的(插件 fiber 内存 + TTL):同一进程内抑制重复询问,但不跨重启存活。持久化跨会话去重暂缓。
+- 提议去重是进程内的（插件 fiber 内存 + TTL）：同一进程内抑制重复询问，但不跨重启存活。持久化跨会话去重暂缓。
 - 确认问题的自由文本答案以 `用户补充:…` 呈现给模型并视为忽略——模型应改用 `memory_add` 写入修正后的内容。
-- `memory_list` 只报条目数、不报常驻预算占用——预算上限是提供方配置,工具看不到;常驻段自身执行预算。
-- `project` 层(L2)由工作区 `USER.md` 文件经 `agent-instructions` 注入链承载,不走本工具:`memory_add` 对 `layer: 'project'` 拒绝并指向该文件(`## topic` 小节、人可编辑);程序化项目层后端暂缓。
-- 项目层提供方出现前,`memory_list` 的 project 分组保持为空。
+- `memory_list` 只报条目数，不报常驻预算占用——预算上限是提供方配置，工具看不到；常驻段自身执行预算。
+- `project` 层（L2）由工作区 `USER.md` 文件经 `agent-instructions` 注入链承载，不走本工具：`memory_add` 对 `layer: 'project'` 拒绝并指向该文件（`## topic` 小节、人可编辑）。程序化项目层后端暂缓。
+- 项目层提供方出现前，`memory_list` 的 project 分组保持为空。

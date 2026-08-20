@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-habits-settings
 
+English | [中文](README.zh.md)
+
 Settings-backed provider of the habits seam for the DeepSeek Harness. Stores `global` habit entries in the user-settings namespace `user-habits` (schema-validated, serialized writes, `settings/updated` event stream) and registers the canonical budgeted resident prompt section, so confirmed habits reach every model request until removed.
 
 The contract, guard, consolidation, and commit event live in [`@deepseek-ai/dsh-user-habits`](../user-habits/README.md); this package implements only the storage hooks and the resident section.

@@ -20,6 +20,7 @@ harness LLM（大语言模型）seam 的国家超算互联网（SCNet）chat-com
     reasoningEffort: high    # optional; off | high | max — omitted ⇒ high
     maxTokens: 256000        # optional positive per-request output cap; this is the default
     streamIdleTimeoutMs: 300000 # optional; positive finite Node timer delay; five-minute default
+    maxRequestImageBytes: 20971520 # optional positive integer; 20 MiB base64-payload default
     retryPolicy:             # optional; omission uses bounded normal defaults
       mode: always           # normal | always
       backoff:
@@ -30,9 +31,16 @@ harness LLM（大语言模型）seam 的国家超算互联网（SCNet）chat-com
     models:                  # optional; defaults to DeepSeek-V4-Flash-0731
       - id: DeepSeek-V4-Flash-0731
         name: DeepSeek-V4-Flash-0731
+      - id: private-vision
+        name: Private Vision
+        inputModalities: [text, image]
 ```
 
-该插件注册唯一提供方路由 `scnet`，同时注册解析后的 `retryPolicy`。请求使用 `provider: scnet` 选择该路由；其 `model` 会作为协议 `model` 字符串原样传递，因此使用 SCNet 托管的其他模型不需要生命周期时注册。省略 `models` 会公布 `DeepSeek-V4-Flash-0731`，上下文窗口为 1,000,000 token；显式列表会替换该默认值，`models: []` 则不公布任何模型。Catalog 配置项通过 `ctx.llm.listModels('scnet')` 公开给 ACP（Agent Client Protocol）编辑器和 Web 选择器等客户端，但仍只提供建议：未列出模型 id 仍原样传递。省略配置项 name 默认为其 id。
+该插件注册唯一提供方路由 `scnet`，同时注册解析后的 `retryPolicy`。请求使用 `provider: scnet` 选择该路由；其 `model` 会作为协议 `model` 字符串原样传递，因此使用 SCNet 托管的其他模型不需要生命周期时注册。省略 `models` 会公布 `DeepSeek-V4-Flash-0731`，上下文窗口为 1,000,000 token；显式列表会替换该默认值，`models: []` 则不公布任何模型。Vision 模型默认不会公布，直到其端点 rollout 完成，但部署方可以通过 `inputModalities: [text, image]` 添加一个。Catalog 配置项通过 `ctx.llm.listModels('scnet')` 公开给 ACP（Agent Client Protocol）编辑器和 Web 选择器等客户端，但仍只提供建议：未列出模型 id 仍原样传递。省略配置项 name 默认为其 id，省略 `inputModalities` 表示仅 `text`。
+
+支持图片的 catalog 配置项可以声明 `inputModalities: [text, image]`。适配器经 `ctx.attachments` 解析用户与工具结果中的 `ImageBlock` 引用，校验存储字节，并以临时的 `data:<media-type>;base64,...` `image_url` 部件发送，而不改变持久化的会话消息。纯文本与未列出模型会在凭据、附件或网络 I/O 之前拒绝图片输入。System 与 assistant 历史保持无图；工具结果图片跟在其纯文本 `tool` 消息之后，以单独的 `user` 消息发送。
+
+`maxRequestImageBytes` 限制累计 base64 图片载荷，默认 20 MiB。当历史超过该上限时，最旧的图片会依次变为固定的模型可见占位文本 `[image omitted to keep the request within its image limit; older images are omitted first. If this image is still needed, read its file again when a path is available; otherwise ask the user to attach it again.]`，直到请求符合限制；被省略的附件不会被读取。附件准入（attachment admission）继续负责单图、单消息原始字节、媒体、尺寸与像素上限。
 
 `contextWindow` 对每个已配置模型都可选，不会通过建议 catalog 公开。`ctx.llm.resolveModelInfo('scnet', model).context` 先返回精确模型值，再对不含容量的配置项或未列出原样传递 id 返回 `defaultContextWindow`。适配器默认值为 1,000,000；因此，压力敏感插件可以获得由部署决定的容量，不会将模型 selector 视为权威。
 
@@ -46,10 +54,11 @@ harness LLM（大语言模型）seam 的国家超算互联网（SCNet）chat-com
 
 ## 动态配置（settings + credentials）
 
-连接事实不在加载时冻结。`resolveAdapterOptions` 是从原始配置到已校验事实的唯一显式 resolve 步骤，适配器经由一个 thunk **每操作重读一次**：base URL、catalog、请求默认值与 idle 预算都在下一次请求生效，进行中的流则保持其起始事实。两个可选 seam 供给该 thunk：
+连接事实不在加载时冻结。`resolveAdapterOptions` 是从原始配置到已校验事实的唯一显式 resolve 步骤，适配器经由一个 thunk **每操作重读一次**：base URL、catalog、请求默认值、图片上限与 idle 预算都在下一次请求生效，进行中的流则保持其起始事实。三个可选 seam 供给该 thunk：
 
 - **`ctx.settings`**——插件用同一份 `Config` schema 注册 `llm-scnet` namespace，并以其 `cordis.yml` 条目为组合 `base`，因此用户设置文档中的 `llm-scnet:` 分节可以免重启覆盖任何字段。未挂载 settings 服务时，仅由 entry 配置驱动适配器，行为不变。存活 settings 快照若通过 schema 却违反 schema 之外的约束（重复的 catalog id、无法成立的 thinking／推理强度组合），则保留最后可用事实并记录失败；entry 配置本身仍会使插件加载失败。
 - **`ctx.credentials`**——API 密钥按每次 stream 调用解析，取自与端点*同一*份解析后的快照。配置只携带 `apiKeyEnv`，从不携带字面密钥：该引用经凭据 seam 解析，未挂载 seam 时则经受信环境层解析。由于凭据事实与连接事实同行，被 resolver 拒绝的 settings 快照既不贡献自己的端点，也不贡献自己的密钥：整个先前世代继续服务。每个解析出的密钥在使用前都会被校验格式，因此 HTTP 标头无法承载的值会以 `LlmError('INVALID_CREDENTIAL')` 被拒绝，点名失败的入口，但绝不透露密钥的任何部分，而不是以语义不明的 `fetch` `TypeError` 形式浮现。任何地方都没有密钥的请求以 `MISSING_CREDENTIAL` 失败，并点名每个配置入口，同时路由保持注册、catalog 保持可浏览——首次运行的上手流程就是「浏览模型、存入密钥、再次发起提示」，中间无需任何重启。
+- **`ctx.attachments`**——图片请求在请求时刻解析该服务，因此 Cordis 加载顺序不会冻结可选的图片可用性。缺失会以 `UNSUPPORTED_CONTENT` 拒绝图片输入；纯文本调用不需要该服务。
 
 唯一在注册期捕获的事实是重试策略：其解析值变化时，插件原地重新注册该路由（同一适配器实例、一个同步区段），因此 `ctx.llm.providerRetryPolicy('scnet')` 始终报告当前策略。
 
@@ -67,11 +76,12 @@ SCNet 请求身份独立于应用归因。凭据解析成功后，每个提供�
 - 适配器持有的 `off` 推理强度映射为 `thinking: {type: 'disabled'}`，绝不会以 `reasoning_effort: 'off'` 通过协议发送。
 - 第一个思考模式分片携带 `reasoning_content: ""`，系统会处理它（不会产生多余 reasoning 块）。
 - **推理回传规则**：对携带工具调用的 assistant 轮次，会将 `reasoning_content` 序列化回历史（思考模式 API 必需）；对不含工具调用的轮次，它会被丢弃（不会使用，可节省 token）。
+- 支持图片的 user 消息保留文本/图片顺序。Tool-role 内容保持为字符串；连续的工具结果图片会归并到随后的 user 消息中，并带 `Attached image(s) from tool result:`。
 - Cache 计量：`cacheReadTokens` ← `prompt_cache_hit_tokens` / `prompt_tokens_details.cached_tokens`；平台不报告 cache-write 指标。
 
 ## 错误
 
-非 2xx 响应会抛出稳定 code 的 `LlmError`：`AUTH`（401/403）、`QUOTA`（提供方详细信息标识配额、余额或点数耗尽的响应）、`RATE_LIMIT`（其他 429）、`CONTEXT_WINDOW_EXCEEDED`（提供方 code、type 或 message 标识上下文溢出的 400）、`INVALID_REQUEST`（其他 400）、`SERVER`（5xx），其他情况为 `HTTP_<status>`。其可序列化 `failure` 保留 HTTP 状态，以及有效的正 `Retry-After` 秒数／日期延迟和存在时的 `x-request-id`。响应前传输失败（DNS、连接被拒绝、TLS、proxy）会抛出命名已配置端点的 `TRANSPORT`，并将原始拒绝作为 `cause`；调用方 abort 抛出 `ABORTED`，仍以 loop 的取消信号为准。协议违例抛出 `STREAM_CLOSED`（没有 `[DONE]`）或 `MALFORMED_RESPONSE`（JSON payload 格式错误）。未知协议 `finish_reason`（例如 `content_filter`、`insufficient_system_resource`）会变为 `finish {kind: 'error', failure}` 分片；已完成流如果使用 `stop`（或缺失）finish 但没有开启内容块，就会变为 `finish {kind: 'error'}`，code 为 `EMPTY_RESPONSE`（默认策略会重试）。
+非 2xx 响应会抛出稳定 code 的 `LlmError`：`AUTH`（401/403）、`QUOTA`（提供方详细信息标识配额、余额或点数耗尽的响应）、`RATE_LIMIT`（其他 429）、`CONTEXT_WINDOW_EXCEEDED`（提供方 code、type 或 message 标识上下文溢出的 400）、`INVALID_REQUEST`（其他 400）、`SERVER`（5xx），其他情况为 `HTTP_<status>`。其可序列化 `failure` 保留 HTTP 状态，以及有效的正 `Retry-After` 秒数／日期延迟和存在时的 `x-request-id`。附件读取保留其稳定的附件失败 code，而不会变成传输失败。响应前传输失败（DNS、连接被拒绝、TLS、proxy）会抛出命名已配置端点的 `TRANSPORT`，并将原始拒绝作为 `cause`；调用方 abort 抛出 `ABORTED`，仍以 loop 的取消信号为准。协议违例抛出 `STREAM_CLOSED`（没有 `[DONE]`）或 `MALFORMED_RESPONSE`（JSON payload 格式错误）。未知协议 `finish_reason`（例如 `content_filter`、`insufficient_system_resource`）会变为 `finish {kind: 'error', failure}` 分片；已完成流如果使用 `stop`（或缺失）finish 但没有开启内容块，就会变为 `finish {kind: 'error'}`，code 为 `EMPTY_RESPONSE`（默认策略会重试）。
 
 ## 模型体验
 
@@ -79,15 +89,15 @@ SCNet 请求身份独立于应用归因。凭据解析成功后，每个提供�
 
 #### 模型看到的内容
 
-所选 `DeepSeek-V4-Flash-0731` 模型会收到 harness 系统提示词、消息历史、工具 schema、stop sequence 和调用配置，不含适配器撰写的提示词文本。当之前的 assistant 轮次包含工具调用时，会按要求回传其推理内容；不含工具调用的轮次会省略推理。
+所选 SCNet 模型会收到 harness 系统提示词、消息历史、工具 schema、stop sequence 和调用配置，不含适配器撰写的提示词文本。Vision 模型还会收到保留的用户与工具结果图片，以 base64 data URL 形式发送；超出预算的旧图片会用文档化的占位文本表示。当之前的 assistant 轮次包含工具调用时，会按要求回传其推理内容；不含工具调用的轮次会省略推理。
 
 #### Token 影响
 
-精确输入取决于提供方 tokenization。有条件推理回传会增加工具往返上下文，丢弃其他推理则避免再次支付这些 token；可用时会报告 cache-read 用量。
+精确输入取决于提供方对文本与图片 token 的 tokenization。有条件推理回传会增加工具往返上下文，丢弃其他推理则避免再次支付这些 token；可用时会报告 cache-read 用量。
 
 #### KV Cache 影响
 
-未更改的已组装前缀可使用 cache 复用，适配器会在 usage 中报告它。模型路由变更，或任何上游提示词、schema、前缀或历史变更，都可能使从首个发生变化的 token 起的复用失效；推理回传会在工具往返期间追加。
+未更改的已组装前缀（包括确定性编码的保留图片与占位文本）可使用 cache 复用，适配器会在 usage 中报告它。模型路由变更，或任何上游提示词、schema、前缀、历史或图片预算变更，都可能使从首个发生变化的 token 起的复用失效；推理回传会在工具往返期间追加。
 
 ### SCNet 响应
 
@@ -108,4 +118,5 @@ loop 保留的响应块会追加到下一个请求，并保留其较早可复用
 - **settings 的 `models` 列表会整体替换组合列表**：settings 层按字段合并，而数组是单个字段；按条目合并 catalog 需要带键的形状。
 - **未映射 `tool_choice`**：它不属于核心词汇（MVP 取舍，与 pi-ai twin 共享）。
 - **请求使用原始 `fetch`，而非 `@cordisjs/plugin-http`**：没有共享 proxy／拦截配置；采用暂缓到第二个适配器需要该功能时（`TODO(http)`）。
-- **序列化会将 user 与工具结果内容展平为文本块**：会跳过插件添加的块类型，空工具输出会以字面 `(no output)` 通过协议发送。本协议线路是纯文本的：核心图片块会降级为共享占位文本（dsh-llm 的 `IMAGE_OMITTED_PLACEHOLDER`），而不是让请求失败，因此含图会话可以切换到本路由。
+- **插件添加的内容块类型会被跳过**：核心文本与支持图片块会被序列化，空工具输出会以字面 `(no output)` 通过协议发送。
+- **图片仅为输入型持久附件**——直接外部 URL、Files API 与 assistant 图片输出均不支持。

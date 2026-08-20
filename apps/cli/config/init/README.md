@@ -1,5 +1,7 @@
 # Init templates
 
+English | [中文](README.zh.md)
+
 Machine-level initialization templates. On every boot, `apps/cli` walks this
 tree and copies each file to the same relative path under the harness home
 (`$DSH_HOME`) **only when the target does not exist** — existing files are

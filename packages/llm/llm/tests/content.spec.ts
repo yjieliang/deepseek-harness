@@ -1,46 +1,89 @@
 import { describe, expect, it } from 'vitest'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
-import { CallId } from '../src/brand.ts'
-import type { ContentBlock } from '../src/types.ts'
-import { contentHasImage, degradeImages, IMAGE_OMITTED_PLACEHOLDER } from '../src/content.ts'
+import { CallId, createUserMessage, OFFLOADED_IMAGE_TEXT, offloadRequestImages } from '../src/index.ts'
+import type { ContentBlock } from '../src/index.ts'
 
-const IMAGE: ContentBlock = {
-  type: 'image',
-  attachment: {
-    attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),
-    mediaType: 'image/png',
-    bytes: 68,
-    width: 1,
-    height: 1,
-  },
+const source = { kind: 'plugin' as const, plugin: 'test' }
+
+function image(bytes: number): ContentBlock {
+  return {
+    type: 'image',
+    attachment: {
+      attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),
+      mediaType: 'image/png',
+      bytes,
+      width: 1,
+      height: 1,
+    },
+  }
 }
 
-describe('degradeImages', () => {
-  it('replaces a top-level image block with the placeholder text', () => {
-    expect(degradeImages([IMAGE])).toEqual([{ type: 'text', text: IMAGE_OMITTED_PLACEHOLDER }])
+describe('offloadRequestImages', () => {
+  it('preserves the original request when its base64 payload fits exactly', () => {
+    const messages = [createUserMessage({ content: [image(3), image(3)], source })]
+    expect(offloadRequestImages(messages, 8)).toBe(messages)
   })
 
-  it('replaces images nested inside tool-result content, preserving the result envelope', () => {
-    const nested: ContentBlock = {
+  it('keeps five 3 MiB images at 20 MiB and offloads the oldest after one more raw byte', () => {
+    const rawImageBytes = 3 * 1024 * 1024
+    const maxRequestImageBytes = 20 * 1024 * 1024
+    const exact = [createUserMessage({
+      content: Array.from({ length: 5 }, () => image(rawImageBytes)),
+      source,
+    })]
+    expect(offloadRequestImages(exact, maxRequestImageBytes)).toBe(exact)
+
+    const over = [createUserMessage({
+      content: [image(rawImageBytes + 1), ...Array.from({ length: 4 }, () => image(rawImageBytes))],
+      source,
+    })]
+    expect(offloadRequestImages(over, maxRequestImageBytes)[0]?.content).toEqual([
+      { type: 'text', text: OFFLOADED_IMAGE_TEXT },
+      ...Array.from({ length: 4 }, () => image(rawImageBytes)),
+    ])
+  })
+
+  it('replaces the oldest nested occurrences without mutating durable messages', () => {
+    const shared = image(3)
+    const messages = [
+      createUserMessage({
+        content: [{
+          type: 'tool-result',
+          toolCallId: CallId('shot'),
+          content: [shared],
+        }],
+        source,
+      }),
+      createUserMessage({ content: [shared, image(3)], source }),
+    ]
+
+    const fitted = offloadRequestImages(messages, 8)
+    expect(fitted).not.toBe(messages)
+    expect(fitted[0]?.content).toEqual([{
       type: 'tool-result',
-      toolCallId: CallId('call-1'),
-      content: [{ type: 'text', text: 'see ' }, IMAGE],
-      isError: true,
-    }
-    expect(degradeImages([nested])).toEqual([{
-      type: 'tool-result',
-      toolCallId: CallId('call-1'),
-      content: [{ type: 'text', text: 'see ' }, { type: 'text', text: IMAGE_OMITTED_PLACEHOLDER }],
-      isError: true,
+      toolCallId: CallId('shot'),
+      content: [{ type: 'text', text: OFFLOADED_IMAGE_TEXT }],
     }])
+    expect(fitted[1]?.content).toEqual([shared, image(3)])
+    expect(messages[0]?.content[0]).toMatchObject({ type: 'tool-result', content: [shared] })
   })
 
-  it('passes text and unknown declaration-merged blocks through untouched', () => {
-    const text: ContentBlock = { type: 'text', text: 'plain' }
-    const chart = { type: 'chart', data: 'x' } as unknown as ContentBlock
-    const result = degradeImages([text, chart])
-    expect(result[0]).toBe(text)
-    expect(result[1]).toBe(chart)
-    expect(contentHasImage(result)).toBe(false)
+  it('replaces a single image that cannot fit', () => {
+    const messages = [createUserMessage({ content: [image(300)], source })]
+    expect(offloadRequestImages(messages, 8)[0]?.content)
+      .toEqual([{ type: 'text', text: OFFLOADED_IMAGE_TEXT }])
+  })
+
+  it('keeps unchanged nested content while replacing a later image', () => {
+    const nested = {
+      type: 'tool-result' as const,
+      toolCallId: CallId('text-only'),
+      content: [{ type: 'text' as const, text: 'kept' }],
+    }
+    const messages = [createUserMessage({ content: [nested, image(3)], source })]
+    expect(offloadRequestImages(messages, 1)[0]?.content).toEqual([
+      nested,
+      { type: 'text', text: OFFLOADED_IMAGE_TEXT },
+    ])
   })
 })

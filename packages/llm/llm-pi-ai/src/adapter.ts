@@ -34,7 +34,6 @@ import type {
 import {
   attributionHeaders,
   contentHasImage,
-  degradeImages,
   LlmAdapter,
   LlmError,
   ReasoningEffortId,
@@ -77,6 +76,11 @@ export interface PiAiAdapterOptions {
   resolveApiKey: (provider: string, profile: ResolvedPiAiProviderProfile) => Promise<string | undefined>
   /** Resolve the optional durable attachment service at request time. */
   resolveAttachments?: () => AttachmentStore | undefined
+  /**
+   * Observe one assistant history message degrading to provider-neutral
+   * conversion because its stored replay state is unusable by this build.
+   */
+  onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
 }
 
 /** Copy profile stream knobs into pi-ai's common option vocabulary. */
@@ -301,20 +305,19 @@ export class PiAiAdapter extends LlmAdapter {
 
     try {
       const containsImage = options.messages.some(message => contentHasImage(message.content))
-      // A text-only route degrades history images to the shared placeholder
-      // instead of failing, so an image-bearing session can switch to it;
-      // an image-capable route still resolves the durable bytes.
-      const resolvesImages = containsImage && model.input.includes('image')
-      const request = containsImage && !resolvesImages
-        ? { ...options, messages: options.messages.map(message => ({ ...message, content: degradeImages(message.content) })) }
-        : options
-      const attachments = resolvesImages ? this.config.resolveAttachments?.() : undefined
-      if (resolvesImages && attachments === undefined) {
+      if (containsImage && !model.input.includes('image')) {
+        throw new LlmError(`pi-ai model "${model.id}" does not support image input`, 'UNSUPPORTED_CONTENT')
+      }
+      const attachments = containsImage ? this.config.resolveAttachments?.() : undefined
+      if (containsImage && attachments === undefined) {
         throw new LlmError('pi-ai image input requires the durable attachment service', 'UNSUPPORTED_CONTENT')
       }
+      const onReplayDegrade = (reason: string): void => {
+        this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
+      }
       const context = attachments === undefined
-        ? toPiContext(request)
-        : await toPiContext(request, attachments)
+        ? toPiContext(options, undefined, onReplayDegrade)
+        : await toPiContext(options, attachments, onReplayDegrade, profile.maxRequestImageBytes)
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },

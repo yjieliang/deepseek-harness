@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-command-memory
 
+English | [中文](README.zh.md)
+
 Human-facing `/memory` slash command over the habits seam (`ctx.habits`): add, list, and remove. The command dispatches without a model turn and shares the exact write path of the model tools, so guard and consolidation enforcement is identical for humans. A guarded `add` (injection/secret patterns) asks a `仍然记住`/`算了` confirmation when a user-question channel exists and writes with the confirmed override.
 
 ## Model Experience
