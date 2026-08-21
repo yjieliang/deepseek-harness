@@ -3,12 +3,17 @@
  */
 
 import { z } from 'zod'
-import type { DirectoryEntry } from './host.ts'
+import type { DirectoryEntry, DshHomeSource } from './host.ts'
 import type { RequestPayload, ResponseValue } from './rpc-map.ts'
 import type { Wire } from './rpc.schema.ts'
 
 /** host.describe request payload (empty object literal). */
 export const hostDescribeRequestSchema = z.object({}) satisfies z.ZodType<Wire<RequestPayload<'host.describe'>>>
+
+/** Source of the current harness-home path. */
+export const dshHomeSourceSchema = z.union([
+  z.literal('default'), z.literal('env'), z.literal('boot-file'), z.literal('configured'),
+]) satisfies z.ZodType<Wire<DshHomeSource>>
 
 /** host.describe response value. */
 export const hostDescribeValueSchema = z.object({
@@ -19,7 +24,20 @@ export const hostDescribeValueSchema = z.object({
   attachedSessions: z.number().int().nonnegative(),
   home: z.string(),
   canOpenPath: z.boolean(),
+  dshHome: z.string(),
+  dshHomeSource: dshHomeSourceSchema,
 }) satisfies z.ZodType<Wire<ResponseValue<'host.describe'>>>
+
+/** host.setDshHome request payload; null removes the persisted override. */
+export const hostSetDshHomeRequestSchema = z.object({
+  path: z.string().nullable(),
+}) satisfies z.ZodType<Wire<RequestPayload<'host.setDshHome'>>>
+
+/** host.setDshHome response value: the home the NEXT boot will resolve. */
+export const hostSetDshHomeValueSchema = z.object({
+  nextHome: z.string(),
+  source: z.union([z.literal('boot-file'), z.literal('default'), z.literal('env')]),
+}) satisfies z.ZodType<Wire<ResponseValue<'host.setDshHome'>>>
 
 /** host.pickDirectory request payload (empty object literal). */
 export const hostPickDirectoryRequestSchema = z.object({}) satisfies z.ZodType<Wire<RequestPayload<'host.pickDirectory'>>>

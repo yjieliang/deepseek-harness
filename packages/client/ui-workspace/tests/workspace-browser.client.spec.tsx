@@ -76,6 +76,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     renameWorkspace: vi.fn(async () => {}),
     deleteWorkspace: vi.fn(async () => {}),
     archiveSession: vi.fn(async () => {}),
+    unarchiveSession: vi.fn(async () => {}),
     insertWorkspaceBefore: vi.fn(async () => {}),
     insertSessionBefore: vi.fn(async () => {}),
     createWorkspace: vi.fn(async () => workspace('created', [])),
@@ -106,7 +107,7 @@ describe('WorkspaceBrowser', () => {
           title: 'Project',
         }])),
         useHostDescription: selector => selector({
-          version: '0', cwd: '/tmp', attachedSessions: 0, home: '/home/u', canOpenPath: false,
+          version: '0', cwd: '/tmp', attachedSessions: 0, home: '/home/u', canOpenPath: false, dshHome: '/home/u/.dsh', dshHomeSource: 'default' as const,
         }),
       })
       fireEvent.pointerEnter(screen.getByRole('treeitem').parentElement as HTMLElement)
@@ -377,6 +378,64 @@ describe('WorkspaceBrowser', () => {
     } finally {
       warn.mockRestore()
     }
+  })
+
+  it('lists archived sessions with their workspace and restores without a dialog', () => {
+    const unarchiveSession = vi.fn(async () => {})
+    mount({
+      useSessions: hook(sessionState([
+        summary('gone-s', 2, { displayTitle: 'Gone title' }),
+        summary('kept-s', 1),
+      ])),
+      useWorkspaces: hook(workspaceState(
+        [workspace('alpha', ['kept-s', 'gone-s'], 'Alpha')],
+        [sid('gone-s')],
+      )),
+      unarchiveSession,
+    })
+    // The muted footer entry shows the live archive count.
+    expect(screen.getByRole('button', { name: /已归档/ })).toBeTruthy()
+    expect(screen.getByText('1')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /已归档/ }))
+    expect(screen.getByRole('tree', { name: '已归档' })).toBeTruthy()
+    expect(screen.getByText('Gone title')).toBeTruthy()
+    expect(screen.getByText('Alpha')).toBeTruthy()
+    expect(screen.queryByText('kept-s')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: '恢复' }))
+    expect(unarchiveSession).toHaveBeenCalledWith(sid('gone-s'))
+
+    // The footer entry flips to the back affordance inside the view.
+    fireEvent.click(screen.getByRole('button', { name: '返回会话列表' }))
+    expect(screen.queryByRole('tree', { name: '已归档' })).toBeNull()
+  })
+
+  it('logs and keeps the archived list when the restore call rejects', async () => {
+    const rejection = new Error('unarchive exploded')
+    const unarchiveSession = vi.fn(async () => { throw rejection })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      mount({
+        useSessions: hook(sessionState([summary('gone-s', 1)])),
+        useWorkspaces: hook(workspaceState([workspace('alpha', ['gone-s'])], [sid('gone-s')])),
+        unarchiveSession,
+      })
+      fireEvent.click(screen.getByRole('button', { name: /已归档/ }))
+      fireEvent.click(screen.getByRole('button', { name: '恢复' }))
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(warn).toHaveBeenCalledWith('session unarchive rejected:', rejection)
+      expect(screen.getByText('gone-s')).toBeTruthy()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('shows the archived empty state when the set is empty', () => {
+    mount()
+    fireEvent.click(screen.getByRole('button', { name: /已归档/ }))
+    expect(screen.getByText('没有已归档会话')).toBeTruthy()
   })
 
   it('renders a fork child as a top-level row without a session twist', () => {

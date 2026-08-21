@@ -354,3 +354,54 @@
     transition: none;
   }
 }
+
+/* Archived-session row: read-only, grayed, with a restore action. */
+.archivedRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.archivedRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.archivedHeading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.archivedHeading .title {
+  flex: 1;
+  color: var(--dsw-alias-label-primary);
+}
+
+.archivedMeta {
+  margin-left: 22px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.restoreButton {
+  flex: none;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  background: transparent;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--dsw-alias-state-business-primary);
+  cursor: pointer;
+}
+
+.restoreButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover-accent);
+}

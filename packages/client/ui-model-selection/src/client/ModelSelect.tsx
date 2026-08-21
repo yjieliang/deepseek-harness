@@ -22,7 +22,7 @@ import {
   IconWarningOutline16, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ModelSelectInjected } from './slots.ts'
+import type { ModelSelectInjected, ModelSelectOutcome } from './slots.ts'
 import css from './ModelSelect.module.css'
 
 /** Which pane the dropdown shows: the two-row root or one drilled-in list. */
@@ -166,9 +166,15 @@ export function ModelSelect(
     close()
   }
 
-  const settleSelection = (accepted: boolean): void => {
-    if (accepted) {
+  const settleSelection = (outcome: ModelSelectOutcome): void => {
+    if (outcome.accepted) {
       if (rootRef.current !== null) close(true)
+      // The host accepted a text-only model over an image-bearing session:
+      // name the loss once, since the transcript still renders the images.
+      if (outcome.imagesDegraded) {
+        toastSeq.current += 1
+        setToast({ seq: toastSeq.current, text: t('warning.imagesDegraded') })
+      }
       return
     }
     const message = directory.getSnapshot().error

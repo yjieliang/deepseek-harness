@@ -8,6 +8,14 @@ import type { ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ModelDirectoryState } from './directory.ts'
 
+/** Outcome of one host selection attempt. */
+export interface ModelSelectOutcome {
+  /** Whether the host accepted the selection. */
+  accepted: boolean
+  /** Accepted, but session images degrade to placeholder text for this model. */
+  imagesDegraded: boolean
+}
+
 /** Injected business face of the composer model seat. */
 export interface ModelSelectInjected {
   /** Whether this session supports Agent-bound model inspection and selection. */
@@ -19,7 +27,7 @@ export interface ModelSelectInjected {
   /**
    * Select a complete provider/model/reasoning selection.
    * @param selection - model selection and optional adapter-owned effort.
-   * @returns whether the host accepted the selection.
+   * @returns the host's acceptance and any image-degradation notice.
    */
-  select: (selection: ModelSelection) => Promise<boolean>
+  select: (selection: ModelSelection) => Promise<ModelSelectOutcome>
 }

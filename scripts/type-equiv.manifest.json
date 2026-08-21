@@ -1617,6 +1617,11 @@
     },
     {
       "doc": "docs/subsystems/settings.md",
+      "symbol": "SettingsValidatePhase",
+      "source": "packages/settings/settings/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/settings.md",
       "symbol": "SettingsScope",
       "source": "packages/settings/settings/src/index.ts"
     },

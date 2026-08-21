@@ -20,6 +20,16 @@ type SettingsNamespace = Branded<'SettingsNamespace'>
 注册把 schemastery schema 绑定到调用方插件 fiber 上的 namespace——dispose（资源释放）该 fiber 即移除 namespace 及其观察者。options 携带组合层、owner 的生效时机，以及一个可选的、用于校验 schema 表达不了的约束的钩子。
 
 ```ts type-equiv
+/**
+ * Which resolve invokes an owner validator. `'load'` covers the initial
+ * registration and provider-published documents — stored data an owner may
+ * need to migrate before enforcing its constraints — and `'write'` covers
+ * update/replace/mutate, where a rejection refuses the write itself.
+ */
+type SettingsValidatePhase = 'load' | 'write'
+```
+
+```ts type-equiv
 /** Registration options beyond the namespace schema. */
 interface SettingsRegisterOptions<T> {
   /** Composition-layer values resolved below the user layer (entry-config subset). */
@@ -29,7 +39,7 @@ interface SettingsRegisterOptions<T> {
   /**
    * Reject a resolved section the owner could not act on, for constraints its
    * schema cannot express — a cross-field requirement, or one field's validity
-   * depending on another's. Throwing here refuses the *write* that produced the
+   * depending on another's. Throwing here refuses the resolve that produced the
    * value, so a caller learns at `update`/`replace`/`mutate` instead of storing
    * something that would silently disable the owner.
    *
@@ -44,12 +54,14 @@ interface SettingsRegisterOptions<T> {
    * already fails rejects the registration itself — again exactly as a schema
    * failure does.
    * @param value - the resolved section, schema-valid by construction.
+   * @param phase - `'load'` for registration and provider-published documents,
+   *   `'write'` for update/replace/mutate; owners may be stricter on writes.
    */
-  validate?: (value: T) => void
+  validate?: (value: T, phase: SettingsValidatePhase) => void
 }
 ```
 
-`validate` 在 schema 接纳该值之后运行，因此它看到的默认值和组合 base 与 owner 实际看到的完全一致。`dsh-llm-pi-ai` 用它在写入处拒绝自己无法服务的提供方 profile，而不是先存下来、再让该 namespace 下每条路由失效。
+`validate` 在 schema 接纳该值之后运行，因此它看到的默认值和组合 base 与 owner 实际看到的完全一致。phase 参数标明触发它的 resolve：注册与 provider 发布的文档是 `'load'`，update/replace/mutate 是 `'write'`。`dsh-llm-pi-ai` 用它在写入处拒绝自己无法服务的提供方 profile，而不是先存下来、再让该 namespace 下每条路由失效；`dsh-habits-settings` 只在写入相位执行内容守卫，让 `guardConfirmed` 字段出现之前的存量条目能够加载并迁移。
 
 `applies` 是 UI 提示而非机制：`restart` 的 owner 只是从不 watch，其值在构造期读取一次，配置界面可为待生效变更加标。
 
@@ -252,7 +264,7 @@ async replace(ns: SettingsNamespace, section: object, expectedRevision?: number)
 async mutate(ns: SettingsNamespace, ops: readonly SettingsPathOp[], expectedRevision?: number): Promise<void>
 ```
 
-Source: [`packages/settings/settings/src/index.ts:350`](../../packages/settings/settings/src/index.ts)
+Source: [`packages/settings/settings/src/index.ts:360`](../../packages/settings/settings/src/index.ts)
 
 <a id="settings-events"></a>
 

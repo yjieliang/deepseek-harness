@@ -42,6 +42,14 @@ export interface SandboxExecutionPolicy {
   /** Absolute root directory `workspace-write` may write under. */
   workspaceRoot: string
   /**
+   * Additional absolute roots `workspace-write` may write under, beside the
+   * workspace and the platform temp areas — deployment-owned controlled write
+   * zones a capability like the global knowledge base needs outside the
+   * per-session workspace. Canonicalized with the same rule as the workspace
+   * root; a name here never widens `read-only` or `danger-full-access`.
+   */
+  writableRoots?: readonly string[]
+  /**
    * Opaque identity of the calling session (the branded `dsh-session`
    * SessionId). Backends key per-session state off it (e.g. windows-acl gives
    * each live session/workspace pair a random private temp directory and SID,

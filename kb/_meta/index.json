@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 3,
+  "savedAt": "2026-08-16T09:53:05.406Z",
+  "docs": {
+    "10-技术/11-AI/2026-08-15-agent记忆开源项目调研-用户记忆与外部Memory-Provider.md": {
+      "title": "Agent 记忆开源项目调研:用户记忆与外部 Memory Provider",
+      "tags": [
+        "记忆",
+        "agent",
+        "调研",
+        "开源项目"
+      ],
+      "aliases": [
+        "记忆调研",
+        "memory provider 调研",
+        "用户记忆调研"
+      ],
+      "summary": "调研 Mem0、Letta(MemGPT)、Zep/Graphiti、LangMem、Basic Memory、Memobase、Cognee、Memary、MCP Memory Server 等热门开源项目,聚焦用户记忆(user memory)与外部 memory provider 两个方向的设计模式,提炼可借鉴要点。",
+      "source": "",
+      "created": "2026-08-15",
+      "updated": "2026-08-15",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "用户习惯记忆系统设计方案",
+        "RAG 核心概念"
+      ]
+    },
+    "10-技术/11-AI/2026-08-16-记忆模块问题记录-memory-add未生效.md": {
+      "title": "记忆模块问题记录:/memory add 未生效(习惯库为空)",
+      "tags": [
+        "记忆",
+        "user-habits",
+        "排查",
+        "问题记录",
+        "DSH"
+      ],
+      "aliases": [
+        "memory 未生效",
+        "记忆没生效",
+        "用户习惯未写入",
+        "中文回复习惯"
+      ],
+      "summary": "排查「默认用中文回复」记忆未生效问题:live habits 服务运行中但 entries 为空,/memory add 未真正写入习惯库;分析可能的根因(命令未注册/preset 装载)与证据。",
+      "source": "",
+      "created": "2026-08-16",
+      "updated": "2026-08-16",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "2026-08-15-用户习惯记忆系统设计方案",
+        "2026-08-15-agent记忆开源项目调研-用户记忆与外部Memory-Provider"
+      ]
+    },
+    "10-技术/2026-08-14-RAG-核心概念.md": {
+      "title": "RAG 核心概念",
+      "tags": [
+        "AI",
+        "RAG"
+      ],
+      "aliases": [],
+      "summary": "RAG 通过检索外部知识增强大模型回答，核心是检索+生成两阶段。",
+      "source": "",
+      "created": "2026-08-14",
+      "updated": "2026-08-15",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "知识库设计方案",
+        "Snipaste_2026-08-14_16-13-11.png"
+      ]
+    },
+    "10-技术/2026-08-15-知识库待定问题记录.md": {
+      "title": "知识库待定问题记录",
+      "tags": [
+        "知识库",
+        "待定"
+      ],
+      "aliases": [],
+      "summary": "",
+      "source": "",
+      "created": "2026-08-15",
+      "updated": "2026-08-15",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "2026-08-15-codebase-mcp-适用性评估",
+        "2026-08-15-知识库整体设计评估与优化建议",
+        "2026-08-15-知识库双引擎收敛实施方案"
+      ]
+    },
+    "20-学习笔记/2026-08-14-知识库实现总结（2026-08-14）.md": {
+      "title": "知识库实现总结（2026-08-14）",
+      "tags": [
+        "知识库",
+        "DSH",
+        "个人知识管理",
+        "测试"
+      ],
+      "aliases": [],
+      "summary": "在 DSH 上从方案到实现完成个人知识库：设计文档、14 个 Host 工具、GUI 面板、双链/图片/回收站/模板/剪藏、文件管理优化与常驻预设，含踩坑记录。",
+      "source": "",
+      "created": "2026-08-14",
+      "updated": "2026-08-14",
+      "pinned": true,
+      "status": "filed",
+      "links": []
+    },
+    "30-工作文档/2026-08-15-用户习惯记忆系统设计方案.md": {
+      "title": "用户习惯记忆系统设计方案",
+      "tags": [
+        "记忆",
+        "设计",
+        "DSH",
+        "agent"
+      ],
+      "aliases": [
+        "习惯记忆",
+        "用户记忆设计",
+        "memory habit",
+        "半自动记忆"
+      ],
+      "summary": "面向 DSH 的用户自定义习惯记忆系统设计(harness 理念优先版):habits 能力接缝三角色、读写契约与文件映射、写入口强制守卫、确定性合并、统一事件流、日志可重建注入链、全 Config 化,以及手动+半自动双写路径与用户使用设计。",
+      "source": "",
+      "created": "2026-08-15",
+      "updated": "2026-08-15",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "agent记忆开源项目调研-用户记忆与外部Memory-Provider"
+      ]
+    },
+    "30-工作文档/2026-08-15-知识库双引擎收敛实施方案.md": {
+      "title": "知识库双引擎收敛实施方案",
+      "tags": [
+        "知识库",
+        "架构",
+        "实施方案",
+        "重构",
+        "设计理念"
+      ],
+      "aliases": [
+        "知识库引擎收敛方案",
+        "kb 引擎保留决策"
+      ],
+      "summary": "以 harness 设计理念（capability seam 三方、host/preset 平面、工具一等 package、preset 只组合行）重写收敛方案：保留 host 引擎并重塑为 ctx.kb 服务，工具收敛为 dsh-tool-kb 包，preset 只留一行。",
+      "source": "",
+      "created": "2026-08-15",
+      "updated": "2026-08-15",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "2026-08-15-知识库整体设计评估与优化建议",
+        "2026-08-15-知识库整体设计评估与优化建议",
+        "2026-08-15-知识库整体设计评估与优化建议",
+        "2026-08-15-codebase-mcp-适用性评估",
+        "2026-08-15-知识库待定问题记录",
+        "DESIGN"
+      ]
+    },
+    "30-工作文档/2026-08-15-知识库整体设计评估与优化建议.md": {
+      "title": "知识库整体设计评估与优化建议",
+      "tags": [
+        "知识库",
+        "设计",
+        "评估",
+        "优化"
+      ],
+      "aliases": [
+        "知识库设计评估"
+      ],
+      "summary": "对照 DESIGN 与双通道实现逐层评估：发现双实现漂移 7 处、检索能力与设计承诺差距 9 项、索引全量重扫等 3 类问题，给出 P0/P1/P2 共 15 项优化建议。",
+      "source": "",
+      "created": "2026-08-15",
+      "updated": "2026-08-15",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "DESIGN",
+        "2026-08-15-codebase-mcp-适用性评估",
+        "2026-08-15-codebase-mcp-适用性评估",
+        "DESIGN",
+        "2026-08-15-codebase-mcp-适用性评估",
+        "2026-08-15-知识库待定问题记录"
+      ]
+    },
+    "30-工作文档/2026-08-15-codebase-mcp-适用性评估.md": {
+      "title": "codebase MCP 对知识库设计的适用性评估",
+      "tags": [
+        "知识库",
+        "MCP",
+        "评估",
+        "AI"
+      ],
+      "aliases": [
+        "codebase MCP 评估"
+      ],
+      "summary": "评估 codebase MCP 对 [[DESIGN]] 的适用性：作为检索组件不建议集成，作为 Phase 3 语义检索的模式参考有价值，作为 agent 可选代码检索工具与知识库设计正交。",
+      "source": "",
+      "created": "2026-08-15",
+      "updated": "2026-08-15",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "DESIGN",
+        "DESIGN"
+      ]
+    },
+    "DESIGN.md": {
+      "title": "知识库设计方案",
+      "tags": [
+        "知识库",
+        "设计",
+        "DSH"
+      ],
+      "aliases": [],
+      "summary": "个人知识库完整设计方案：收集/整理/检索闭环、存储规范、双链图片、安全防护与实施路线。",
+      "source": "",
+      "created": "2026-08-14",
+      "updated": "2026-08-14",
+      "pinned": false,
+      "status": "filed",
+      "links": [
+        "路径",
+        "文件名",
+        "文档名",
+        "路径",
+        "路径",
+        "...",
+        "https://example.com/a.png",
+        "2026-01-05-rag.assets/diagram.png",
+        "diagram.png",
+        "diagram.png",
+        "文件名",
+        "相对路径",
+        "文件名",
+        "...",
+        "图片",
+        "文档名",
+        "文档名",
+        "文档名",
+        "文档名",
+        "路径",
+        "文档名",
+        "路径",
+        "文档名"
+      ]
+    }
+  }
+}

@@ -796,22 +796,30 @@ class FaceAnalyzer {
           }))
         for (const exported of exports) {
           if (!publicSymbols.has(exported.symbol)) continue
-          const name = this.packageExportName(module, exported.symbol, toFace, exported.requestedName)
-          if (name === undefined) {
+          const resolved = this.packageExportName(module, exported.symbol, toFace, exported.requestedName)
+          if (resolved === undefined) {
             this.fail(
               exported.site,
               `cross-face re-export ${exported.requestedName} is not exported by ${module.package} at ${module.subpath}`,
             )
           }
-          this.recordCrossFaceLink(registration.name, toFace, module, name)
+          // An unresolvable cross-face target (a host-side file absent from
+          // the client program, or a script) records no link here — the same
+          // unanalyzable-target policy as collectExports' non-module continue.
+          if ('unresolved' in resolved) continue
+          this.recordCrossFaceLink(registration.name, toFace, module, resolved.name)
         }
       }
     }
   }
 
   private moduleExports(moduleSpecifier: ts.StringLiteral): ts.Symbol[] {
-    /* v8 ignore next -- a semantically valid export declaration from a resolved module always has a module symbol. */
-    const moduleSymbol = this.checker.getSymbolAtLocation(moduleSpecifier) as ts.Symbol
+    const moduleSymbol = this.checker.getSymbolAtLocation(moduleSpecifier)
+    // An unresolvable or non-module specifier carries no module symbol; the
+    // checked program already flags unresolvable imports as diagnostics, so
+    // an absent symbol is a script target that exports nothing.
+    /* v8 ignore next -- a resolved re-export the analyzer visits always carries a module symbol. */
+    if (moduleSymbol === undefined) return []
     return this.checker.getExportsOfModule(moduleSymbol)
   }
 
@@ -2381,17 +2389,29 @@ class FaceAnalyzer {
     const otherFace = packageFaces.find(face => face !== this.face)
     if (otherFace !== undefined && module !== undefined) {
       const requestedName = authoredExportName(site, moduleSpecifier as string)
-      const exportName = this.packageExportName(module, symbol, otherFace, requestedName)
-      if (exportName === undefined) {
+      const resolved = this.packageExportName(module, symbol, otherFace, requestedName)
+      if (resolved === undefined) {
         this.fail(site, `cross-face reference ${requestedName} is not exported by ${module.package} at ${module.subpath}`)
       }
-      this.recordCrossFaceLink(from.name, otherFace, module, exportName)
+      // An unresolvable cross-face target (a host-side file absent from the
+      // client program, or a script) cannot be verified as a cross-face link;
+      // fall back to a plain external reference instead of recording a bogus
+      // link that would corrupt the sorted cross-face index.
+      if ('unresolved' in resolved) {
+        return {
+          kind: 'external',
+          module: module.package,
+          subpath: module.subpath,
+          name: symbol.name,
+        }
+      }
+      this.recordCrossFaceLink(from.name, otherFace, module, resolved.name)
       return {
         kind: 'cross-face',
         face: otherFace,
         package: module.package,
         subpath: module.subpath,
-        name: exportName,
+        name: resolved.name,
       }
     }
 
@@ -2447,17 +2467,25 @@ class FaceAnalyzer {
     symbol: ts.Symbol,
     face: TypertFace,
     requestedName: string,
-  ): string | undefined {
+  ): { name: string } | { unresolved: true } | undefined {
     const registration = this.allRegistrations.find(candidate =>
       candidate.face === face && candidate.name === module.package) as PackageRegistration
     const target = packageExportTargets(registration.manifest)
       .find(([subpath]) => subpath === module.subpath)?.[1]
     if (target === undefined) return undefined
-    const sourceFile = this.sourceFiles.get(realPath(sourcePathForExport(registration.root, target))) as ts.SourceFile
-    const moduleSymbol = this.checker.getSymbolAtLocation(sourceFile) as ts.Symbol
+    const sourceFile = this.sourceFiles.get(realPath(sourcePathForExport(registration.root, target)))
+    // The cross-face target lives in the other face's program: a host-side
+    // source reached from a client re-export is absent here by construction,
+    // and a script file carries no module symbol. Neither can produce a link
+    // in this face, so they report unresolved instead of crashing the way a
+    // bare getExportsOfModule(undefined) would (TS reads symbol.flags on the
+    // argument).
+    if (sourceFile === undefined) return { unresolved: true }
+    const moduleSymbol = this.checker.getSymbolAtLocation(sourceFile)
+    if (moduleSymbol === undefined) return { unresolved: true }
     const exported = this.checker.getExportsOfModule(moduleSymbol)
       .find(candidate => candidate.name === requestedName && this.resolveSymbol(candidate) === symbol)
-    return exported?.name
+    return exported === undefined ? undefined : { name: exported.name }
   }
 
   private symbolAtType(node: ts.TypeNode): ts.Symbol | undefined {

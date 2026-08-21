@@ -13,6 +13,9 @@
     - button "Agent 预设":
       - img
       - text: Agent 预设
+    - button "记忆":
+      - img
+      - text: 记忆
   - button "打开配置文件"
   - button "关闭":
     - img

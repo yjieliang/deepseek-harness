@@ -18,6 +18,17 @@
     persona: >-
       You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
 
+# The global knowledge base lives at $DSH_HOME/kb, outside any workspace, so
+# `workspace-write` must also admit that controlled root. The base row keeps
+# the deployment default; this restatement carries the Web-owned writable zone
+# in lock-step with the `kb` row's `root` below.
+- id: sandbox-policy
+  config:
+    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+    workspaceRoot: !!js process.cwd()
+    writableRoots:
+      - !!js dshHomePath('kb')
+
 # TODO: Re-enable shared HMR for Web after its reload lifecycle is tested.
 - id: hmr
   disabled: true
@@ -99,6 +110,29 @@
     # Read-only projection of current Loader entries for trusted client RPCs.
     - id: plugin-inventory
       name: '@deepseek-ai/dsh-host-plugin-inventory'
+
+    # Model-generated word explanations for the browser lookup overlay.
+    - id: lookup-llm
+      name: '@deepseek-ai/dsh-host-lookup-llm'
+
+    # Knowledge base: the kb Remote namespace (browser panel data) and the
+    # /dsh-kb image route. The model-facing kb_* tools stay in the agent
+    # presets, not here. The library root is machine-global (shared by every
+    # workspace); the sandbox-policy row above admits it under workspace-write.
+    - id: kb
+      name: '@deepseek-ai/dsh-host-kb'
+      config:
+        root: !!js dshHomePath('kb')
+
+    # User-habit memory: the settings-backed `habits` store (global layer) and
+    # the budgeted resident prompt section. The model-facing memory_* tools and
+    # the /memory command stay in the agent presets, not here; the settings
+    # Memory page reads and edits this namespace through the wire.
+    - id: habits-settings
+      name: '@deepseek-ai/dsh-habits-settings'
+      config:
+        maxEntryChars: 200
+        residentTokenBudget: 600
 
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
@@ -279,6 +313,11 @@
     - id: ui-agent-preset
       name: '@deepseek-ai/dsh-client-ui-agent-preset'
 
+    # User-habit memory: the settings section that lists and edits the
+    # user-habits namespace. Absent the namespace it renders nothing.
+    - id: ui-memory
+      name: '@deepseek-ai/dsh-client-ui-memory'
+
     # Plugin configuration: the host-plane sections a user owns, as expandable
     # cards. A namespace this deployment does not expose renders nothing.
     - id: ui-settings-plugins
@@ -290,6 +329,16 @@
 
     - id: ui-user-questions
       name: '@deepseek-ai/dsh-client-ui-user-questions'
+
+    # Word lookup: select a word in the conversation for translation and noun
+    # introduction (dictionary sources plus the lookupLlm Remote explanation).
+    - id: ui-lookup
+      name: '@deepseek-ai/dsh-client-ui-lookup'
+
+    # Knowledge base: the sidebar footer trigger above Settings plus the
+    # browse/edit overlay panel, over the kb Remote namespace.
+    - id: ui-kb
+      name: '@deepseek-ai/dsh-client-ui-kb'
 
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
@@ -442,4 +491,4 @@
     - id: agent-presets
       name: '@deepseek-ai/dsh-agent-presets'
       config:
-        default: standard
+        default: knowledge-base

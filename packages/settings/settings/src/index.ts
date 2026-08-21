@@ -33,6 +33,14 @@ export function settingsNamespace(value: string): SettingsNamespace {
 /** When a namespace's changes take effect for its owner. */
 export type SettingsApplies = 'live' | 'restart'
 
+/**
+ * Which resolve invokes an owner validator. `'load'` covers the initial
+ * registration and provider-published documents — stored data an owner may
+ * need to migrate before enforcing its constraints — and `'write'` covers
+ * update/replace/mutate, where a rejection refuses the write itself.
+ */
+export type SettingsValidatePhase = 'load' | 'write'
+
 /** Registration options beyond the namespace schema. */
 export interface SettingsRegisterOptions<T> {
   /** Composition-layer values resolved below the user layer (entry-config subset). */
@@ -42,7 +50,7 @@ export interface SettingsRegisterOptions<T> {
   /**
    * Reject a resolved section the owner could not act on, for constraints its
    * schema cannot express — a cross-field requirement, or one field's validity
-   * depending on another's. Throwing here refuses the *write* that produced the
+   * depending on another's. Throwing here refuses the resolve that produced the
    * value, so a caller learns at `update`/`replace`/`mutate` instead of storing
    * something that would silently disable the owner.
    *
@@ -57,8 +65,10 @@ export interface SettingsRegisterOptions<T> {
    * already fails rejects the registration itself — again exactly as a schema
    * failure does.
    * @param value - the resolved section, schema-valid by construction.
+   * @param phase - `'load'` for registration and provider-published documents,
+   *   `'write'` for update/replace/mutate; owners may be stricter on writes.
    */
-  validate?: (value: T) => void
+  validate?: (value: T, phase: SettingsValidatePhase) => void
 }
 
 /** One registered namespace as surfaced to configuration UIs. */
@@ -327,7 +337,7 @@ interface SettingsRegistration {
   base: unknown
   applies: SettingsApplies
   /** Owner-supplied check for constraints the schema cannot express. */
-  validate?: (value: unknown) => void
+  validate?: (value: unknown, phase: SettingsValidatePhase) => void
   resolved: unknown
   /**
    * Monotonic counter over this namespace's RAW user section — bumped by any
@@ -443,8 +453,8 @@ export abstract class SettingsProvider extends Service {
       applies: options?.applies ?? 'live',
       ...options?.validate === undefined
         ? {}
-        : { validate: options.validate as (value: unknown) => void },
-      resolved: deepFreeze(this.resolve(schema, options?.base, this.section(ns), options?.validate)),
+        : { validate: options.validate as (value: unknown, phase: SettingsValidatePhase) => void },
+      resolved: deepFreeze(this.resolve(schema, options?.base, this.section(ns), options?.validate, 'load')),
       revision: 0,
       watchers: new Set(),
     }
@@ -630,7 +640,7 @@ export abstract class SettingsProvider extends Service {
         : mode === 'replace'
           ? snapshot
           : (snapshot['ops'] as SettingsPathOp[]).reduce(applyPathOp, current)
-      const next = deepFreeze(this.resolve(registration.schema, registration.base, section, registration.validate))
+      const next = deepFreeze(this.resolve(registration.schema, registration.base, section, registration.validate, 'write'))
       await this.persist(ns, section)
       // The write reached storage either way; the cache must say so. Commit
       // only when this registration is still the namespace owner — a fiber
@@ -672,7 +682,7 @@ export abstract class SettingsProvider extends Service {
     for (const registration of this.registrations.values()) {
       let next: unknown
       try {
-        next = deepFreeze(this.resolve(registration.schema, registration.base, this.section(registration.ns), registration.validate))
+        next = deepFreeze(this.resolve(registration.schema, registration.base, this.section(registration.ns), registration.validate, 'load'))
       } catch (error) {
         this.ctx.logger.warn('settings: keeping last good "%s" after invalid stored section', registration.ns)
         this.ctx.logger.warn(error)
@@ -698,14 +708,15 @@ export abstract class SettingsProvider extends Service {
     schema: z<T>,
     base: unknown,
     section: Record<string, unknown> | undefined,
-    validate?: (value: T) => void,
+    validate: ((value: T, phase: SettingsValidatePhase) => void) | undefined,
+    phase: SettingsValidatePhase,
   ): T {
     // The merged candidate is untyped by construction; the schema call is the
     // runtime validation that admits it into T.
     const value = schema(mergeLayers(base, section) as never)
     // The owner's own check runs on the admitted value, so it sees defaults
     // and the composition base exactly as the owner will.
-    validate?.(value)
+    validate?.(value, phase)
     return value
   }
 

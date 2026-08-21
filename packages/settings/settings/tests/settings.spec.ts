@@ -133,6 +133,24 @@ describe('registration', () => {
     })).toThrow(/unreadable/)
   })
 
+  it('tells the validator which phase each resolve is for', async () => {
+    const { ctx } = await boot({ doc: { 'ui-theme': { fontSize: 12 } } })
+    const phases: string[] = []
+    ctx.settings.register(settingsNamespace('ui-theme'), ThemeSchema, {
+      validate: (_value, phase) => { phases.push(phase) },
+    })
+    // Registration resolves inline over the already-stored section: load.
+    expect(phases).toEqual(['load'])
+
+    await ctx.settings.update(settingsNamespace('ui-theme'), { fontSize: 14 })
+    expect(phases).toEqual(['load', 'write'])
+
+    // A provider-published document is stored data again: load.
+    ;(ctx.settings as unknown as { publish(doc: Record<string, unknown>): void })
+      .publish({ 'ui-theme': { fontSize: 15 } })
+    expect(phases).toEqual(['load', 'write', 'load'])
+  })
+
   it('rejects a duplicate namespace loud', async () => {
     const { ctx } = await boot()
     ctx.settings.register(settingsNamespace('ui-theme'), ThemeSchema)

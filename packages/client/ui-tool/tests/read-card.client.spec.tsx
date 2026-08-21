@@ -351,7 +351,7 @@ describe('DetailsPanel Output section (read)', () => {
     const view = mount(snapshot({
       nodes: [settled({ resultView: resultRead({ path: '/Users/u/notes.md' }) })],
     }), target, '/tmp/ws', {
-      version: '0', cwd: '/tmp', attachedSessions: 0, home: '/Users/u', canOpenPath: false,
+      version: '0', cwd: '/tmp', attachedSessions: 0, home: '/Users/u', canOpenPath: false, dshHome: '/Users/u/.dsh', dshHomeSource: 'default' as const,
     })
     expect(view.getByText('~/notes.md')).toBeTruthy()
   })

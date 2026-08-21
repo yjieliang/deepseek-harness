@@ -851,6 +851,24 @@ export interface Config {
 
 来源：[`packages/host/frontend-static/src/index.ts:28`](../packages/host/frontend-static/src/index.ts)
 
+<a id="deepseek-aidsh-host-kb"></a>
+
+## `@deepseek-ai/dsh-host-kb`
+
+Requires: `fs`
+
+```ts config-catalog
+/** Gateway configuration: archive directory and trash retention are deployment choices. */
+export interface KbGatewayConfig {
+  /** Directory whose documents derive status `archived`; default `90-归档`. */
+  archiveDir?: string
+  /** Days a trashed document is kept before automatic purge; `0` disables the sweep. Default 30. */
+  trashRetentionDays?: number
+}
+```
+
+来源：[`packages/host/kb/src/index.ts:37`](../packages/host/kb/src/index.ts)
+
 <a id="deepseek-aidsh-host-webserver"></a>
 
 ## `@deepseek-ai/dsh-host-webserver`
@@ -2618,6 +2636,29 @@ export type CompletionDelivery = 'quiet' | 'wakeup'
 
 来源：[`packages/jobs/tool-jobs/src/index.ts:32`](../packages/jobs/tool-jobs/src/index.ts)
 
+<a id="deepseek-aidsh-tool-kb"></a>
+
+## `@deepseek-ai/dsh-tool-kb`
+
+需要：`tools` · `kb` · `systemPrompt`
+
+```ts config-catalog
+/** Plugin config; every key is optional and `Config` supplies the defaults. */
+export interface Config {
+  /** Default result cap for `kb_search` when the call omits `topK`. */
+  searchTopK?: number
+  /** Bulk operations at or above this many documents refuse without a prior preview. */
+  batchConfirmN?: number
+  /** Default age threshold (days) for `kb_archive` when the call omits `days`. */
+  archiveDays?: number
+  /** Maximum characters of a clipped page body kept by `kb_clip`. */
+  clipMaxBodyChars?: number
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts:30`](../packages/host/tool-kb/src/index.ts)
+
+
 <a id="deepseek-aidsh-tool-lsp"></a>
 
 ## `@deepseek-ai/dsh-tool-lsp`
@@ -3208,7 +3249,9 @@ export interface Config {
 - `@deepseek-ai/dsh-client-ui-goal`（[`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-input-trigger`（[`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-jobs`（[`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-kb`（[`packages/client/ui-kb/src/index.ts`](../packages/client/ui-kb/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-layout`（[`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-lookup`（[`packages/client/ui-lookup/src/index.ts`](../packages/client/ui-lookup/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-message-feedback`（[`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-model-selection`（[`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-permission-presets`（[`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts)）
@@ -3239,6 +3282,7 @@ export interface Config {
 - `@deepseek-ai/dsh-goal-round-driver` — 需要 `agents` · `goals` · `sessions`（[`packages/goal/goal-round-driver/src/index.ts`](../packages/goal/goal-round-driver/src/index.ts)）
 - `@deepseek-ai/dsh-host-directory-picker-auto` — 需要 `webServer` · `loader`（[`packages/host/directory-picker-auto/src/index.ts`](../packages/host/directory-picker-auto/src/index.ts)）
 - `@deepseek-ai/dsh-host-directory-picker-native`（[`packages/host/directory-picker-native/src/index.ts`](../packages/host/directory-picker-native/src/index.ts)）
+- `@deepseek-ai/dsh-host-lookup-llm` — 需要 `llm` · `agentDefaultModel`（[`packages/host/lookup-llm/src/index.ts`](../packages/host/lookup-llm/src/index.ts)）
 - `@deepseek-ai/dsh-host-plugin-inventory` — 需要 `loader`（[`packages/host/plugin-inventory/src/index.ts`](../packages/host/plugin-inventory/src/index.ts)）
 - `@deepseek-ai/dsh-llm`（[`packages/llm/llm/src/index.ts`](../packages/llm/llm/src/index.ts)）
 - `@deepseek-ai/dsh-lsp`（[`packages/lsp/lsp/src/index.ts`](../packages/lsp/lsp/src/index.ts)）

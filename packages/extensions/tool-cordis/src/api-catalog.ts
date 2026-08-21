@@ -808,6 +808,31 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'habits',
+    summary: 'The habits contract service (`ctx.habits`).',
+    description: 'The habits contract service (`ctx.habits`). Providers extend this class and implement the three storage hooks; consumers (tools, commands, prompt sections) depend on the concrete class only through this contract.',
+    methods: [
+      {
+        signature: 'list(layer?: HabitLayer): readonly HabitEntry[]',
+        description: 'List committed entries in stable id order, optionally filtered to one layer.',
+        parameters: [{ name: 'layer', description: 'optional ownership layer filter.' }],
+        returns: 'a fresh frozen array over the provider\'s current state.',
+      },
+      {
+        signature: 'async write(request: HabitWriteRequest, options?: { userConfirmed?: boolean }): Promise<HabitWriteOutcome>',
+        description: 'Validate, consolidate, persist, and commit one habit write. The guard hard-rejects hostile agent-proposed values and rejects user-authored hostile-looking values unless a human confirmed the warning; the budget always holds. Deterministic consolidation replaces the same-topic entry instead of appending a sibling, and an unchanged value is rejected as a duplicate.',
+        parameters: [{ name: 'request', description: 'layer, topic, raw value, and final author.' }, { name: 'options', description: 'optional `userConfirmed` override after a human saw the guard warning.' }],
+        returns: 'the committed entry, the operation, and the replaced entry on update.',
+      },
+      {
+        signature: 'async remove(id: HabitId): Promise<HabitEntry>',
+        description: 'Persist a removal and commit it. The removed entry\'s id leaves the store before the `user-habits/committed` remove event fires.',
+        parameters: [{ name: 'id', description: 'exact entry id (content-addressed `layer:topic`).' }],
+        returns: 'the removed entry.',
+      },
+    ],
+  },
+  {
     key: 'invariants',
     summary: 'Package-owned invariant registry with global and regex-based selection.',
     description: 'Package-owned invariant registry with global and regex-based selection.',
@@ -878,6 +903,133 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Attach an effect-scoped controller that can read and stop jobs. It serves the owners its registering context\'s scope covers, and start refuses an owner no attached controller serves.',
         parameters: [{ name: 'name', description: 'diagnostic label; duplicate names remain independent.' }],
         returns: 'disposer that detaches this controller.',
+      },
+    ],
+  },
+  {
+    key: 'kb',
+    summary: 'Remote-only service exposing the knowledge base to the browser panel.',
+    description: 'Remote-only service exposing the knowledge base to the browser panel. One host instance; the engine is per-process and lazy.',
+    methods: [
+      {
+        signature: '@Remote(\'list\') async list(request: KbListRequest, signal: AbortSignal): Promise<KbListResult>',
+        description: 'List documents with optional status/tag/directory filters.',
+        parameters: [{ name: 'request', description: 'the list filters' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the matching documents',
+      },
+      {
+        signature: '@Remote(\'search\') async search(request: KbSearchRequest, signal: AbortSignal): Promise<KbSearchResult>',
+        description: '2-gram AND search over title/aliases/tags/summary/body.',
+        parameters: [{ name: 'request', description: 'the search query and cap' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the hits and total',
+      },
+      {
+        signature: 'async searchFiltered(request: KbToolSearchRequest, signal: AbortSignal): Promise<KbSearchResult>',
+        description: 'Tool-facing search with field filters; not part of the panel Remote wire.',
+        parameters: [{ name: 'request', description: 'the query, filters, and cap' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the filtered hits and total',
+      },
+      {
+        signature: 'async links(path: string, signal: AbortSignal): Promise<KbLinksResult>',
+        description: 'One document\'s link view (outlinks + backlinks); not part of the panel wire.',
+        parameters: [{ name: 'path', description: 'library-relative document path' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the link view',
+      },
+      {
+        signature: 'async images(signal: AbortSignal): Promise<KbImagesResult>',
+        description: 'Rebuild the image registry, list orphaned images; not part of the panel wire.',
+        parameters: [{ name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the image scan result',
+      },
+      {
+        signature: '@Remote(\'get\') async get(request: KbGetRequest, signal: AbortSignal): Promise<KbGetResult>',
+        description: 'Full read of one document: body, frontmatter, backlinks, version.',
+        parameters: [{ name: 'request', description: 'the read request' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the full read result',
+      },
+      {
+        signature: '@Remote(\'dirs\') async dirs(_request: KbEmptyRequest, signal: AbortSignal): Promise<KbDirsResult>',
+        description: 'Available library directories.',
+        parameters: [{ name: '_request', description: 'unused' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the directory list',
+      },
+      {
+        signature: '@Remote(\'stats\') async stats(_request: KbEmptyRequest, signal: AbortSignal): Promise<KbStatsResult>',
+        description: 'Library statistics.',
+        parameters: [{ name: '_request', description: 'unused' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'totals, per-status counts, directories, and the archive directory',
+      },
+      {
+        signature: '@Remote(\'tags\') async tags(_request: KbEmptyRequest, signal: AbortSignal): Promise<KbTagsResult>',
+        description: 'Tag index, most-used first.',
+        parameters: [{ name: '_request', description: 'unused' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'tag counts',
+      },
+      {
+        signature: '@Remote(\'refresh\') async refresh(_request: KbEmptyRequest, signal: AbortSignal): Promise<KbEmptyResult>',
+        description: 'Rebuild the in-memory index from disk, absorbing changes made outside the engine; the panel calls it when it opens.',
+        parameters: [{ name: '_request', description: 'unused' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'no data',
+      },
+      {
+        signature: '@Remote(\'saveDoc\') async saveDoc(request: KbSaveRequest, signal: AbortSignal): Promise<KbSaveResult>',
+        description: 'Apply a field patch + body replacement with an optional optimistic lock.',
+        parameters: [{ name: 'request', description: 'the field patch' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the write outcome',
+      },
+      {
+        signature: '@Remote(\'createDoc\') async createDoc(request: KbCreateRequest, signal: AbortSignal): Promise<KbCreateResult>',
+        description: 'Create a dated document, minting a collision-free path.',
+        parameters: [{ name: 'request', description: 'title, directory, and optional initial fields' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the created document',
+      },
+      {
+        signature: '@Remote(\'moveDoc\') async moveDoc(request: KbMoveRequest, signal: AbortSignal): Promise<KbMoveResult>',
+        description: 'Move a document into another directory.',
+        parameters: [{ name: 'request', description: 'source path and target directory' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'source and destination paths',
+      },
+      {
+        signature: '@Remote(\'createDir\') async createDir(request: KbCreateDirRequest, signal: AbortSignal): Promise<KbCreateDirResult>',
+        description: 'Create a library directory through a `.keep` marker.',
+        parameters: [{ name: 'request', description: 'the library-relative directory path' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the created directory',
+      },
+      {
+        signature: '@Remote(\'renameDir\') async renameDir(request: KbRenameDirRequest, signal: AbortSignal): Promise<KbRenameDirResult>',
+        description: 'Rename a library directory, relocating every entry beneath it.',
+        parameters: [{ name: 'request', description: 'the directory and its replacement name' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'source, destination, and moved entry count',
+      },
+      {
+        signature: '@Remote(\'deleteDoc\') async deleteDoc(request: KbDeleteRequest, signal: AbortSignal): Promise<KbDeleteResult>',
+        description: 'Move a document into `.trash` (recoverable).',
+        parameters: [{ name: 'request', description: 'the delete request' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the deleted and trash paths',
+      },
+      {
+        signature: '@Remote(\'trash\') async trash(_request: KbEmptyRequest, signal: AbortSignal): Promise<KbTrashResult>',
+        description: 'List the recoverable trash.',
+        parameters: [{ name: '_request', description: 'unused' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the trashed documents',
+      },
+      {
+        signature: '@Remote(\'restoreDoc\') async restoreDoc(request: KbRestoreRequest, signal: AbortSignal): Promise<KbRestoreResult>',
+        description: 'Restore a trashed document into a library directory.',
+        parameters: [{ name: 'request', description: 'the trash path and optional target directory' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'source and destination paths',
+      },
+      {
+        signature: '@Remote(\'purgeDoc\') async purgeDoc(request: KbPurgeRequest, signal: AbortSignal): Promise<KbPurgeResult>',
+        description: 'Permanently clear one trashed document.',
+        parameters: [{ name: 'request', description: 'the trash path' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the purged path',
+      },
+      {
+        signature: '@Remote(\'resolveLink\') async resolveLink(request: KbResolveRequest, signal: AbortSignal): Promise<KbResolveResult>',
+        description: 'Resolve a `[[name]]` target: exact title/stem, image registry, then fuzzy.',
+        parameters: [{ name: 'request', description: 'the link name' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'the resolved target',
       },
     ],
   },
@@ -2257,6 +2409,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'resolution after durability.',
       },
       {
+        signature: 'unarchiveSession(sessionId: SessionId): Promise<void>',
+        description: 'Unarchive one session durably: remove it from the registry-global archive set so grouping surfaces show it again at its retained accounting slot. An id already absent resolves without writing. No existence check: archive never removes the log or the accounting slot, so an archived id still owns both, and a re-check could only propagate a listing fault or block a restore of a session whose log was deleted externally.',
+        parameters: [{ name: 'sessionId', description: 'The session to restore.' }],
+        returns: 'resolution after durability.',
+      },
+      {
         signature: 'async resolveByPath(path: string): Promise<Workspace | undefined>',
         description: 'Resolve by canonical directory path without creating or mutating a workspace. A missing path rejects during `realpath`; an existing unowned directory returns `undefined`.',
         parameters: [{ name: 'path', description: 'Existing directory path in any spelling.' }],
@@ -2667,6 +2825,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Observe the frozen, lossless-JSON final outcome.',
     description: 'Observe the frozen, lossless-JSON final outcome. Listener failures are contained. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): keyed by `exec.agent`.',
     parameters: [{ name: 'exec', description: 'the execution object that traversed the pipeline.' }, { name: 'result', description: 'a deep-frozen snapshot of the final returned result.' }],
+  },
+  {
+    name: 'user-habits/committed',
+    mode: 'emit',
+    signature: '\'user-habits/committed\'(entry: HabitEntry, op: HabitOp): void',
+    summary: 'One durable habit mutation settled: the exact committed entry and the operation it entered by.',
+    description: 'One durable habit mutation settled: the exact committed entry and the operation it entered by. Emitted strictly after the provider persisted the change, so the store state already reflects the entry when listeners run — consumers read the authoritative data stream, never the payload alone.',
+    parameters: [{ name: 'entry', description: 'the committed entry (a remove carries the removed value).' }, { name: 'op', description: 'how the entry changed.' }],
   },
   {
     name: 'workflow/agent-end',
@@ -3253,6 +3419,34 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface GoalView extends GoalSnapshot {\n    readonly roundsStarted: number;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n    readonly activation: GoalActivation;\n}',
   },
   {
+    name: 'HabitEntry',
+    declaration: 'export interface HabitEntry {\n    readonly id: HabitId;\n    readonly layer: HabitLayer;\n    readonly topic: string;\n    readonly value: string;\n    readonly source: HabitSource;\n    readonly guardConfirmed?: true;\n    readonly version: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'HabitId',
+    declaration: 'export type HabitId = Branded<\'HabitId\'>;',
+  },
+  {
+    name: 'HabitLayer',
+    declaration: 'export type HabitLayer = \'global\' | \'project\';',
+  },
+  {
+    name: 'HabitOp',
+    declaration: 'export type HabitOp = \'add\' | \'update\' | \'remove\';',
+  },
+  {
+    name: 'HabitSource',
+    declaration: 'export type HabitSource = \'user\' | \'agent-proposed\';',
+  },
+  {
+    name: 'HabitWriteOutcome',
+    declaration: 'export interface HabitWriteOutcome {\n    readonly entry: HabitEntry;\n    readonly op: \'add\' | \'update\';\n    readonly replaced?: HabitEntry;\n}',
+  },
+  {
+    name: 'HabitWriteRequest',
+    declaration: 'export interface HabitWriteRequest {\n    readonly layer: HabitLayer;\n    readonly topic: string;\n    readonly value: string;\n    readonly source: HabitSource;\n}',
+  },
+  {
     name: 'ImageAttachmentLimits',
     declaration: 'export interface ImageAttachmentLimits {\n    maxImageBytes: number;\n    maxImagesPerMessage: number;\n    maxMessageImageBytes: number;\n    maxImagePixels: number;\n    maxImageDimension: number;\n    mediaTypes: readonly ImageMediaType[];\n}',
   },
@@ -3363,6 +3557,174 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'JsonValue',
     declaration: 'export type JsonValue = null | boolean | number | string | JsonValue[] | {\n    [key: string]: JsonValue;\n};',
+  },
+  {
+    name: 'KbCreateDirRequest',
+    declaration: 'export interface KbCreateDirRequest {\n    directory: string;\n}',
+  },
+  {
+    name: 'KbCreateDirResult',
+    declaration: 'export interface KbCreateDirResult {\n    directory: string;\n}',
+  },
+  {
+    name: 'KbCreateRequest',
+    declaration: 'export interface KbCreateRequest {\n    title: string;\n    content?: string;\n    directory?: string;\n    tags?: string[];\n    source?: string;\n    summary?: string;\n    pinned?: boolean;\n}',
+  },
+  {
+    name: 'KbCreateResult',
+    declaration: 'export interface KbCreateResult {\n    path: string;\n    version?: string;\n}',
+  },
+  {
+    name: 'KbDeleteRequest',
+    declaration: 'export interface KbDeleteRequest {\n    path: string;\n}',
+  },
+  {
+    name: 'KbDeleteResult',
+    declaration: 'export interface KbDeleteResult {\n    path: string;\n    trash: string;\n}',
+  },
+  {
+    name: 'KbDirsResult',
+    declaration: 'export interface KbDirsResult {\n    dirs: string[];\n}',
+  },
+  {
+    name: 'KbDocMeta',
+    declaration: 'export interface KbDocMeta {\n    [key: string]: KbFrontmatterValue;\n    status: KbDocStatus;\n}',
+  },
+  {
+    name: 'KbDocStatus',
+    declaration: 'export type KbDocStatus = \'inbox\' | \'filed\' | \'archived\';',
+  },
+  {
+    name: 'KbDocSummary',
+    declaration: 'export interface KbDocSummary {\n    path: string;\n    title: string;\n    summary: string;\n    tags: string[];\n    status: KbDocStatus;\n    updated: string;\n    pinned: boolean;\n}',
+  },
+  {
+    name: 'KbEmptyRequest',
+    declaration: 'export interface KbEmptyRequest {\n}',
+  },
+  {
+    name: 'KbEmptyResult',
+    declaration: 'export interface KbEmptyResult {\n}',
+  },
+  {
+    name: 'KbFrontmatterValue',
+    declaration: 'export type KbFrontmatterValue = string | string[];',
+  },
+  {
+    name: 'KbGetRequest',
+    declaration: 'export interface KbGetRequest {\n    path: string;\n}',
+  },
+  {
+    name: 'KbGetResult',
+    declaration: 'export interface KbGetResult {\n    path: string;\n    content: string;\n    meta: KbDocMeta;\n    backlinks: string[];\n    version?: string;\n}',
+  },
+  {
+    name: 'KbImagesResult',
+    declaration: 'export interface KbImagesResult {\n    total: number;\n    images: string[];\n    orphans: KbOrphanImage[];\n}',
+  },
+  {
+    name: 'KbLinksResult',
+    declaration: 'export interface KbLinksResult {\n    path: string;\n    outLinks: string[];\n    backlinks: string[];\n}',
+  },
+  {
+    name: 'KbListRequest',
+    declaration: 'export interface KbListRequest {\n    status?: KbStatusFilter;\n    tag?: string;\n    directory?: string;\n}',
+  },
+  {
+    name: 'KbListResult',
+    declaration: 'export interface KbListResult {\n    docs: KbDocSummary[];\n}',
+  },
+  {
+    name: 'KbMoveRequest',
+    declaration: 'export interface KbMoveRequest {\n    path: string;\n    targetDirectory: string;\n}',
+  },
+  {
+    name: 'KbMoveResult',
+    declaration: 'export interface KbMoveResult {\n    from: string;\n    to: string;\n}',
+  },
+  {
+    name: 'KbOrphanImage',
+    declaration: 'export interface KbOrphanImage {\n    path: string;\n    name: string;\n}',
+  },
+  {
+    name: 'KbPurgeRequest',
+    declaration: 'export interface KbPurgeRequest {\n    path: string;\n}',
+  },
+  {
+    name: 'KbPurgeResult',
+    declaration: 'export interface KbPurgeResult {\n    path: string;\n    purged: boolean;\n}',
+  },
+  {
+    name: 'KbRenameDirRequest',
+    declaration: 'export interface KbRenameDirRequest {\n    directory: string;\n    name: string;\n}',
+  },
+  {
+    name: 'KbRenameDirResult',
+    declaration: 'export interface KbRenameDirResult {\n    from: string;\n    to: string;\n    moved: number;\n}',
+  },
+  {
+    name: 'KbResolveRequest',
+    declaration: 'export interface KbResolveRequest {\n    name: string;\n}',
+  },
+  {
+    name: 'KbResolveResult',
+    declaration: 'export interface KbResolveResult {\n    path: string | null;\n    kind: \'doc\' | \'image\' | \'missing\';\n}',
+  },
+  {
+    name: 'KbRestoreRequest',
+    declaration: 'export interface KbRestoreRequest {\n    path: string;\n    targetDirectory?: string;\n}',
+  },
+  {
+    name: 'KbRestoreResult',
+    declaration: 'export interface KbRestoreResult {\n    from: string;\n    to: string;\n}',
+  },
+  {
+    name: 'KbSaveRequest',
+    declaration: 'export interface KbSaveRequest {\n    path: string;\n    content?: string;\n    summary?: string;\n    tags?: string[];\n    pinned?: boolean;\n    expectVersion?: string;\n}',
+  },
+  {
+    name: 'KbSaveResult',
+    declaration: 'export interface KbSaveResult {\n    path: string;\n    version?: string;\n    conflict: boolean;\n}',
+  },
+  {
+    name: 'KbSearchFilters',
+    declaration: 'export interface KbSearchFilters {\n    status?: KbStatusFilter;\n    tag?: string;\n    directory?: string;\n    title?: string;\n}',
+  },
+  {
+    name: 'KbSearchRequest',
+    declaration: 'export interface KbSearchRequest {\n    query: string;\n    topK?: number;\n}',
+  },
+  {
+    name: 'KbSearchResult',
+    declaration: 'export interface KbSearchResult {\n    hits: KbDocSummary[];\n    total: number;\n}',
+  },
+  {
+    name: 'KbStatsResult',
+    declaration: 'export interface KbStatsResult {\n    total: number;\n    byStatus: {\n        inbox: number;\n        filed: number;\n        archived: number;\n    };\n    dirs: string[];\n    archiveDir: string;\n}',
+  },
+  {
+    name: 'KbStatusFilter',
+    declaration: 'export type KbStatusFilter = \'all\' | KbDocStatus;',
+  },
+  {
+    name: 'KbTagCount',
+    declaration: 'export interface KbTagCount {\n    tag: string;\n    count: number;\n}',
+  },
+  {
+    name: 'KbTagsResult',
+    declaration: 'export interface KbTagsResult {\n    tags: KbTagCount[];\n}',
+  },
+  {
+    name: 'KbToolSearchRequest',
+    declaration: 'export interface KbToolSearchRequest extends KbSearchFilters {\n    query: string;\n    topK?: number;\n}',
+  },
+  {
+    name: 'KbTrashEntry',
+    declaration: 'export interface KbTrashEntry {\n    path: string;\n    name: string;\n    title: string;\n    body: string;\n    deletedAt?: string;\n}',
+  },
+  {
+    name: 'KbTrashResult',
+    declaration: 'export interface KbTrashResult {\n    docs: KbTrashEntry[];\n}',
   },
   {
     name: 'KnobState',
@@ -3786,7 +4148,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SandboxExecutionPolicy',
-    declaration: 'export interface SandboxExecutionPolicy {\n    mode: SandboxMode;\n    workspaceRoot: string;\n    sessionId?: SessionId;\n}',
+    declaration: 'export interface SandboxExecutionPolicy {\n    mode: SandboxMode;\n    workspaceRoot: string;\n    writableRoots?: readonly string[];\n    sessionId?: SessionId;\n}',
   },
   {
     name: 'SandboxMode',
@@ -4114,11 +4476,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SettingsRegisterOptions',
-    declaration: 'export interface SettingsRegisterOptions<T> {\n    base?: Partial<T>;\n    applies?: SettingsApplies;\n    validate?: (value: T) => void;\n}',
+    declaration: 'export interface SettingsRegisterOptions<T> {\n    base?: Partial<T>;\n    applies?: SettingsApplies;\n    validate?: (value: T, phase: SettingsValidatePhase) => void;\n}',
   },
   {
     name: 'SettingsUpdateSource',
     declaration: 'export type SettingsUpdateSource = \'update\' | \'provider\';',
+  },
+  {
+    name: 'SettingsValidatePhase',
+    declaration: 'export type SettingsValidatePhase = \'load\' | \'write\';',
   },
   {
     name: 'ShellExecRequest',

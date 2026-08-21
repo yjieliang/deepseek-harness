@@ -169,7 +169,7 @@ describe('ui-model-selection dual entry', () => {
       provider: 'deepseek-official',
       model: 'deepseek-v4-pro',
       reasoningEffort: 'max',
-    })).toBe(true)
+    })).toEqual({ accepted: true, imagesDegraded: false })
     expect(b.hostCurrent()).toEqual({
       provider: 'deepseek-official',
       model: 'deepseek-v4-pro',
@@ -314,7 +314,8 @@ describe('ui-model-selection dual entry', () => {
     const face = b.seat().inject!(sid('child'))
     expect(face.available).toBe(false)
     face.load()
-    await expect(face.select({ provider: 'deepseek', model: 'deepseek-v4-pro' })).resolves.toBe(false)
+    await expect(face.select({ provider: 'deepseek', model: 'deepseek-v4-pro' }))
+      .resolves.toEqual({ accepted: false, imagesDegraded: false })
     await expect(b.ctx.modelDirectories.directoryFor(sid('child')).load())
       .rejects.toThrow(/unavailable for addressed subagent/)
     await expect(b.ctx.modelDirectories.directoryFor(sid('child')).select({

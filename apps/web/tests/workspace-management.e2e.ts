@@ -594,6 +594,18 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
     // reappear if selection restore lands on another stray — not this test's
     // concern).
     expect(await page.getByText(rowTitle, { exact: true }).count()).toBe(0)
+
+    // Restore from the trash-like archived view: the footer entry swaps the
+    // list into the archived list, and Restore unarchives without a dialog.
+    await page.getByRole('button', { name: /Archived/ }).click()
+    await expect.poll(() => page.getByText(rowTitle, { exact: true }).count(), { timeout: 10_000 }).toBe(1)
+    await page.getByRole('button', { name: 'Restore' }).click()
+    await expect.poll(() => page.getByText('No archived sessions', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
+    expect([...scaffold.ctx.workspaceRegistry.archivedSessionIds]).toEqual([])
+    // Back to the tree: the restored session returns under Ungrouped.
+    await page.getByRole('button', { name: /Back to sessions/ }).click()
+    await page.getByText('Ungrouped', { exact: true }).click()
+    await expect.poll(() => page.getByText(rowTitle, { exact: true }).count(), { timeout: 10_000 }).toBe(1)
     expect(tripwire.pageErrors).toEqual([])
   }, 90_000)
 

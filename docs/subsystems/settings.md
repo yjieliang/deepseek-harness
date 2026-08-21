@@ -20,6 +20,16 @@ type SettingsNamespace = Branded<'SettingsNamespace'>
 Registration binds a schemastery schema to a namespace on the calling plugin's fiber — disposing that fiber removes the namespace and its observers. The options carry the composition layer, the owner's effect timing, and an optional check for what the schema cannot express.
 
 ```ts type-equiv
+/**
+ * Which resolve invokes an owner validator. `'load'` covers the initial
+ * registration and provider-published documents — stored data an owner may
+ * need to migrate before enforcing its constraints — and `'write'` covers
+ * update/replace/mutate, where a rejection refuses the write itself.
+ */
+type SettingsValidatePhase = 'load' | 'write'
+```
+
+```ts type-equiv
 /** Registration options beyond the namespace schema. */
 interface SettingsRegisterOptions<T> {
   /** Composition-layer values resolved below the user layer (entry-config subset). */
@@ -29,7 +39,7 @@ interface SettingsRegisterOptions<T> {
   /**
    * Reject a resolved section the owner could not act on, for constraints its
    * schema cannot express — a cross-field requirement, or one field's validity
-   * depending on another's. Throwing here refuses the *write* that produced the
+   * depending on another's. Throwing here refuses the resolve that produced the
    * value, so a caller learns at `update`/`replace`/`mutate` instead of storing
    * something that would silently disable the owner.
    *
@@ -44,12 +54,14 @@ interface SettingsRegisterOptions<T> {
    * already fails rejects the registration itself — again exactly as a schema
    * failure does.
    * @param value - the resolved section, schema-valid by construction.
+   * @param phase - `'load'` for registration and provider-published documents,
+   *   `'write'` for update/replace/mutate; owners may be stricter on writes.
    */
-  validate?: (value: T) => void
+  validate?: (value: T, phase: SettingsValidatePhase) => void
 }
 ```
 
-`validate` runs after the schema admits a value, so it sees defaults and the composition base exactly as the owner will. `dsh-llm-pi-ai` uses it to refuse a provider profile it could not serve at the write that produced it, rather than storing one that would disable every route in its namespace.
+`validate` runs after the schema admits a value, so it sees defaults and the composition base exactly as the owner will. The phase names the resolve that invoked it: `'load'` for registration and provider-published documents, `'write'` for update/replace/mutate. `dsh-llm-pi-ai` uses it to refuse a provider profile it could not serve at the write that produced it, rather than storing one that would disable every route in its namespace; `dsh-habits-settings` enforces its content guard only on writes so pre-flag stored entries can load and migrate.
 
 `applies` is a UI hint, not a mechanism: a `restart` owner simply never watches, so its value is read once at construction and configuration surfaces can badge the pending change.
 
@@ -252,7 +264,7 @@ async replace(ns: SettingsNamespace, section: object, expectedRevision?: number)
 async mutate(ns: SettingsNamespace, ops: readonly SettingsPathOp[], expectedRevision?: number): Promise<void>
 ```
 
-Source: [`packages/settings/settings/src/index.ts:350`](../../packages/settings/settings/src/index.ts)
+Source: [`packages/settings/settings/src/index.ts:360`](../../packages/settings/settings/src/index.ts)
 
 <a id="settings-events"></a>
 

@@ -132,8 +132,7 @@ const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
   maxTokens: '32K',
 }
 
-/**
- * Spell a stored count for a field that may be unset. The spelling itself is
+/** Spell a stored count for a field that may be unset. The spelling itself is
  * {@link formatCapacity}, shared with the DeepSeek catalog editor so both
  * surfaces read and write one K/M vocabulary.
  * @param value - stored capacity, or `undefined` for an unset field.
@@ -141,6 +140,31 @@ const CAPACITY_HINT: Readonly<Record<CapacityField, string>> = {
  */
 function capacitySpelling(value: number | undefined): string {
   return value === undefined ? '' : formatCapacity(value)
+}
+
+/**
+ * Whether a model draft's declared input modalities accept images. A row that
+ * declares none inherits the route's default, which this card cannot see, so
+ * the switch reads the explicit answer alone: an unchecked state never
+ * pretends to know an inherited capability.
+ * @param model - the drafted model row.
+ * @returns whether the row explicitly declares image input.
+ */
+function acceptsImages(model: ModelDraft): boolean {
+  const input = model['input']
+  return Array.isArray(input) && input.includes('image')
+}
+
+/**
+ * The input-modalities list the switch writes: enabling names both `text` and
+ * `image`, disabling names `text` alone. Written explicitly either way, so
+ * turning the switch off always means "no images for this model" rather than
+ * silently inheriting a route that permits them.
+ * @param enabled - whether image input should be accepted.
+ * @returns the modality list to store.
+ */
+function modalities(enabled: boolean): readonly string[] {
+  return enabled ? ['text', 'image'] : ['text']
 }
 
 /** Adopt a candidate, keeping whatever capacities the provider disclosed. */
@@ -210,7 +234,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
-  const patch = (index: number, next: Record<string, string | number | undefined>): void => {
+  const patch = (index: number, next: Record<string, string | number | readonly string[] | undefined>): void => {
     onChange(models.map((model, at) => {
       if (at !== index) return model
       // Rebuilt rather than spread over: an emptied optional field has to leave
@@ -428,6 +452,18 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                     disabled={disabled}
                     onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
                   />
+                </label>
+                <label className={`${styles['modelField']} ${styles['imageInputField']}`}>
+                  <span className={styles['modelFieldLabel']}>{t('imageInput')}</span>
+                  <input
+                    className={styles['imageInputCheckbox']}
+                    type="checkbox"
+                    checked={acceptsImages(model)}
+                    aria-label={`${t('imageInput')} ${index + 1}`}
+                    disabled={disabled}
+                    onChange={(event) => { patch(index, { input: modalities(event.target.checked) }) }}
+                  />
+                  <span className={styles['imageInputHint']}>{t('imageInputHint')}</span>
                 </label>
               </div>
             )

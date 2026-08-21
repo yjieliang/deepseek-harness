@@ -266,6 +266,7 @@ export const sessionSelectModelRequestSchema = z.object({
 /** session.selectModel response value. */
 export const sessionSelectModelValueSchema = z.object({
   selected: modelSelectionSchema,
+  imagesDegraded: z.boolean().optional(),
 }) satisfies z.ZodType<Wire<ResponseValue<'session.selectModel'>>>
 
 /** ContentBlock passthrough: core is merge-extensible — the type discriminant envelope is strict, the rest stays wide. */

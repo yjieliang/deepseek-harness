@@ -15,6 +15,11 @@ let cached: ReturnType<typeof projectCordisCatalog> | undefined
 const projection = (): ReturnType<typeof projectCordisCatalog> =>
   (cached ??= projectCordisCatalog(workspaceRoot, CORDIS_CATALOG_POLICY))
 
+/** First identifier of a method signature ("unarchiveSession(...)" → "unarchiveSession"). */
+function methodNameOf(signature: string): string {
+  return /^(?:declare\s+)?(?:readonly\s+)?(?:async\s+)?([A-Za-z_$][\w$]*)/.exec(signature)?.[1] ?? ''
+}
+
 describe('Typert-backed Cordis catalog', () => {
   it('reproduces every committed catalog artifact byte for byte', { timeout: 480_000 }, () => {
     const { projector, model } = projection()
@@ -59,5 +64,20 @@ describe('Typert-backed Cordis catalog', () => {
     expect(byKey.has('headlessIo')).toBe(false)
     expect(byKey.has('dshHomePath')).toBe(false)
     expect(byKey.has('launcherEnvironment')).toBe(false)
+  })
+
+  it('projects the client face without crashing on unverifiable cross-face host-type re-exports', { timeout: 480_000 }, () => {
+    // The client face crosses into host-only package types (dsh-api-remotes
+    // re-exports dsh-host-lookup-llm's LookupExplainMeaning), whose source files
+    // are absent from the client program. Those targets were previously fed to
+    // getExportsOfModule(undefined) — which crashed the analyzer — instead of
+    // being skipped as unresolved. The workspaces service must survive the
+    // projection with its archive surface intact.
+    const model = projectCordisCatalog(workspaceRoot, CORDIS_CATALOG_POLICY, 'client').model
+    const workspaces = model.services.find(service => service.key === 'workspaces')
+    expect(workspaces).toBeDefined()
+    const names = (workspaces?.methods ?? []).map(method => methodNameOf(method.signature))
+    expect(names).toContain('archiveSession')
+    expect(names).toContain('unarchiveSession')
   })
 })

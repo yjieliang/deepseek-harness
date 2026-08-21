@@ -5,6 +5,7 @@
  */
 
 import { opendir, realpath } from 'node:fs/promises'
+import { readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
@@ -16,6 +17,14 @@ export const DEFAULT_DSH_HOME_DISPLAY = `~/${DSH_HOME_DIR_NAME}`
 
 /** Environment variable that overrides the default DeepSeek Harness home. */
 export const DSH_HOME_ENV = 'DSH_HOME'
+
+/**
+ * Boot-override file name under the OS home. Its single line is an absolute
+ * harness-home path persisted by the settings surface (or any deployment
+ * tooling) for the NEXT boot; it lives in the OS home rather than inside any
+ * harness home so it survives a home relocation by definition.
+ */
+export const DSH_BOOT_FILENAME = '.dsh-boot'
 
 /**
  * Give a native filesystem watcher one canonical spelling of a path, even
@@ -76,18 +85,70 @@ export function expandHomePath(path: string): string {
 /**
  * Resolve the single-root DeepSeek Harness home.
  *
- * Precedence, highest first: an explicit configured path, `$DSH_HOME`, then
- * `~/.dsh`. The harness keeps all user data under one root. An empty or
- * whitespace-only `$DSH_HOME` is treated as unset, so a blank override never
- * resolves the home to the current working directory.
+ * Precedence, highest first: an explicit configured path, `$DSH_HOME`, the
+ * persisted boot-override file (`~/.dsh-boot`), then `~/.dsh`. The harness
+ * keeps all user data under one root. An empty or whitespace-only `$DSH_HOME`
+ * is treated as unset, so a blank override never resolves the home to the
+ * current working directory; the same rule applies to a blank boot file.
  * @param configured - explicit harness-home override, which has highest precedence.
  * @param env - environment mapping used to read `DSH_HOME`.
+ * @param osHome - operating-system home used to locate the boot-override file;
+ *   defaults to the current user's.
  * @returns the normalized absolute harness home path.
  */
-export function resolveDshHome(configured?: string, env: Record<string, string | undefined> = process.env): string {
+export function resolveDshHome(
+  configured?: string,
+  env: Record<string, string | undefined> = process.env,
+  osHome: string = homedir(),
+): string {
   const fromEnv = env[DSH_HOME_ENV]
-  const selected = configured ?? (fromEnv !== undefined && fromEnv.trim().length > 0 ? fromEnv : defaultDshHome())
+  const envSet = fromEnv !== undefined && fromEnv.trim().length > 0
+  const fromBoot = envSet ? undefined : readBootHome(osHome)
+  const selected = configured ?? (envSet ? fromEnv : undefined) ?? fromBoot ?? defaultDshHome()
   return resolve(expandHomePath(selected))
+}
+
+/**
+ * Absolute path of the boot-override file for one OS home.
+ * @param osHome - the operating-system home; defaults to the current user's.
+ * @returns the file path.
+ */
+export function bootOverridePath(osHome: string = homedir()): string {
+  return join(osHome, DSH_BOOT_FILENAME)
+}
+
+/**
+ * Read the persisted harness-home override, if any. A missing, unreadable, or
+ * blank file means no override; the caller decides whether a malformed value
+ * should fail loud.
+ * @param osHome - the operating-system home; defaults to the current user's.
+ * @returns the stored home path, or undefined without one.
+ */
+export function readBootHome(osHome: string = homedir()): string | undefined {
+  try {
+    const raw = readFileSync(bootOverridePath(osHome), 'utf8').trim()
+    return raw.length === 0 ? undefined : raw
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Persist the harness-home override for the NEXT boot, or clear it.
+ * @param path - absolute home path to store, or null to remove the override.
+ * @param osHome - the operating-system home; defaults to the current user's.
+ */
+export function writeBootHome(path: string | null, osHome: string = homedir()): void {
+  const target = bootOverridePath(osHome)
+  if (path === null) {
+    try {
+      unlinkSync(target)
+    } catch {
+      // No file to remove is the same end state.
+    }
+    return
+  }
+  writeFileSync(target, `${resolve(expandHomePath(path))}\n`)
 }
 
 /**

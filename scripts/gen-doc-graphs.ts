@@ -557,6 +557,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Provider registration and selection plus normalized query execution over exactly four operations; the seam offers no protocol escape hatch, so a backend translates into the normalized request and result.',
   },
   {
+    key: 'kb',
+    pkg: 'kb',
+    title: 'Knowledge-base service',
+    mode: 'seam',
+    implementations: ['kb'],
+    consumers: ['tool-kb', 'ui-kb'],
+    note: 'The host gateway owns the markdown library index and write path and registers ctx.kb; the panel reads the kb Remote namespace and the /dsh-kb image route, the tools compose ctx.kb primitives, and both share one engine instance.',
+  },
+  {
     key: 'apiProxy',
     pkg: 'apiproxy',
     title: 'Host API dispatch',

@@ -43,6 +43,12 @@
       "path": "../../host/plugin-inventory"
     },
     {
+      "path": "../../host/lookup-llm"
+    },
+    {
+      "path": "../../host/kb"
+    },
+    {
       "path": "../../interaction/commands"
     },
     {

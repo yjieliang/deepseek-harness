@@ -6,8 +6,9 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
+import { DSH_HOME_ENV, defaultDshHome, readBootHome, resolveDshHome, writeBootHome } from '@deepseek-ai/dsh-home-paths'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection, ModelSelectionRef, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
@@ -1865,6 +1866,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     return defaults.openPath !== undefined || canOpenNativePath()
   }
 
+  /** Where the resolved harness home came from, mirroring resolveDshHome's precedence. */
+  function dshHomeSource(): 'default' | 'env' | 'boot-file' {
+    const envHome = process.env[DSH_HOME_ENV]
+    if (envHome !== undefined && envHome.trim().length > 0) return 'env'
+    if (readBootHome() !== undefined) return 'boot-file'
+    return 'default'
+  }
+
   /** Missing-service report shared by the credentials domain. */
   function credentialsAbsent(): RpcError {
     return { code: 'internal', message: 'credentials service is absent: this deployment does not mount a credential provider (e.g. @deepseek-ai/dsh-credentials-local) in its composition', details: {} }
@@ -2210,15 +2219,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
             })
             const pendingImage = [...found.agent.inbox.nextTurn, ...found.agent.inbox.nextStep]
               .some(message => contentHasImage(message.content))
+            // A text-only target no longer blocks the switch: adapters degrade
+            // history images to placeholder text. The response flags the
+            // degradation so the client can name it instead of the user
+            // discovering missing images in the model's answers.
+            let imagesDegraded = false
             if (pendingImage || messagesHaveImage(found.agent.session.deriveMessages())) {
               const info = await ctx.llm.resolveModelInfo(resolved.provider, resolved.model)
-              if (info.inputModalities !== undefined && !info.inputModalities.includes('image')) {
-                return err(request, {
-                  code: 'model-unavailable',
-                  message: `Model "${resolved.model}" does not accept image input, but this session already contains images; select an image-capable model.`,
-                  details: { provider, model },
-                })
-              }
+              imagesDegraded = info.inputModalities !== undefined && !info.inputModalities.includes('image')
             }
             const selected: ModelSelection = {
               provider: resolved.provider,
@@ -2235,7 +2243,7 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
                 `api-proxy: the model switch applies to this session but was not saved as the default: ${String(error)}`,
               )
             }
-            return ok(request, { selected: { ...selected } })
+            return ok(request, { selected: { ...selected }, ...imagesDegraded ? { imagesDegraded: true } : {} })
           } catch (error: unknown) {
             return err(request, {
               code: 'model-unavailable',
@@ -2834,6 +2842,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         }
         return ok(request, { archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds] })
       },
+
+      async unarchiveSession(request) {
+        const { sessionId } = request.payload
+        // No business rejection: an id already absent resolves as the
+        // registry's idempotent no-op; storage/durability failures propagate.
+        await ctx.workspaceRegistry.unarchiveSession(sessionId)
+        return ok(request, { archivedSessionIds: [...ctx.workspaceRegistry.archivedSessionIds] })
+      },
     },
 
     host: {
@@ -2852,6 +2868,23 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           attachedSessions: ctx.agents.list().length,
           home: homedir(),
           canOpenPath: canOpenPaths(),
+          dshHome: resolveDshHome(),
+          dshHomeSource: dshHomeSource(),
+        }))
+      },
+
+      setDshHome(request) {
+        const envHome = process.env[DSH_HOME_ENV]
+        if (envHome !== undefined && envHome.trim().length > 0) {
+          // A launch-time environment variable outranks the persisted file:
+          // store nothing and report that the variable will keep winning.
+          return Promise.resolve(ok(request, { nextHome: resolveDshHome(), source: 'env' }))
+        }
+        writeBootHome(request.payload.path)
+        const nextHome = resolveDshHome()
+        return Promise.resolve(ok(request, {
+          nextHome,
+          source: nextHome === resolve(defaultDshHome()) ? 'default' : 'boot-file',
         }))
       },
 

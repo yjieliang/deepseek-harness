@@ -12,6 +12,7 @@ import {
   isTokenDelta,
 } from '@deepseek-ai/dsh-llm/message'
 import { CallId } from '@deepseek-ai/dsh-llm/brand'
+import { contentHasImage } from '@deepseek-ai/dsh-llm/content'
 import type {
   AssistantMessage,
   ContentBlock,
@@ -327,6 +328,22 @@ function fixtureModelGroups(): ModelProviderGroup[] {
       models: [{ id: 'gpt-5', name: 'GPT-5', reasoning: OPENAI_REASONING }],
     },
   ]
+}
+
+/**
+ * Fixture mirror of adapter-declared modalities: which served models accept
+ * image input. The wire catalog carries no modality column, so the fake
+ * server keeps its own table, exactly mirroring the host's text-only DeepSeek
+ * route and image-capable OpenAI route.
+ */
+const IMAGE_CAPABLE_MODELS: ReadonlySet<string> = new Set(['openai/gpt-5'])
+
+/** Whether any message event in the fixture log carries image content (nesting included). */
+function logHasImage(log: readonly SessionEvent[]): boolean {
+  return log.some((event) => {
+    const data = event.data as { content?: ContentBlock[] }
+    return data.content !== undefined && contentHasImage(data.content)
+  })
 }
 
 function sid(id: string): SessionId {
@@ -2480,7 +2497,11 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
             : { reasoningEffort: request.payload.reasoningEffort },
         }
         modelSelections.set(request.payload.sessionId, selected)
-        return ok(request, { selected })
+        // Mirror the host: an admitted text-only target over an image-bearing
+        // log flags the degradation so the client can name it.
+        const degraded = !IMAGE_CAPABLE_MODELS.has(`${request.payload.provider}/${request.payload.model}`)
+          && logHasImage(logs.get(request.payload.sessionId) ?? [])
+        return ok(request, { selected, ...degraded ? { imagesDegraded: true } : {} })
       },
       prompt: (request) => {
         const { sessionId: id, mode, content } = request.payload
@@ -2618,7 +2639,9 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     host: {
       describe: request => ok(request, {
         version: '0.0.0-fixture', cwd: '/tmp/fixture', attachedSessions, home: FIXTURE_HOME, canOpenPath: true,
+        dshHome: '/tmp/fixture/.dsh', dshHomeSource: 'default',
       }),
+      setDshHome: request => ok(request, { nextHome: '/tmp/fixture/.dsh', source: 'default' }),
       // Deterministic native pick: the keyless lanes drive the full
       // pick-then-adopt path without an OS chooser (design-mock content,
       // same tree the browse primitives serve).
@@ -2784,6 +2807,15 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         const { sessionId } = request.payload
         if (!archivedSessionIds.includes(sessionId)) {
           archivedSessionIds.push(sessionId)
+          emitHost({ type: 'host/archived-sessions-changed', archivedSessionIds: [...archivedSessionIds] })
+        }
+        return ok(request, { archivedSessionIds: [...archivedSessionIds] })
+      },
+      unarchiveSession: (request) => {
+        const { sessionId } = request.payload
+        const index = archivedSessionIds.indexOf(sessionId)
+        if (index !== -1) {
+          archivedSessionIds.splice(index, 1)
           emitHost({ type: 'host/archived-sessions-changed', archivedSessionIds: [...archivedSessionIds] })
         }
         return ok(request, { archivedSessionIds: [...archivedSessionIds] })
@@ -3192,6 +3224,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'subagent.prompt': return this.api.subagents.prompt(request, signal)
       case 'subagent.interrupt': return this.api.subagents.interrupt(request)
       case 'host.describe': return this.api.host.describe(request)
+      case 'host.setDshHome': return this.api.host.setDshHome(request)
       case 'host.pickDirectory': return this.api.host.pickDirectory(request, new AbortController().signal)
       case 'host.listDirectory': return this.api.host.listDirectory(request, new AbortController().signal)
       case 'host.createDirectory': return this.api.host.createDirectory(request)
@@ -3203,6 +3236,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'workspace.insertBefore': return this.api.workspace.insertBefore(request)
       case 'workspace.insertSessionBefore': return this.api.workspace.insertSessionBefore(request)
       case 'workspace.archiveSession': return this.api.workspace.archiveSession(request)
+      case 'workspace.unarchiveSession': return this.api.workspace.unarchiveSession(request)
       case 'skill.list': return this.api.skills.list(request)
       case 'agentPreset.list': return this.api.agentPresets.list(request)
       case 'agentPreset.select': return this.api.agentPresets.select(request)

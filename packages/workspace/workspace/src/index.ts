@@ -255,6 +255,27 @@ export class WorkspaceRegistry extends Service {
   }
 
   /**
+   * Unarchive one session durably: remove it from the registry-global archive
+   * set so grouping surfaces show it again at its retained accounting slot.
+   * An id already absent resolves without writing. No existence check: archive
+   * never removes the log or the accounting slot, so an archived id still owns
+   * both, and a re-check could only propagate a listing fault or block a
+   * restore of a session whose log was deleted externally.
+   * @param sessionId - The session to restore.
+   * @returns resolution after durability.
+   */
+  unarchiveSession(sessionId: SessionId): Promise<void> {
+    return this.enqueueOperation(async () => {
+      const state = this.requireState()
+      if (!state.archivedSessionIds.includes(sessionId)) return
+      await this.setState({
+        ...state,
+        archivedSessionIds: state.archivedSessionIds.filter(id => id !== sessionId),
+      })
+    })
+  }
+
+  /**
    * Whether a session is live, header-indexed, or present in a fresh
    * persistence listing. Only a definite miss returns false — a failing
    * `sessionPersistence.list()` propagates so storage faults never

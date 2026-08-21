@@ -313,6 +313,93 @@ describe('model list editing', () => {
     ])
   })
 
+  it('enables image input for one model and stores both modalities', async () => {
+    const { mutate } = await mountSection()
+    openEditor('openai')
+
+    fireEvent.click(screen.getByRole('button', { name: en.addModel }))
+    fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'vision' } })
+    expandModel(1)
+
+    // A row declaring no modalities reads as off — the card cannot see the
+    // route default it inherits, so the switch never pretends to know it.
+    const toggle = screen.getByLabelText<HTMLInputElement>(`${en.imageInput} 1`)
+    expect(toggle.checked).toBe(false)
+    // The hint names the failure mode of declaring a text-only model capable.
+    expect(screen.getByText(en.imageInputHint)).toBeTruthy()
+    fireEvent.click(toggle)
+    expect(screen.getByLabelText<HTMLInputElement>(`${en.imageInput} 1`).checked).toBe(true)
+
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+    expect(firstMutate(mutate).ops[0]?.value)
+      .toEqual([{ id: 'vision', input: ['text', 'image'] }])
+  })
+
+  it('disables image input for a stored vision model and keeps text only', async () => {
+    const { mutate } = await mountSection({
+      providers: {
+        openai: {
+          baseURL: 'https://proxy.example/v1',
+          models: [{ id: 'vision', input: ['text', 'image'] }],
+        },
+      },
+    })
+    openEditor('openai')
+    expandModel(1)
+
+    // A stored `input` that names images comes back checked; toggling it off
+    // stores text alone, so the model stops accepting images explicitly.
+    const toggle = screen.getByLabelText<HTMLInputElement>(`${en.imageInput} 1`)
+    expect(toggle.checked).toBe(true)
+    fireEvent.click(toggle)
+    expect(screen.getByLabelText<HTMLInputElement>(`${en.imageInput} 1`).checked).toBe(false)
+
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+    expect(firstMutate(mutate).ops[0]?.value)
+      .toEqual([{ id: 'vision', input: ['text'] }])
+  })
+
+  it('keeps a modalitied row intact when other fields are edited', async () => {
+    const { mutate } = await mountSection({
+      providers: {
+        openai: {
+          baseURL: 'https://proxy.example/v1',
+          models: [{ id: 'vision', input: ['text', 'image'] }],
+        },
+      },
+    })
+    openEditor('openai')
+    expandModel(1)
+
+    // Editing a sibling field must not drop the declared modalities: the row
+    // is rebuilt from its stored draft, not from the fields this card shows.
+    fireEvent.change(screen.getByLabelText(`${en.modelContextWindow} 1`), { target: { value: '8192' } })
+    fireEvent.click(screen.getByText(en.apply))
+
+    await waitFor(() => { expect(mutate).toHaveBeenCalled() })
+    expect(firstMutate(mutate).ops[0]?.value)
+      .toEqual([{ id: 'vision', input: ['text', 'image'], contextWindow: 8192 }])
+  })
+
+  it('reads a malformed stored modality as not accepting images', async () => {
+    await mountSection({
+      providers: {
+        openai: {
+          baseURL: 'https://proxy.example/v1',
+          models: [{ id: 'odd', input: 'image' }],
+        },
+      },
+    })
+    openEditor('openai')
+    expandModel(1)
+
+    // Only a real list can carry the image modality; a value the schema would
+    // reject must not read as an enabled capability.
+    expect(screen.getByLabelText<HTMLInputElement>(`${en.imageInput} 1`).checked).toBe(false)
+  })
+
   it('shows the adapter defaults as inherited until an edit takes them over', async () => {
     await mountSection({ providers: { openai: { baseURL: 'https://proxy.example/v1' } } })
     openEditor('openai')

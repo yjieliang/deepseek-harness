@@ -12,16 +12,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  Button, IconCloseFill14, IconPersonalizationOutline16,
+  Button, IconArchiveOutline20, IconCloseFill14, IconPersonalizationOutline16,
   IconProjectAddOutline16, IconSearchOutline16, Menu, Modal, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   SessionId, SessionListState, SessionSearchResultItem, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { WorkspaceBrowserProps } from './contract/slots.ts'
-import type { SessionNode, SessionOrderBy } from './tree.ts'
-import { deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from './tree.ts'
-import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './rows/Rows.tsx'
+import type { ArchivedNode, SessionNode, SessionOrderBy } from './tree.ts'
+import { deriveArchived, deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from './tree.ts'
+import { ArchivedSessionItem, ProjectRowItem, SearchResultItem, SessionNodeItem } from './rows/Rows.tsx'
 import { FLAT_SESSION_ORDER_KEY } from './stores.ts'
 import { WorkspacePickFlow } from './WorkspacePicker.tsx'
 import css from './WorkspaceBrowser.module.css'
@@ -737,6 +737,37 @@ function SearchResults({
 }
 
 /**
+ * The trash-like archived view: every archived session in archive order, each
+ * annotated with its owning Workspace and a restore action. Restoring commits
+ * without a dialog and the row leaves on the archive-set echo.
+ */
+function ArchivedList({ useSessions, workspaces, archivedSessionIds, onRestore, t }: {
+  useSessions: WorkspaceBrowserProps['useSessions']
+  workspaces: readonly WorkspaceView[]
+  archivedSessionIds: readonly SessionId[]
+  onRestore: (sessionId: SessionId) => void
+  t: WorkspaceBrowserProps['t']
+}) {
+  const list = useSessions(s => s)
+  const rows = useMemo(
+    () => deriveArchived(list, archivedSessionIds, workspaces),
+    [list, archivedSessionIds, workspaces],
+  )
+  return (
+    <div className={clsx(css.treeBody, css.wide)}>
+      <div className={css.list} role="tree" aria-label={t('archived.entry')}>
+        {rows.length === 0 ? (
+          <div className={css.empty}>{t('archived.empty')}</div>
+        ) : rows.map((node: ArchivedNode) => (
+          <ArchivedSessionItem key={node.id} node={node} onRestore={onRestore} t={t} />
+        ))}
+      </div>
+      <span className={css.fade} />
+    </div>
+  )
+}
+
+/**
  * Render the browsing region.
  * @param props - composed slot props (shell owner share + store + injected actions).
  * @returns the region element tree.
@@ -756,6 +787,7 @@ export function WorkspaceBrowser({
   deleteWorkspace,
   insertWorkspaceBefore,
   archiveSession,
+  unarchiveSession,
   insertSessionBefore,
   createWorkspace,
   searchSessions,
@@ -802,6 +834,9 @@ export function WorkspaceBrowser({
   // states; the menu anchors on this button).
   const [wsPickerOpen, setWsPickerOpen] = useState(false)
   const wsPlusRef = useRef<HTMLButtonElement>(null)
+  // Trash-like archived view: the footer entry swaps the list area between the
+  // normal tree and the archived list (the ui-kb showTrash pattern).
+  const [showArchived, setShowArchived] = useState(false)
   const composingRef = useRef(false)
 
   // Rail search = expand + land in the search box: the flag arms before the
@@ -947,6 +982,15 @@ export function WorkspaceBrowser({
     })
   }
 
+  // Restore mirrors archive's dialog-free posture: non-destructive, commits
+  // directly, and reports failures as non-fatal console diagnostics. The row
+  // leaves the archived view when the archive-set echo lands.
+  const onRestore = (sessionId: SessionNode['id']) => {
+    unarchiveSession(sessionId).catch((reason: unknown) => {
+      console.warn('session unarchive rejected:', reason)
+    })
+  }
+
   // Delete dialog is separate from the row so a successful removal can
   // unmount that row without tearing down the in-flight confirmation state.
   const [deleteTarget, setDeleteTarget] = useState<{ workspaceId: WorkspaceId; title: string } | null>(null)
@@ -1023,7 +1067,10 @@ export function WorkspaceBrowser({
                 maxLength={SEARCH_QUERY_MAX_CODE_UNITS}
                 value={query}
                 tabIndex={searchExpanded ? 0 : -1}
-                onChange={(e) => { setQuery(sanitizeSearchQuery(e.target.value)) }}
+                onChange={(e) => {
+                  setQuery(sanitizeSearchQuery(e.target.value))
+                  setShowArchived(false)
+                }}
                 onKeyDown={(e) => {
                   if (e.key !== 'Escape') return
                   setQuery('')
@@ -1129,53 +1176,83 @@ export function WorkspaceBrowser({
               t={t}
             />
           )
-          : groupBy === 'flat'
+          : showArchived
             ? (
-              <FlatList
-                useSessions={useSessions} open={open} forkSession={forkSession}
-                onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
+              <ArchivedList
+                useSessions={useSessions}
+                workspaces={workspaces}
                 archivedSessionIds={archivedSessionIds}
-                orderBy={orderBy}
-                sessionOrderByAccount={sessionOrderByAccount}
-                sessionUpdatedAtByAccount={sessionUpdatedAtByAccount}
-                syncSessionOrderAccount={actions.syncSessionOrderAccount}
-                setSessionOrder={actions.setSessionOrder}
+                onRestore={onRestore}
                 t={t}
               />
             )
-            : (
-              <SessionTree
-                useSessions={useSessions}
-                onSessionRename={onSessionRename}
-                onSessionArchive={onSessionArchive}
-                forkSession={forkSession}
-                workspaces={workspaces}
-                groupExpansion={groupExpansion}
-                setGroupExpanded={actions.setGroupExpanded}
-                sessionOrderByAccount={sessionOrderByAccount}
-                sessionUpdatedAtByAccount={sessionUpdatedAtByAccount}
-                syncSessionOrderAccount={actions.syncSessionOrderAccount}
-                setSessionOrder={actions.setSessionOrder}
-                archivedSessionIds={archivedSessionIds}
-                startSession={startSession}
-                open={open}
-                insertWorkspaceBefore={insertWorkspaceBefore}
-                insertSessionBefore={insertSessionBefore}
-                orderBy={orderBy}
-                home={home}
-                t={t}
-                onRenameRequest={(workspaceId, currentTitle) => {
-                  setRenameTarget({ workspaceId, currentTitle })
-                  setRenameDraft(currentTitle)
-                  setRenameError(null)
-                }}
-                onDeleteRequest={(workspaceId, title) => {
-                  setDeleteTarget({ workspaceId, title })
-                  setDeleteError(null)
-                }}
-              />
-            ))}
+            : groupBy === 'flat'
+              ? (
+                <FlatList
+                  useSessions={useSessions} open={open} forkSession={forkSession}
+                  onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
+                  archivedSessionIds={archivedSessionIds}
+                  orderBy={orderBy}
+                  sessionOrderByAccount={sessionOrderByAccount}
+                  sessionUpdatedAtByAccount={sessionUpdatedAtByAccount}
+                  syncSessionOrderAccount={actions.syncSessionOrderAccount}
+                  setSessionOrder={actions.setSessionOrder}
+                  t={t}
+                />
+              )
+              : (
+                <SessionTree
+                  useSessions={useSessions}
+                  onSessionRename={onSessionRename}
+                  onSessionArchive={onSessionArchive}
+                  forkSession={forkSession}
+                  workspaces={workspaces}
+                  groupExpansion={groupExpansion}
+                  setGroupExpanded={actions.setGroupExpanded}
+                  sessionOrderByAccount={sessionOrderByAccount}
+                  sessionUpdatedAtByAccount={sessionUpdatedAtByAccount}
+                  syncSessionOrderAccount={actions.syncSessionOrderAccount}
+                  setSessionOrder={actions.setSessionOrder}
+                  archivedSessionIds={archivedSessionIds}
+                  startSession={startSession}
+                  open={open}
+                  insertWorkspaceBefore={insertWorkspaceBefore}
+                  insertSessionBefore={insertSessionBefore}
+                  orderBy={orderBy}
+                  home={home}
+                  t={t}
+                  onRenameRequest={(workspaceId, currentTitle) => {
+                    setRenameTarget({ workspaceId, currentTitle })
+                    setRenameDraft(currentTitle)
+                    setRenameError(null)
+                  }}
+                  onDeleteRequest={(workspaceId, title) => {
+                    setDeleteTarget({ workspaceId, title })
+                    setRenameError(null)
+                  }}
+                />
+              ))}
       </div>
+
+      {/* Trash-like archived entry: a muted footer row that swaps the list area
+          into the archived view. Hidden while searching (the footer only makes
+          sense over the tree or the archived list). */}
+      {wide && normalizedQuery === '' && (
+        <div className={css.archivedEntryBar}>
+          <button
+            type="button"
+            className={css.archivedEntry}
+            aria-expanded={showArchived}
+            onClick={() => { setShowArchived(v => !v) }}
+          >
+            <IconArchiveOutline20 size={16} />
+            {showArchived ? t('archived.back') : t('archived.entry')}
+            {!showArchived && archivedSessionIds.length > 0 && (
+              <span className={css.archivedCount}>{archivedSessionIds.length}</span>
+            )}
+          </button>
+        </div>
+      )}
 
       <Modal
         open={renameTarget !== null}

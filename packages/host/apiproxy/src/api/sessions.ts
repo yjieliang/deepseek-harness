@@ -291,7 +291,10 @@ export interface SessionsApi {
   /**
    * Selects the complete model selection for this session. Exact model metadata
    * validates an optional reasoning effort, while catalog membership remains
-   * advisory. Session-backed subagents reject with `agent-busy`.
+   * advisory. A text-only target is admissible in an image-bearing session —
+   * adapters degrade the images to placeholder text — and the response then
+   * flags `imagesDegraded` so the client can name the loss. Session-backed
+   * subagents reject with `agent-busy`.
    */
   selectModel(request: RpcRequest<{
     sessionId: SessionId
@@ -299,7 +302,7 @@ export interface SessionsApi {
     model: string
     reasoningEffort?: string
   }>):
-  Promise<RpcResponse<{ selected: ModelSelection }>>
+  Promise<RpcResponse<{ selected: ModelSelection; imagesDegraded?: boolean }>>
 
   /**
    * Renames a session: appends a `session/title` event with the `user`
