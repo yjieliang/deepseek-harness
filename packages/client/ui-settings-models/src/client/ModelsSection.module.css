@@ -518,6 +518,32 @@
   line-height: 18px;
 }
 
+/* The image-input toggle centers its checkbox under the label instead of
+   stretching an empty text-field track; it keeps the field height so the
+   three advanced fields line up on one grid row. */
+.imageInputField {
+  justify-content: flex-start;
+}
+
+.imageInputCheckbox {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  accent-color: var(--dsw-alias-button-primary-fill);
+  cursor: pointer;
+}
+
+.imageInputCheckbox:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.imageInputHint {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .modelEmpty {
   padding: 12px;
   border: 1px dashed var(--dsw-alias-border-l3);

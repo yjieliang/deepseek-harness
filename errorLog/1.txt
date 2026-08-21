@@ -1,0 +1,34 @@
+pnpm run build执行结果：
+ ERROR  Error: Build failed with 1 error:
+
+[plugin tsdown:deps]
+Error: Errored while resolving "@deepseek-ai/dsh-client-ui-renderer/src/client/bind.ts" in `this.resolve`.
+Caused by:
+  [plugin dsh-client-bundle-purity]
+  Error: client bundle purity: "@deepseek-ai/dsh-client-ui-renderer/src/client/bind.ts" is not in the default client externals or @deepseek-ai/dsh-client-ui-settings-general's dsh.client.external, an inline-safe wire layer, or a generated /remote contribution — cross-plugin value imports are forbidden; declare a non-default module request or collaborate through cordis services (type-only imports are erased and never reach this gate)
+      at PluginContextImpl.resolveId (file:///D:/code/github/deepseek-harness/packages/client/tsdown.client.ts?no-cache=46d61c7a-a9c7-47bc-92a3-969049f4a505:492:15)
+      at plugin (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/rolldown@1.1.1/node_modules/rolldown/dist/shared/bindingify-input-options-B7_WBoOp.mjs:1092:30)
+      at plugin.<computed> (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/rolldown@1.1.1/node_modules/rolldown/dist/shared/bindingify-input-options-B7_WBoOp.mjs:1633:18)
+    at aggregateBindingErrorsIntoJsError (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/rolldown@1.1.1/node_modules/rolldown/dist/shared/error-C0TrL0_H.mjs:48:18)
+    at unwrapBindingResult (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/rolldown@1.1.1/node_modules/rolldown/dist/shared/error-C0TrL0_H.mjs:18:128)
+    at #build (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/rolldown@1.1.1/node_modules/rolldown/dist/shared/rolldown-build-abS241_6.mjs:3288:34)
+    at async build (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/rolldown@1.1.1/node_modules/rolldown/dist/index.mjs:42:22)
+    at async Promise.all (index 0)
+    at async buildSingle (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/tsdown@0.22.2_oxc-resolver@_f113eb69000457c8d5954142d0822f52/node_modules/tsdown/dist/build-BxT2lm9L.mjs:791:19)
+    at async Promise.all (index 95)
+    at async buildWithConfigs (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/tsdown@0.22.2_oxc-resolver@_f113eb69000457c8d5954142d0822f52/node_modules/tsdown/dist/build-BxT2lm9L.mjs:747:18)
+    at async CAC.<anonymous> (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/tsdown@0.22.2_oxc-resolver@_f113eb69000457c8d5954142d0822f52/node_modules/tsdown/dist/run.mjs:21:2)
+    at async runCLI (file:///D:/code/github/deepseek-harness/node_modules/.pnpm/tsdown@0.22.2_oxc-resolver@_f113eb69000457c8d5954142d0822f52/node_modules/tsdown/dist/run.mjs:45:3)
+
+[ELIFECYCLE] Command failed with exit code 1.
+D:\code\github\deepseek-harness\scripts\build.ts:28
+    throw new Error(`build: ${script} exited with ${String(result.status ?? result.signal)}`)
+          ^
+
+Error: build: build:lib exited with 1
+    at runScript (D:\code\github\deepseek-harness\scripts\build.ts:28:11)
+    at main (D:\code\github\deepseek-harness\scripts\build.ts:47:3)
+    at <anonymous> (D:\code\github\deepseek-harness\scripts\build.ts:55:23)
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
