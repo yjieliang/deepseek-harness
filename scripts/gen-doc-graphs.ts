@@ -216,6 +216,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Waits for every configured backend, then publishes the domain form as one lifecycle-bound service for typed durable state.',
   },
   {
+    key: 'habits',
+    pkg: 'user-habits',
+    title: 'User-habit memory seam',
+    mode: 'seam',
+    implementations: ['habits-settings'],
+    consumers: ['tool-memory', 'command-memory'],
+    note: 'The abstract HabitStore contract owns the write-time guard, deterministic topic consolidation, version bumping, and the commit event; providers own only storage, and the model/command consumers reach the same entries through it.',
+  },
+  {
     key: 'messageFeedback',
     pkg: 'message-feedback',
     title: 'Lifecycle-bound message feedback',

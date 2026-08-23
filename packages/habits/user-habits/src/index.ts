@@ -181,6 +181,7 @@ export function estimateTextTokens(text: string): number {
   return Math.ceil(Array.from(text).length / CHARS_PER_TOKEN) + FRAGMENT_OVERHEAD
 }
 
+/** Budget knobs for a resident habit section render. */
 export interface HabitsSectionBudget {
   /** Hard token ceiling the rendered section must stay under. */
   readonly maxTokens: number

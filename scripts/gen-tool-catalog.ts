@@ -49,6 +49,7 @@ import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import * as ToolFsSearch from '@deepseek-ai/dsh-tool-fs-search'
 import * as ToolKb from '@deepseek-ai/dsh-tool-kb'
+import * as ToolMemory from '@deepseek-ai/dsh-tool-memory'
 import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
 import TerminalSessionService from '@deepseek-ai/dsh-terminal'
 import * as ToolPty from '@deepseek-ai/dsh-tool-terminal'
@@ -387,6 +388,21 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'The 15 kb_* tools are the agent-plane consumer of the knowledge-base capability over ctx.kb; bulk operations gate on batchConfirmN with a preview-first error, and kb_clip degrades to URL-and-title without a mounted web service.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-memory',
+    dir: 'tool-memory',
+    source: 'packages/habits/tool-memory/src/index.ts',
+    requires: ['ctx.tools', 'ctx.habits', 'ctx.systemPrompt', 'ctx.userQuestions (memory_propose confirmation)'],
+    writes: ['tool/call', 'tool/result after a user question confirms a proposal'],
+    async mount(ctx) {
+      // The tools inject `habits`; registration never touches the library, so a
+      // placeholder service is sufficient for schema harvesting.
+      ctx.provide('habits', {} as never)
+      await ctx.plugin(ToolMemory)
+    },
+    note:
+      'Model-facing user-habit memory tools (memory_add/list/remove/propose) over the habits seam; memory_propose asks for user confirmation before writing.',
   },
   {
     pkg: '@deepseek-ai/dsh-schedule',

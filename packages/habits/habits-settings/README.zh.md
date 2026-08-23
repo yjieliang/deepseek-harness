@@ -21,9 +21,13 @@ DeepSeek Harness habits seam 的 settings 后端 Service Provider。把 `global`
 
 ## 模型体验
 
-### 模型看到什么
+### 常驻提示段
+
+#### 模型看到什么
 
 插件挂载且存在条目时，渲染后的 section 在每次装配中进入系统提示词：
+
+##### 渲染后的 section
 
 ```markdown
 ## 用户习惯
@@ -33,11 +37,11 @@ DeepSeek Harness habits seam 的 settings 后端 Service Provider。把 `global`
 - [lang] 回复语言:中文
 ```
 
-### Token 影响
+#### Token 影响
 
 受 `residentTokenBudget` 约束（共享启发式下默认 600 tokens）；无条目时提示词中不出现该 section。
 
-### KV Cache 影响
+#### KV Cache 影响
 
 section 的名称、顺序与条目排序稳定，条目文本只在习惯提交时变化——在习惯写入前，提示词前缀在请求间保持可复用。
 

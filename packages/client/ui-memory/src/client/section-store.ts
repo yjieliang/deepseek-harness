@@ -204,7 +204,9 @@ export class MemorySectionController {
     this.set({ draft: { topic: '', value: '', errorKey: null, error: null, overridable: false, saving: false } })
   }
 
-  /** Open the editor over one committed entry. */
+  /** Open the editor over one committed entry.
+   * @param topic - the committed entry's topic.
+   */
   beginEdit(topic: string): void {
     const entry = this.store.getSnapshot().entries.find(candidate => candidate.topic === topic)
     if (entry === undefined) return
@@ -220,12 +222,16 @@ export class MemorySectionController {
     })
   }
 
-  /** Type the topic, clearing any earlier failure. */
+  /** Type the topic, clearing any earlier failure.
+   * @param topic - the new topic text.
+   */
   setDraftTopic(topic: string): void {
     this.patchDraft({ topic, errorKey: null, error: null, overridable: false })
   }
 
-  /** Type the value, clearing any earlier failure. */
+  /** Type the value, clearing any earlier failure.
+   * @param value - the new value text.
+   */
   setDraftValue(value: string): void {
     this.patchDraft({ value, errorKey: null, error: null, overridable: false })
   }
@@ -328,7 +334,9 @@ export class MemorySectionController {
     this.set({ draft: null })
   }
 
-  /** Ask for delete confirmation, or dismiss it with null. */
+  /** Ask for delete confirmation, or dismiss it with null.
+   * @param topic - the entry to confirm deletion for, or null to clear.
+   */
   confirmDelete(topic: string | null): void {
     this.set({ pendingDelete: topic })
   }

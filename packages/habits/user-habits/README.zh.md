@@ -36,7 +36,11 @@ DeepSeek Harness 的用户习惯记忆 seam。本包是 **Service Definition**�
 
 ## 模型体验
 
-无——本包不注册任何面向模型的提示词、schema、工具或消息。模型面由消费方拥有。
+间接地，通过 `dsh-habits-settings`（注册模型看到的带预算常驻提示段）与 `dsh-tool-memory`/`dsh-command-memory`（拥有模型可见的记忆工具与命令）；本包提供它们消费的契约、守卫与渲染器。
+
+#### KV Cache 影响
+
+渲染器与守卫是已提交条目的纯函数；它们喂给模型的 section 只在习惯写入落地时变化。
 
 ## 已知限制与暂缓事项
 

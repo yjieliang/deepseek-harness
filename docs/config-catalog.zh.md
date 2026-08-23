@@ -706,6 +706,24 @@ export interface Config {
 
 来源：[`packages/goal/goal/src/index.ts:116`](../packages/goal/goal/src/index.ts)
 
+<a id="deepseek-aidsh-habits-settings"></a>
+
+## `@deepseek-ai/dsh-habits-settings`
+
+需要：`settings` · `systemPrompt`
+
+```ts config-catalog
+/** Deployment configuration; every key optional with validated defaults. */
+export interface Config {
+  /** Per-entry character budget forwarded to the contract guard. */
+  maxEntryChars?: number
+  /** Hard token ceiling of the resident prompt section. */
+  residentTokenBudget?: number
+}
+```
+
+来源：[`packages/habits/habits-settings/src/index.ts:34`](../packages/habits/habits-settings/src/index.ts)
+
 <a id="deepseek-aidsh-headless"></a>
 
 ## `@deepseek-ai/dsh-headless`
@@ -858,8 +876,14 @@ export interface Config {
 Requires: `fs`
 
 ```ts config-catalog
-/** Gateway configuration: archive directory and trash retention are deployment choices. */
+/** Gateway configuration: library root, archive directory, and trash retention are deployment choices. */
 export interface KbGatewayConfig {
+  /**
+   * Absolute library root. Defaults to the machine-level `$DSH_HOME/kb`, so the
+   * library is shared by every workspace on this host; set an absolute path to
+   * move it elsewhere. A relative value is resolved against the harness home.
+   */
+  root?: string
   /** Directory whose documents derive status `archived`; default `90-归档`. */
   archiveDir?: string
   /** Days a trashed document is kept before automatic purge; `0` disables the sweep. Default 30. */
@@ -867,7 +891,7 @@ export interface KbGatewayConfig {
 }
 ```
 
-来源：[`packages/host/kb/src/index.ts:37`](../packages/host/kb/src/index.ts)
+来源：[`packages/host/kb/src/index.ts:47`](../packages/host/kb/src/index.ts)
 
 <a id="deepseek-aidsh-host-webserver"></a>
 
@@ -948,7 +972,7 @@ export interface Config {
   maxTokens?: number
   /** Positive context capacity used when the selected model has no exact value (default 1,000,000). */
   defaultContextWindow?: number
-  /** Advisory models shown by discovery consumers; defaults to V4 Flash and V4 Pro. */
+  /** Advisory models shown by discovery consumers; defaults to V4 Flash, V4 Flash Vision Exp, and V4 Pro. */
   models?: DeepSeekCatalogModel[]
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
@@ -1310,6 +1334,65 @@ export type Config = Readonly<Record<string, never>>
 
 来源：[`packages/llm/llm-retry/src/index.ts:24`](../packages/llm/llm-retry/src/index.ts)
 
+<a id="deepseek-aidsh-llm-scnet"></a>
+
+## `@deepseek-ai/dsh-llm-scnet`
+
+需要：`llm`
+
+```ts config-catalog
+/**
+ * Plugin config, validated by the same-named schemastery schema and doubling
+ * as the `llm-scnet` settings-section shape. Every field is optional in
+ * yml: a missing API key resolves through {@link Config.apiKeyEnv} at each
+ * request (a request without any key fails with `MISSING_CREDENTIAL`, not at
+ * plugin load), omitted thinking mode uses the provider default, and omitted
+ * reasoning effort resolves to `high`.
+ */
+export interface Config {
+  /** Credential reference (environment-variable name) resolved per request; defaults to `SCNET_API_KEY`. */
+  apiKeyEnv?: string
+  /** Endpoint base; falls back to $SCNET_BASE_URL from a trusted environment layer, then the public API. */
+  baseURL?: string
+  /** Deployment thinking policy; `disabled` limits every conversation request to `off`. */
+  thinking?: 'enabled' | 'disabled'
+  /** Default thinking effort (default `high`); `off` disables thinking per request. */
+  reasoningEffort?: 'off' | 'high' | 'max'
+  /** Default per-request output cap (default 256,000); a model's own cap and explicit request values win. */
+  maxTokens?: number
+  /** Positive context capacity used when the selected model has no exact value (default 1,000,000). */
+  defaultContextWindow?: number
+  /** Advisory models shown by discovery consumers; defaults to DeepSeek-V4-Flash-0731. */
+  models?: ScnetCatalogModel[]
+  /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
+  streamIdleTimeoutMs?: number
+  /** Maximum accumulated base64 image payload per request (default 20 MiB). */
+  maxRequestImageBytes?: number
+  /** Provider-owned model-request retry policy; omission uses normal defaults. */
+  retryPolicy?: RetryPolicyConfig
+}
+
+/** One optional model entry advertised by the direct-fetch adapter. */
+export interface ScnetCatalogModel {
+  /** Wire model id accepted by the configured endpoint. */
+  id: string
+  /** Selector label; defaults to {@link id}. */
+  name?: string
+  /** Optional selector detail for deployments with similar model variants. */
+  description?: string
+  /** Known combined request/response context capacity; omitted when deployment metadata is unavailable. */
+  contextWindow?: number
+  /** Per-request output cap for this model; omission falls back to the profile's {@link ScnetConnectionOptions.maxTokens}. */
+  maxTokens?: number
+  /** Accepted request modalities; omission is text-only. */
+  inputModalities?: ModelModality[]
+}
+```
+
+依赖：[`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts)
+
+来源：[`packages/llm/llm-scnet/src/index.ts:65`](../packages/llm/llm-scnet/src/index.ts)
+
 <a id="deepseek-aidsh-lsp-stdio"></a>
 
 ## `@deepseek-ai/dsh-lsp-stdio`
@@ -1661,6 +1744,12 @@ export interface Config {
    * `process.cwd()`). Normal agent calls use their session cwd instead.
    */
   workspaceRoot?: string
+  /**
+   * Deployment-owned controlled write zones admitted under `workspace-write`
+   * beside the workspace (e.g. the global knowledge-base root). Absolute
+   * paths; canonicalized by the same rule as the workspace root.
+   */
+  writableRoots?: string[]
 }
 ```
 
@@ -2679,6 +2768,24 @@ export interface Config {
 
 来源：[`packages/lsp/tool-lsp/src/index.ts:58`](../packages/lsp/tool-lsp/src/index.ts)
 
+<a id="deepseek-aidsh-tool-memory"></a>
+
+## `@deepseek-ai/dsh-tool-memory`
+
+需要：`tools` · `habits` · `systemPrompt`
+
+```ts config-catalog
+/** Plugin config; every key is optional and `Config` supplies the defaults. */
+export interface Config {
+  /** Whether memory_propose asks the user before writing. */
+  userQuestionAsk?: boolean
+  /** Millisecond window inside which an identical proposal is not re-asked. */
+  proposalDedupTtlMs?: number
+}
+```
+
+来源：[`packages/habits/tool-memory/src/index.ts:39`](../packages/habits/tool-memory/src/index.ts)
+
 <a id="deepseek-aidsh-tool-pwsh"></a>
 
 ## `@deepseek-ai/dsh-tool-pwsh`
@@ -3252,6 +3359,7 @@ export interface Config {
 - `@deepseek-ai/dsh-client-ui-kb`（[`packages/client/ui-kb/src/index.ts`](../packages/client/ui-kb/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-layout`（[`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-lookup`（[`packages/client/ui-lookup/src/index.ts`](../packages/client/ui-lookup/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-memory`（[`packages/client/ui-memory/src/index.ts`](../packages/client/ui-memory/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-message-feedback`（[`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-model-selection`（[`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-permission-presets`（[`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts)）
@@ -3275,6 +3383,7 @@ export interface Config {
 - `@deepseek-ai/dsh-command-compact` — 需要 `commands` · `compact`（[`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts)）
 - `@deepseek-ai/dsh-command-feedback` — 需要 `commands`（[`packages/feedback/command-feedback/src/index.ts`](../packages/feedback/command-feedback/src/index.ts)）
 - `@deepseek-ai/dsh-command-goal` — 需要 `commands` · `goals`（[`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts)）
+- `@deepseek-ai/dsh-command-memory` — 需要 `commands` · `habits`（[`packages/habits/command-memory/src/index.ts`](../packages/habits/command-memory/src/index.ts)）
 - `@deepseek-ai/dsh-commands`（[`packages/interaction/commands/src/index.ts`](../packages/interaction/commands/src/index.ts)）
 - `@deepseek-ai/dsh-cordis-client-runner`（[`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts)）
 - `@deepseek-ai/dsh-fs-e2b` — 需要 `e2b`（[`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts)）
@@ -3360,3 +3469,4 @@ export interface Config {
 - `@deepseek-ai/dsh-typert-generator`（[`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts)）
 - `@deepseek-ai/dsh-typert-protocol`（[`packages/typert/protocol/src/index.ts`](../packages/typert/protocol/src/index.ts)）
 - `@deepseek-ai/dsh-typert-registry`（[`packages/typert/registry/src/index.ts`](../packages/typert/registry/src/index.ts)）
+- `@deepseek-ai/dsh-user-habits`（[`packages/habits/user-habits/src/index.ts`](../packages/habits/user-habits/src/index.ts)）

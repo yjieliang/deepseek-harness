@@ -6,7 +6,11 @@ Human-facing `/memory` slash command over the habits seam (`ctx.habits`): add, l
 
 ## Model Experience
 
-None — the command is a human-facing surface; it contributes no model-facing prompt, schema, tool, or message. Raw input is recorded (`recordInput` defaults to true) so every command execution is traceable in the session log.
+Indirectly, through the recorded `/memory` command execution in the session log; the command itself registers no prompt, schema, tool, or message.
+
+#### KV Cache effect
+
+The recorded command event is append-only and does not alter the prompt prefix.
 
 ## Known Limitations and Deferred Work
 

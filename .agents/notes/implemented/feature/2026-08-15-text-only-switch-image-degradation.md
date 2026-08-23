@@ -8,7 +8,7 @@ English | [中文](2026-08-15-text-only-switch-image-degradation.zh.md)
 
 The [multimodal image-input decision](2026-07-22-web-multimodal-image-input-and-durable-attachments.md) pinned an image-bearing session to image-capable models: `session.selectModel` rejected a text-only target while any image remained pending publication or present in the session's current derived history, and both shipping adapters failed the request with `UNSUPPORTED_CONTENT` when an image reached a text-only wire route. One pasted screenshot was enough to lock a session out of `deepseek-v4-flash` forever; the only escapes were a new session, a fork before the image, or compacting the image away first.
 
-The refusal was deliberate — the [drop-image note](../../implemented/simplification/2026-07-04-drop-image-content-block.md) sanctioned loud rejection as the only acceptable non-support posture, against the one indefensible state: silently dropping or flattening an image. But the refusal conflated sending with switching. A text-only model genuinely cannot accept *new* image input, yet it can still serve the conversation's *text* history — the images it cannot see can be named as omitted rather than make the whole session unusable.
+The refusal was deliberate — the [drop-image note](../../archived/simplification/2026-07-04-drop-image-content-block.md) sanctioned loud rejection as the only acceptable non-support posture, against the one indefensible state: silently dropping or flattening an image. But the refusal conflated sending with switching. A text-only model genuinely cannot accept *new* image input, yet it can still serve the conversation's *text* history — the images it cannot see can be named as omitted rather than make the whole session unusable.
 
 ## Decision
 

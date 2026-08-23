@@ -29,6 +29,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
 | `@deepseek-ai/dsh-tool-kb` | `kb_add`, `kb_archive`, `kb_clip`, `kb_delete`, `kb_export`, `kb_get`, `kb_images`, `kb_import`, `kb_links`, `kb_move`, `kb_organize`, `kb_search`, `kb_stats`, `kb_tags`, `kb_update` | `ctx.tools`, `ctx.kb`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The 15 kb_* tools are the agent-plane consumer of the knowledge-base capability over ctx.kb; bulk operations gate on batchConfirmN with a preview-first error, and kb_clip degrades to URL-and-title without a mounted web service. |
+| `@deepseek-ai/dsh-tool-memory` | `memory_add`, `memory_list`, `memory_propose`, `memory_remove` | `ctx.tools`, `ctx.habits`, `ctx.systemPrompt`, `ctx.userQuestions (memory_propose confirmation)` | `tool/call`, `tool/result after a user question confirms a proposal` | - | Model-facing user-habit memory tools (memory_add/list/remove/propose) over the habits seam; memory_propose asks for user confirmation before writing. |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`, `schedule_delete`, `schedule_list` | `ctx.tools`, `ctx.sessions`, `Session persistence`, `a future live root Agent` | `tool/call`, `schedule/change create or delete`, `tool/result` | - | Registered only inside live root Agent scopes created after the opt-in Schedule plugin loads. Version 1 accepts after_seconds, explicit absolute at, and bounded fixed-rate every_seconds, and discloses session-local delivery; management reads and mutations require the shared Session persistence barrier. |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema. |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`, `ctx.workflowEngine`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents every fresh round)` | `tool/call`, `tool/result`, `workflow and child session events during execution` | - | A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap. |
@@ -1390,6 +1391,111 @@ Source: [`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/inde
 Source: [`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
 
 The 15 kb_* tools are the agent-plane consumer of the knowledge-base capability over ctx.kb; bulk operations gate on batchConfirmN with a preview-first error, and kb_clip degrades to URL-and-title without a mounted web service.
+
+<a id="deepseek-aidsh-tool-memory"></a>
+
+## `@deepseek-ai/dsh-tool-memory`
+
+### `memory_add`
+
+记录一条用户习惯:用户明确要求记住的偏好、规范或约定
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "topic": {
+      "type": "string",
+      "description": "主题键(小写英文短横线),如 style/lang/commit;留空则记为 general"
+    },
+    "value": {
+      "type": "string",
+      "description": "习惯内容,精炼描述(单条 ≤ 200 字符)"
+    },
+    "layer": {
+      "type": "string",
+      "description": "作用层:global(全局)或 project(当前项目);project 层由工作区 USER.md 承载,本工具仅写 global"
+    }
+  },
+  "required": [
+    "value"
+  ]
+}
+```
+
+Source: [`packages/habits/tool-memory/src/index.ts`](../packages/habits/tool-memory/src/index.ts)
+
+### `memory_list`
+
+列出当前已记录的用户习惯(按主题分组)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "layer": {
+      "type": "string",
+      "description": "仅列 global(全局)或 project(项目);省略列出全部"
+    }
+  }
+}
+```
+
+Source: [`packages/habits/tool-memory/src/index.ts`](../packages/habits/tool-memory/src/index.ts)
+
+### `memory_propose`
+
+提议记录一条你观察到的用户习惯,经用户确认后才写入
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "topic": {
+      "type": "string",
+      "description": "主题键(小写英文短横线),如 style/lang/commit"
+    },
+    "value": {
+      "type": "string",
+      "description": "建议的习惯内容,精炼描述"
+    },
+    "evidence": {
+      "type": "string",
+      "description": "你观察到该习惯的依据(用户原话或行为)"
+    }
+  },
+  "required": [
+    "topic",
+    "value",
+    "evidence"
+  ]
+}
+```
+
+Source: [`packages/habits/tool-memory/src/index.ts`](../packages/habits/tool-memory/src/index.ts)
+
+### `memory_remove`
+
+删除一条用户习惯(按 memory_list 给出的条目 id)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "条目 id,从 memory_list 输出获取(形如 global:style)"
+    }
+  },
+  "required": [
+    "id"
+  ]
+}
+```
+
+Source: [`packages/habits/tool-memory/src/index.ts`](../packages/habits/tool-memory/src/index.ts)
+
+Model-facing user-habit memory tools (memory_add/list/remove/propose) over the habits seam; memory_propose asks for user confirmation before writing.
 
 <a id="deepseek-aidsh-schedule"></a>
 

@@ -21,9 +21,13 @@ Registered as the `user-habits` section at order `50` (after the deployment pers
 
 ## Model Experience
 
-### What the model sees
+### Resident prompt section
+
+#### What the model sees
 
 The rendered section joins the system prompt on every assembly while the plugin is mounted and entries exist:
+
+##### Rendered section
 
 ```markdown
 ## 用户习惯
@@ -33,11 +37,11 @@ The rendered section joins the system prompt on every assembly while the plugin 
 - [lang] 回复语言:中文
 ```
 
-### Token effect
+#### Token effect
 
 Bounded by `residentTokenBudget` (default 600 tokens under the shared heuristic); the section is absent from the prompt when no entry exists.
 
-### KV Cache effect
+#### KV Cache effect
 
 The section's name, order, and entry ordering are stable, and entry text only changes when a habit is committed — so the prompt prefix stays reusable across requests until a habit write lands.
 

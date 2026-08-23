@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-15-text-only-switch-image-degradation.md
-2026-08-15-text-only-switch-image-degradation.md: 0e731865084685c84612566ba9941745768c7436
-2026-08-15-text-only-switch-image-degradation.zh.md: be741f75c835845977b9f23491d5bf08af3e5df4
+2026-08-15-text-only-switch-image-degradation.md: c1424793fa6ac64f246bb9d4e8df0af4b666d79a
+2026-08-15-text-only-switch-image-degradation.zh.md: e87d54be583a7c9f8f7491632fea99e18fa42967

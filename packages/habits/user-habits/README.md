@@ -36,7 +36,11 @@ Values normalize with NFKC and trim before validation. The budget counts Unicode
 
 ## Model Experience
 
-None — this package registers no model-facing prompt, schema, tool, or message. Consumers own the model surface.
+Indirectly, through `dsh-habits-settings` (which registers the budgeted resident prompt section the model sees) and `dsh-tool-memory`/`dsh-command-memory` (which own the model-visible memory tools and command); this package supplies the contract, guard, and renderer they consume.
+
+#### KV Cache effect
+
+The renderer and guard are pure functions of committed entries; the section they feed the model changes only when a habit write lands.
 
 ## Known Limitations and Deferred Work
 

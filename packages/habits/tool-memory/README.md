@@ -15,9 +15,13 @@ Model-facing user-habit tools over the habits seam (`ctx.habits`): `memory_add`,
 
 ## Model Experience
 
-### What the model sees
+### System prompt
 
-One fixed guidance section (order `101`) plus four tool schemas:
+#### What the model sees
+
+One fixed guidance section (order `101`) instructing the agent to record confirmed user habits:
+
+##### User-habit memory guidance
 
 ```markdown
 用户习惯(memory)工具:
@@ -28,17 +32,27 @@ One fixed guidance section (order `101`) plus four tool schemas:
 - 记忆内容如需修改或删除,用 memory_list 查看后再 memory_remove。
 ```
 
-The confirmation question the user sees is itself model-visible pinned text: question `要记住这条用户习惯吗?`, options `记住`/`忽略`, detail `[{topic}] {value}\n依据:{evidence}\n想调整内容?选「忽略」后直接说要记住什么。`.
+#### Token effect
 
-Tool results are plain pinned text, e.g. `已记住:[style] 简洁` / `(无已记录习惯)` / `已删除:[style] 简洁` / `已记录:[style] 简洁` / `未记录,已忽略该建议。`; guard rejections surface the contract's typed `HabitError` message.
+One fixed concise guidance section per request while mounted.
 
-### Token effect
-
-One fixed concise guidance section per request while mounted; results are data-dependent and remain in logged tool history until compaction.
-
-### KV Cache effect
+#### KV Cache effect
 
 Prefix-stable while the plugin and guidance text are unchanged.
+
+### Tool schemas and results
+
+#### What the model sees
+
+The model sees the [generated schemas for the four memory tools](../../../docs/tool-catalog.md#deepseek-aidsh-tool-memory). Results are plain pinned text (e.g. `已记住:[style] 简洁` / `(无已记录习惯)` / `已删除:[style] 简洁` / `已记录:[style] 简洁` / `未记录,已忽略该建议。`; guard rejections surface the contract's typed `HabitError` message), and `memory_propose` surfaces the confirmation question `要记住这条用户习惯吗?` (options `记住`/`忽略`) as model-visible pinned text.
+
+#### Token effect
+
+Fixed schema cost on every request; data-dependent results remain in logged tool history until compaction.
+
+#### KV Cache effect
+
+Prefix-stable while the visible tool definitions and pinned text are unchanged.
 
 ## Known Limitations and Deferred Work
 

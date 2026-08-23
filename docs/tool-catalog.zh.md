@@ -31,6 +31,7 @@
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`、`terminal_list`、`terminal_open`、`terminal_read`、`terminal_send`、`terminal_signal` | `ctx.tools`、`ctx.terminals`、`ctx.systemPrompt`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。 |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`、`get_goal`、`update_goal` | `ctx.tools`、`ctx.agents`、`ctx.goals`、`ctx.systemPrompt`、`a calling Agent in an authorized open turn` | `tool/call`、`goal/change for mutations`、`tool/result` | - | create、edit、pause 和 resume 要求直接来自人类的根权限；complete 和 blocked 也接受确切的当前 Goal Round。blocked 的默认下限是 3 个获准的 Round。 |
 | `@deepseek-ai/dsh-tool-kb` | `kb_add`、`kb_archive`、`kb_clip`、`kb_delete`、`kb_export`、`kb_get`、`kb_images`、`kb_import`、`kb_links`、`kb_move`、`kb_organize`、`kb_search`、`kb_stats`、`kb_tags`、`kb_update` | `ctx.tools`、`ctx.kb`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | 15 个 kb_* 工具是知识库能力在 ctx.kb 之上的 agent 平面消费方；批量操作以 batchConfirmN 门控并先预览后执行，未挂 web 服务时 kb_clip 降级为仅存 URL+标题。 |
+| `@deepseek-ai/dsh-tool-memory` | `memory_add`、`memory_list`、`memory_propose`、`memory_remove` | `ctx.tools`、`ctx.habits`、`ctx.systemPrompt`、`ctx.userQuestions (memory_propose confirmation)` | `tool/call`、`tool/result after a user question confirms a proposal` | - | 面向模型的用户习惯记忆工具（memory_add/list/remove/propose）位于 habits seam 之上；memory_propose 在写入前请求用户确认。 |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`、`schedule_delete`、`schedule_list` | `ctx.tools`、`ctx.sessions`、Session 持久化、未来创建的 live 根 Agent | `tool/call`、`schedule/change create or delete`、`tool/result` | - | 仅在选择启用的 Schedule 插件加载后创建的 live 根 Agent scope 内注册。版本 1 接受 after_seconds、显式绝对 at 和有界固定速率 every_seconds，并披露 session-local 交付；管理读取与变更必须通过共享的 Session 持久化 barrier。 |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`、`ctx.lsp`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，因此其模型可见 schema 在更换提供方时保持稳定。运行时要求已注册提供方，例如 `@deepseek-ai/dsh-lsp-stdio`；如果没有提供方，查询会返回结构化 `LSP_UNAVAILABLE` 错误，而不会改变 schema。 |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`、`ctx.workflowEngine`、`ctx.subagents`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents every fresh round)` | `tool/call`、`tool/result`、`workflow and child session events during execution` | - | 固定的前台工作流会在每个 Round 启动一个全新的结构化子级；模型只能选择不可变目标和可选的 Round 上限。 |
@@ -1397,6 +1398,109 @@ URL 剪藏:抓取网页正文存入知识库收集箱;抓取受限时降级为�
 
 
 
+
+<a id="deepseek-aidsh-tool-memory"></a>
+
+## `@deepseek-ai/dsh-tool-memory`
+
+### `memory_add`
+
+记录一条用户习惯:用户明确要求记住的偏好、规范或约定
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "topic": {
+      "type": "string",
+      "description": "主题键(小写英文短横线),如 style/lang/commit;留空则记为 general"
+    },
+    "value": {
+      "type": "string",
+      "description": "习惯内容,精炼描述(单条 ≤ 200 字符)"
+    },
+    "layer": {
+      "type": "string",
+      "description": "作用层:global(全局)或 project(当前项目);project 层由工作区 USER.md 承载,本工具仅写 global"
+    }
+  },
+  "required": [
+    "value"
+  ]
+}
+```
+
+来源：[`packages/habits/tool-memory/src/index.ts`](../packages/habits/tool-memory/src/index.ts)
+
+### `memory_list`
+
+列出当前已记录的用户习惯(按主题分组)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "layer": {
+      "type": "string",
+      "description": "仅列 global(全局)或 project(项目);省略列出全部"
+    }
+  }
+}
+```
+
+来源：[`packages/habits/tool-memory/src/index.ts`](../packages/habits/tool-memory/src/index.ts)
+
+### `memory_propose`
+
+提议记录一条你观察到的用户习惯,经用户确认后才写入
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "topic": {
+      "type": "string",
+      "description": "主题键(小写英文短横线),如 style/lang/commit"
+    },
+    "value": {
+      "type": "string",
+      "description": "建议的习惯内容,精炼描述"
+    },
+    "evidence": {
+      "type": "string",
+      "description": "你观察到该习惯的依据(用户原话或行为)"
+    }
+  },
+  "required": [
+    "topic",
+    "value",
+    "evidence"
+  ]
+}
+```
+
+来源：[`packages/habits/tool-memory/src/index.ts`](../packages/habits/tool-memory/src/index.ts)
+
+### `memory_remove`
+
+删除一条用户习惯(按 memory_list 给出的条目 id)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "条目 id,从 memory_list 输出获取(形如 global:style)"
+    }
+  },
+  "required": [
+    "id"
+  ]
+}
+```
+
+来源：[`packages/habits/tool-memory/src/index.ts`](../packages/habits/tool-memory/src/index.ts)
 
 <a id="deepseek-aidsh-schedule"></a>
 

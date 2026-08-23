@@ -75,7 +75,9 @@ export class BootHomeController {
     })
   }
 
-  /** Type the next home, clearing the last save message. */
+  /** Type the next home, clearing the last save message.
+   * @param draft - the draft home path.
+   */
   setDraft(draft: string): void {
     this.set({ draft, saved: null })
   }
