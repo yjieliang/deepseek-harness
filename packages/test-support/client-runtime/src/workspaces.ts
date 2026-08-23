@@ -98,6 +98,32 @@ export class TestWorkspaces implements IWorkspaces {
   }
 
   /**
+   * Read a text file for in-page preview (recorded; default rejects so the
+   * chat openFile falls back to openPath unless a feature stubs it).
+   * @param path - host-resolvable path.
+   * @param opts - optional byte cap.
+   */
+  async readFile(path: string, opts?: { maxBytes?: number }): Promise<{
+    path: string
+    content: string
+    truncated: boolean
+    lang: string | null
+  }> {
+    this.calls.push({ method: 'readFile', args: [path, opts] })
+    const stub = this.stubs.get('readFile')
+    if (stub !== undefined) {
+      const result = await (stub(path, opts) as Promise<{
+        path: string
+        content: string
+        truncated: boolean
+        lang: string | null
+      }>)
+      return result
+    }
+    throw new Error('readFile: not stubed')
+  }
+
+  /**
    * Directory picker (recorded). The default cancels (null); stub to select.
    * @returns the picked path, or null.
    */

@@ -360,6 +360,19 @@ describe('WorkspaceRuntime', () => {
     await expect(workspaces.openPath('/missing')).rejects.toThrow(/path open failed/)
   })
 
+  it('reads a file for in-page preview and surfaces a Host refusal', async () => {
+    const ctx = new Context()
+    const api = new FakeApiClient()
+    const sessions = new SessionRuntime(ctx, api, fakeRemote())
+    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
+    await expect(workspaces.readFile('/w/alpha/a.ts')).resolves.toEqual({
+      path: '/w/alpha/a.ts', content: 'const a = 1', truncated: false, lang: 'ts',
+    })
+    expect(api.callsOf('host.readFile')).toEqual([{ path: '/w/alpha/a.ts' }])
+    api.onReadFile = () => Promise.resolve(err({ code: 'file-read-failed', message: 'binary', details: { path: '/w/alpha/a.bin' } }))
+    await expect(workspaces.readFile('/w/alpha/a.bin')).rejects.toThrow(/file read failed/)
+  })
+
   it('deletes a Workspace or preserves it when the Host rejects deletion', async () => {
     const ctx = new Context()
     const api = new FakeApiClient()

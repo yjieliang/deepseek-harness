@@ -29,4 +29,12 @@ export interface ChatStoreState {
    * persisted snapshots from before this field rehydrate without it.
    */
   inspect: { callId: CallId } | null
+  /**
+   * In-page file preview target for the details panel: the path a chat file
+   * open resolved to and its language hint. Chat writes it (plus opens the
+   * details column) when a local text file reads successfully; reading it does
+   * not include the file content, which stays in the component. Persisted so a
+   * reload restores the panel, but only the small path/lang pair.
+   */
+  previewFile: { path: string; lang: string | null } | null
 }

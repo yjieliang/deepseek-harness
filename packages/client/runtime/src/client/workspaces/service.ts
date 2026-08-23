@@ -250,6 +250,29 @@ export class WorkspaceRuntime implements IWorkspaces {
   }
 
   /**
+   * Read a text file's content for in-page preview.
+   * @param path - absolute or host-resolvable path.
+   * @param opts - optional byte cap (`maxBytes`); a larger file is truncated.
+   * @returns the file text, truncation flag, and highlighter language hint.
+   */
+  async readFile(path: string, opts?: { maxBytes?: number }): Promise<{
+    path: string
+    content: string
+    truncated: boolean
+    lang: string | null
+  }> {
+    const payload = opts === undefined || opts.maxBytes === undefined
+      ? { path }
+      : { path, maxBytes: opts.maxBytes }
+    const response = await this.api.host.readFile(payload)
+    if (!response.result.ok) {
+      throw new Error(`file read failed: ${response.result.error.code}: ${response.result.error.message}`)
+    }
+    const value = response.result.value
+    return { path: value.path, content: value.content, truncated: value.truncated, lang: value.lang }
+  }
+
+  /**
    * Rename a Workspace.
    * @param workspaceId - target workspace.
    * @param title - new display title (trimmed non-empty by the Host).

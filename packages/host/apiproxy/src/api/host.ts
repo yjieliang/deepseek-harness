@@ -116,4 +116,23 @@ export interface HostApi {
     request: RpcRequest<{ path: string }>,
     signal: AbortSignal,
   ): Promise<RpcResponse<{ opened: true }>>
+
+  /**
+   * Read a text file's content for in-page preview (the right details column).
+   * Served only under the `native`/loopback authority; a directory, a binary
+   * file (a NUL byte in the leading probe window), an unreadable or missing
+   * path, and an over-limit file all fail with a business error code so the
+   * caller can fall back to the OS opener (or a directory view). Content is
+   * capped at `maxBytes` (or the deployment default), and a file larger than
+   * the cap reports `truncated: true` instead of failing.
+   */
+  readFile(
+    request: RpcRequest<{ path: string; maxBytes?: number }>,
+    signal: AbortSignal,
+  ): Promise<RpcResponse<{
+    path: string
+    content: string
+    truncated: boolean
+    lang: string | null
+  }>>
 }

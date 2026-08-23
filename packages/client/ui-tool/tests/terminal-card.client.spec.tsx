@@ -475,6 +475,8 @@ describe('DetailsPanel Output section', () => {
         useStore={bindSnapshotSelector(chat)}
         actions={chat.actions}
         closeDetails={vi.fn()}
+        readFile={async () => ({ path: '', content: '', truncated: false, lang: null })}
+        openInSystem={() => {}}
         t={t}
       />,
     )
@@ -661,6 +663,8 @@ describe('DetailsPanel Output section', () => {
         useStore={bindSnapshotSelector(chat)}
         actions={chat.actions}
         closeDetails={closeDetails}
+        readFile={async () => ({ path: '', content: '', truncated: false, lang: null })}
+        openInSystem={() => {}}
         t={t}
       />,
     )

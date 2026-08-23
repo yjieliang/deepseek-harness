@@ -392,13 +392,26 @@ export function apply(ctx: Context): void {
       const scoped = scopedConversation(sessions, sessionId)
       return {
         openDetails: (target) => {
+          // A file preview and a tool-call detail are mutually exclusive detail
+          // surfaces: selecting a call dismisses any in-page preview.
+          actions.setPreviewFile(null)
           actions.select(target)
           layout.openDetails()
         },
         fileMentions: owner => ctx.get('chatFileMentions')?.forClosing(owner),
         openFile: (path) => {
           const cwd = sessions.list.getSnapshot().byId[sessionId]?.cwd
-          return workspaces.openPath(resolveWorkspacePath(cwd, path))
+          const resolved = resolveWorkspacePath(cwd, path)
+          // In-page preview for a readable local text file; a directory or a
+          // file the Host refuses (binary, unreadable, too large, missing)
+          // falls back to the OS opener — the previous behavior.
+          return workspaces.readFile(resolved).then(
+            (result) => {
+              actions.setPreviewFile({ path: resolved, lang: result.lang })
+              layout.openDetails()
+            },
+            () => workspaces.openPath(resolved),
+          )
         },
         loadOlder: () => { void scoped.loadOlder() },
         loadImage: attachment => conversation.resolveImage(sessionId, attachment),
@@ -451,6 +464,8 @@ export function apply(ctx: Context): void {
     store: chatStore,
     inject: (): DetailsInjected => ({
       closeDetails: () => { layout.closeDetails() },
+      readFile: (path, opts) => workspaces.readFile(path, opts),
+      openInSystem: (path) => { void workspaces.openPath(path) },
     }),
   }, DetailsPanel)
 

@@ -251,6 +251,33 @@ describe('conversation slot inject API', () => {
     await b.runtime.dispose()
   })
 
+  it('openFile previews a readable local file in the details panel instead of opening it', async () => {
+    const b = await bench()
+    b.runtime.workspaces.stub('readFile', (...args) => Promise.resolve({
+      path: String(args[0]), content: 'const a = 1\n', truncated: false, lang: 'ts',
+    }))
+    const { instance, injected } = b.chatViewApi(ROOT)
+    await injected.openFile('src/a.ts')
+    // Preview winning surface: the file is read (not OS-opened), the preview
+    // path lands in the shared store, and the details column opens.
+    expect(b.runtime.workspaces.calls).toContainEqual({ method: 'readFile', args: ['/proj/src/a.ts', undefined] })
+    expect(b.runtime.workspaces.calls.some(c => c.method === 'openPath')).toBe(false)
+    expect(instance.getSnapshot().previewFile).toEqual({ path: '/proj/src/a.ts', lang: 'ts' })
+    expect(b.layoutFake.openDetails).toHaveBeenCalledTimes(1)
+    await b.runtime.dispose()
+  })
+
+  it('openDetails clears any active file preview', async () => {
+    const b = await bench()
+    const { instance, injected } = b.chatViewApi(ROOT)
+    instance.actions.setPreviewFile({ path: '/proj/old.ts', lang: 'ts' })
+    injected.openDetails({ turnSeq: 1, callId: 'c1' })
+    expect(instance.getSnapshot().previewFile).toBeNull()
+    expect(instance.getSnapshot().selection).toEqual({ turnSeq: 1, callId: 'c1' })
+    expect(b.layoutFake.openDetails).toHaveBeenCalledTimes(1)
+    await b.runtime.dispose()
+  })
+
   it('routes workspace switching through the runtime owner, carrying the draft', async () => {
     const b = await bench()
     const resident = b.residentApi(ROOT)
@@ -351,7 +378,7 @@ describe('details inject API', () => {
     const b = await bench()
     const entry = b.entryOf('details')
     const injected = (entry.inject as unknown as () => DetailsInjected)()
-    expect(Object.keys(injected)).toEqual(['closeDetails'])
+    expect(Object.keys(injected).sort()).toEqual(['closeDetails', 'openInSystem', 'readFile'])
     injected.closeDetails()
     expect(b.layoutFake.closeDetails).toHaveBeenCalledTimes(1)
     // The shared handle: details resolves the SAME instance conversation writes.

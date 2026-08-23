@@ -146,10 +146,11 @@
   opacity: 0.6;
 }
 
-/* Back-to-bottom: zero-height sticky slot so the control does not extend
-   scrollHeight; the button translates up into the viewport. Under the
-   conversation host, clearance sits above the sticky composer stack. */
-.toBottomSlot {
+/* Floating navigation slot: groups nav buttons and back-to-bottom together.
+   Zero-height sticky slot so the controls do not extend scrollHeight; the
+   buttons translate up into the viewport. Under the conversation host,
+   clearance sits above the sticky composer stack. */
+.navSlot {
   position: sticky;
   bottom: 16px;
   /* Above the sticky composer (z-index 7) so the control stays clickable and
@@ -158,11 +159,12 @@
   height: 0;
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
   padding-right: max(0px, calc((100% - var(--dsh-chat-content-width)) / 2));
   pointer-events: none;
 }
 
-:global([data-conversation-scroll]) .toBottomSlot {
+:global([data-conversation-scroll]) .navSlot {
   /* Clears the sticky composer stack (docks + input card + stats): the live
      height rides --dsh-composer-height (ConversationRoot's seat observer) so
      the control follows a growing textarea; the fallback covers the first
@@ -170,7 +172,8 @@
   bottom: calc(var(--dsh-composer-height, 152px) + 16px);
 }
 
-.toBottom {
+/* Shared button style for nav and back-to-bottom buttons. */
+.navButton, .toBottom {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -187,8 +190,14 @@
   pointer-events: auto;
 }
 
-.toBottom:hover {
+.navButton:hover, .toBottom:hover {
   background: var(--dsw-alias-button-floating-hover);
+}
+
+.navButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: auto;
 }
 
 /* Host open-path refusal: same dialog family as the workspace folder error. */

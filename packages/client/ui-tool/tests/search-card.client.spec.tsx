@@ -409,6 +409,8 @@ describe('DetailsPanel Output section (search)', () => {
         useStore={bindSnapshotSelector(chat)}
         actions={chat.actions}
         closeDetails={vi.fn()}
+        readFile={async () => ({ path: '', content: '', truncated: false, lang: null })}
+        openInSystem={() => {}}
         t={t}
       />,
     )

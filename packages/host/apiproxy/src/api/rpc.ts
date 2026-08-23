@@ -45,6 +45,13 @@ export interface RpcErrorDetailsMap {
   'directory-exists': { path: string }
   'directory-create-failed': { path: string }
   'directory-picker-unavailable': { capability: string }
+  /**
+   * A host.readFile preview was refused: the target is not found, is not a
+   * text file (a leading binary window or a directory), exceeds the preview
+   * cap, or is otherwise unreadable. The message is the seam's own text; the
+   * details name the path and, when it was an over-limit refusal, the cap.
+   */
+  'file-read-failed': { path: string; size?: number; maxBytes?: number }
   'agent-preset-read-only': { agentPreset: string; reason: string }
   'agent-preset-locked': { sessionId: SessionId; agentPreset: string }
   'agent-preset-conflict': { sessionId: SessionId; requestedPreset: string; existingPreset?: string }

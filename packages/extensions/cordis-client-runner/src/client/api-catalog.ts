@@ -342,6 +342,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'path', description: 'absolute or host-resolvable path.' }],
       },
       {
+        signature: 'readFile(path: string, opts?: { maxBytes?: number }): Promise<{ path: string content: string truncated: boolean lang: string | null }>',
+        description: 'Read a text file\'s content for in-page preview (the right details column).',
+        parameters: [{ name: 'path', description: 'absolute or host-resolvable path.' }, { name: 'opts', description: 'optional byte cap; a file larger than it is truncated.' }],
+        returns: 'the file text, a truncation flag, and a highlighter language hint.',
+      },
+      {
         signature: 'rename(workspaceId: WorkspaceId, title: string): Promise<WorkspaceView>',
         description: 'Rename a Workspace.',
         parameters: [{ name: 'workspaceId', description: 'target workspace.' }, { name: 'title', description: 'the new display title.' }],

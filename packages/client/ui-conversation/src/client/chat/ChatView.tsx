@@ -15,7 +15,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationTimelineSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import { Button, IconChevronDownOutline14, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconChevronDownOutline14, IconChevronUpOutline14, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps, RenderMessageImages } from '../contract/slots.ts'
 import { PendingSteeringBubble } from './MessageItem.tsx'
 import { ChatNodeSeat } from './ChatNodeSeat.tsx'
@@ -412,6 +412,79 @@ export function ChatView({
     loadOlder()
   }
 
+  /** User message keys in conversation order, derived from the chat node store. */
+  const userMessageKeys = useMemo(() => {
+    const keys: string[] = []
+    for (const key of order) {
+      const node = nodeStore.get(key)
+      if (node !== undefined && (node.kind === 'user' || node.kind === 'steering')) {
+        keys.push(key)
+      }
+    }
+    return keys
+  }, [order, nodeStore])
+
+  /** Navigate to the previous (up) or next (down) user message.
+   *  Finds user/steering message elements by their `data-chat-flow-kind`
+   *  attribute and scrolls the nearest one into view. */
+  const navigateToUserMessage = useCallback((direction: 'prev' | 'next'): void => {
+    const local = listRef.current
+    if (local === null) return
+    const el = scrollerOf(local)
+
+    // Collect rendered user/steering message elements in DOM (conversation) order.
+    const userElements = [...local.querySelectorAll<HTMLElement>(
+      '[data-chat-flow-kind="user"], [data-chat-flow-kind="steering"]',
+    )]
+    if (userElements.length === 0) return
+
+    const scrollTop = el.scrollTop
+    const containerRect = el.getBoundingClientRect()
+
+    if (direction === 'prev') {
+      // Scan from the end: find the last element whose top edge is above the
+      // current scroll position (i.e. it is above or partially inside the
+      // viewport, but we want to go to the one further up).
+      for (let i = userElements.length - 1; i >= 0; i--) {
+        const element = userElements[i]
+        if (element === undefined) continue
+        const rect = element.getBoundingClientRect()
+        const absTop = el.scrollTop + (rect.top - containerRect.top)
+        if (absTop < scrollTop) {
+          element.scrollIntoView({ block: 'center' })
+          atBottomRef.current = false
+          setAtBottom(false)
+          return
+        }
+      }
+      // None above — scroll to the very first user message.
+      const first = userElements[0]
+      if (first !== undefined) {
+        first.scrollIntoView({ block: 'center' })
+        atBottomRef.current = false
+        setAtBottom(false)
+      }
+    } else {
+      // Scan from the start: find the first element whose top edge is below
+      // the viewport bottom (i.e. it is below the visible area).
+      const viewportBottom = scrollTop + containerRect.height
+      for (let i = 0; i < userElements.length; i++) {
+        const element = userElements[i]
+        if (element === undefined) continue
+        const rect = element.getBoundingClientRect()
+        const absTop = el.scrollTop + (rect.top - containerRect.top)
+        if (absTop > viewportBottom) {
+          element.scrollIntoView({ block: 'center' })
+          atBottomRef.current = false
+          setAtBottom(false)
+          return
+        }
+      }
+      // None below — scroll to the bottom.
+      toBottom(el)
+    }
+  }, [toBottom])
+
   return (
     <div className={css.root}>
       <div ref={listRef} className={css.scroll}>
@@ -460,8 +533,26 @@ export function ChatView({
             />
           ))}
         </div>
-        {!atBottom && (
-          <div className={css.toBottomSlot}>
+        <div className={css.navSlot} data-floating-nav="">
+          <button
+            type="button"
+            className={css.navButton}
+            aria-label={t('chat.navUp')}
+            disabled={userMessageKeys.length === 0}
+            onClick={() => { navigateToUserMessage('prev') }}
+          >
+            <IconChevronUpOutline14 />
+          </button>
+          <button
+            type="button"
+            className={css.navButton}
+            aria-label={t('chat.navDown')}
+            disabled={userMessageKeys.length === 0}
+            onClick={() => { navigateToUserMessage('next') }}
+          >
+            <IconChevronDownOutline14 />
+          </button>
+          {!atBottom && (
             <button
               type="button"
               className={css.toBottom}
@@ -474,8 +565,8 @@ export function ChatView({
             >
               <IconChevronDownOutline14 />
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       {fileOpenError !== null && (
         <FileOpenErrorDialog

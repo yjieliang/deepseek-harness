@@ -775,11 +775,27 @@ export type MessageImagesProps = PropsRuntime<'conversation.message.images'> & P
 
 /**
  * Injected share of the details slot: the panel is otherwise a pure reader of
- * the shared chat store, but its close button is a layout orchestration call.
+ * the shared chat store, but its close button is a layout orchestration call
+ * and the file preview reads through the workspaces service.
  */
 export interface DetailsInjected {
   /** Close the details panel (layout geometry stays with ctx.layout). */
   closeDetails: () => void
+  /**
+   * Read a text file's content for the in-page preview. Relative paths resolve
+   * against the current session cwd; an over-limit file is truncated.
+   */
+  readFile: (path: string, opts?: { maxBytes?: number }) => Promise<{
+    path: string
+    content: string
+    truncated: boolean
+    lang: string | null
+  }>
+  /**
+   * Open a path with the host OS default application (the preview's
+   * "open in system" hand-off; already cwd-resolved).
+   */
+  openInSystem: (path: string) => void
 }
 
 /** Full details-slot props: selection store, Tool output seat, injected close callback, and locale. */

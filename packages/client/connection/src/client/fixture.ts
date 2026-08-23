@@ -1621,6 +1621,11 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     const name = path.slice(path.lastIndexOf('/') + 1)
     return directoryTree.get(parent)?.includes(name) === true ? [] : undefined
   }
+  // Deterministic in-page-preview content for leaf files (host.readFile).
+  const fileContents = new Map<string, string>([
+    [`${FIXTURE_HOME}/Documents/project/README.md`, '# Fixture\n\nA seeded readme.\n'],
+    [`${FIXTURE_HOME}/Documents/project/main.ts`, 'const answer = 42\nexport default answer\n'],
+  ])
   const crumbsOf = (path: string): { name: string; path: string; hidden: boolean }[] => {
     const crumbs = [{ name: '/', path: '/', hidden: false }]
     let acc = ''
@@ -2679,6 +2684,27 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         return ok(request, { path: target })
       },
       openPath: request => ok(request, { opened: true as const }),
+      // Deterministic in-page preview: the file's text from the fixture tree
+      // (a NUL-leading file reads as binary, a directory as unreadable).
+      readFile: (request) => {
+        const target = request.payload.path
+        const children = childrenOf(target)
+        if (children !== undefined) {
+          return err(request, { code: 'file-read-failed', message: `cannot read ${target}: not a file`, details: { path: target } })
+        }
+        const text = fileContents.get(target)
+        if (text === undefined) {
+          return err(request, { code: 'file-read-failed', message: `cannot read ${target}: not in the fixture tree`, details: { path: target } })
+        }
+        const cap = request.payload.maxBytes
+        const truncated = cap !== undefined && text.length > cap
+        return ok(request, {
+          path: target,
+          content: truncated ? text.slice(0, cap) : text,
+          truncated,
+          lang: target.endsWith('.ts') ? 'ts' : target.endsWith('.json') ? 'json' : null,
+        })
+      },
     },
     workspace: {
       list: request => ok(request, {
@@ -3229,6 +3255,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'host.listDirectory': return this.api.host.listDirectory(request, new AbortController().signal)
       case 'host.createDirectory': return this.api.host.createDirectory(request)
       case 'host.openPath': return this.api.host.openPath(request, new AbortController().signal)
+      case 'host.readFile': return this.api.host.readFile(request, new AbortController().signal)
       case 'workspace.list': return this.api.workspace.list(request)
       case 'workspace.create': return this.api.workspace.create(request)
       case 'workspace.rename': return this.api.workspace.rename(request)

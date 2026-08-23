@@ -25,6 +25,12 @@ function request<P>(payload: P): RpcRequest<P> {
   return { rpcId: RpcId(`workspace-${String(nextRpc++)}`), payload }
 }
 
+function expectErr(response: RpcResponse<unknown>): { code: string; details: Record<string, unknown> } {
+  expect(response.result.ok).toBe(false)
+  if (response.result.ok) throw new Error('unreachable')
+  return response.result.error as unknown as { code: string; details: Record<string, unknown> }
+}
+
 function expectOk<T>(response: RpcResponse<T>): T {
   expect(response.result.ok).toBe(true)
   if (!response.result.ok) throw new Error('unreachable')
@@ -64,6 +70,7 @@ async function harness(
   extras: {
     openPath?: (path: string, signal: AbortSignal) => Promise<void>
     canOpenPath?: () => boolean
+    readFile?: (path: string, maxBytes: number, signal: AbortSignal) => Promise<{ content: string; truncated: boolean }>
   } = {},
 ) {
   const ctx = new Context()
@@ -107,6 +114,7 @@ async function harness(
     cwd: root,
     ...extras.openPath === undefined ? {} : { openPath: extras.openPath },
     ...extras.canOpenPath === undefined ? {} : { canOpenPath: extras.canOpenPath },
+    ...extras.readFile === undefined ? {} : { readFile: extras.readFile },
   })
   return { api, ctx, storageDomain, root }
 }
@@ -255,6 +263,70 @@ describe('host.openPath', () => {
     })
     const abort = new AbortController()
     const pending = api.host.openPath(request({ path: '/tmp/a.txt' }), abort.signal)
+    abort.abort()
+    expect((await pending).result).toMatchObject({ ok: false, error: { code: 'cancelled' } })
+  })
+})
+
+describe('host.readFile', () => {
+  it('returns readable text with a language hint and no truncation', async () => {
+    const { api } = await harness(undefined, undefined, {
+      readFile: async (path, cap) => {
+        expect(cap).toBeGreaterThan(0)
+        return { content: `line 1 of ${path}\n`, truncated: false }
+      },
+    })
+    const value = expectOk(await api.host.readFile(request({ path: '/tmp/a.txt' }), new AbortController().signal))
+    expect(value).toMatchObject({ path: '/tmp/a.txt', content: 'line 1 of /tmp/a.txt\n', truncated: false })
+    // An unknown extension yields no language hint (plain text).
+    expect(value.lang).toBeNull()
+  })
+
+  it('honors a caller byte cap and caps the default when the client omits one', async () => {
+    const caps: number[] = []
+    const { api } = await harness(undefined, undefined, {
+      readFile: async (_path, cap) => { caps.push(cap); return { content: 'abc', truncated: false } },
+    })
+    expectOk(await api.host.readFile(request({ path: '/tmp/a.txt', maxBytes: 10 }), new AbortController().signal))
+    expectOk(await api.host.readFile(request({ path: '/tmp/a.txt' }), new AbortController().signal))
+    // 10 from the request; the deployment default when the client omits it.
+    expect(caps).toEqual([10, 256 * 1024])
+  })
+
+  it('derives a language hint from a known extension', async () => {
+    const { api } = await harness(undefined, undefined, {
+      readFile: async () => ({ content: 'const a = 1\n', truncated: false }),
+    })
+    const value = expectOk(await api.host.readFile(request({ path: '/src/main.ts' }), new AbortController().signal))
+    expect(value.lang).toBe('ts')
+  })
+
+  it('maps an over-limit refusal to the file-read-failed code with the cap in details', async () => {
+    const { api } = await harness(undefined, undefined, {
+      readFile: async () => { throw Object.assign(new Error('too large'), { size: 1_000_000, cap: 256 * 1024 }) },
+    })
+    const error = expectErr(await api.host.readFile(request({ path: '/big.bin' }), new AbortController().signal))
+    expect(error.code).toBe('file-read-failed')
+    expect(error.details).toMatchObject({ path: '/big.bin', size: 1_000_000, maxBytes: 256 * 1024 })
+  })
+
+  it('maps a missing or unreadable path to the file-read-failed code', async () => {
+    const { api } = await harness(undefined, undefined, {
+      readFile: async () => { throw new Error('ENOENT: no such file') },
+    })
+    const error = expectErr(await api.host.readFile(request({ path: '/missing.txt' }), new AbortController().signal))
+    expect(error.code).toBe('file-read-failed')
+    expect(error.details).toEqual({ path: '/missing.txt' })
+  })
+
+  it('propagates abort into the reader as a cancelled RPC error', async () => {
+    const { api } = await harness(undefined, undefined, {
+      readFile: (_path, _cap, signal) => new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => { reject(new Error('aborted')) }, { once: true })
+      }),
+    })
+    const abort = new AbortController()
+    const pending = api.host.readFile(request({ path: '/tmp/a.txt' }), abort.signal)
     abort.abort()
     expect((await pending).result).toMatchObject({ ok: false, error: { code: 'cancelled' } })
   })

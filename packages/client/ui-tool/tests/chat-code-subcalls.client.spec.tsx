@@ -155,6 +155,8 @@ async function bench(snapshot: ConversationSnapshot) {
     startSession: vi.fn(),
     sendSession: vi.fn(),
     openPath: vi.fn(async () => {}),
+    // Unsureed readFile (default rejection) routes path clicks to openPath.
+    readFile: vi.fn(async () => { throw new Error('no preview in this fixture') }),
   }
   ctx.provide('workspaces', workspaces)
   ctx.provide('layout', layout)

@@ -80,6 +80,7 @@ function scriptedApi(overrides: {
       listDirectory: r => ok(r, { path: '/t', home: '/t', crumbs: [], entries: [], truncated: false }),
       createDirectory: r => ok(r, { path: '/t/new' }),
       openPath: r => ok(r, { opened: true as const }),
+      readFile: r => ok(r, { path: r.payload.path, content: 'x', truncated: false, lang: null }),
       ...overrides.host,
     },
     workspace: {

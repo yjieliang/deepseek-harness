@@ -143,6 +143,8 @@ describe('render branch tails', () => {
         useStore={bindSnapshotSelector(chat)}
         actions={chat.actions}
         closeDetails={vi.fn()}
+        readFile={async () => ({ path: '', content: '', truncated: false, lang: null })}
+        openInSystem={() => {}}
         t={t}
       />,
     )
@@ -200,6 +202,8 @@ describe('render branch tails', () => {
         useStore={bindSnapshotSelector(chat)}
         actions={chat.actions}
         closeDetails={vi.fn()}
+        readFile={async () => ({ path: '', content: '', truncated: false, lang: null })}
+        openInSystem={() => {}}
         t={t}
       />,
     )

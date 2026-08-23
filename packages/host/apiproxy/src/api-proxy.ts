@@ -4,9 +4,9 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, open, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, resolve } from 'node:path'
+import { dirname, extname, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { DSH_HOME_ENV, defaultDshHome, readBootHome, resolveDshHome, writeBootHome } from '@deepseek-ai/dsh-home-paths'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
@@ -121,6 +121,11 @@ const SESSION_SEARCH_PROVIDER_CALL_LIMIT = 100
 const COLD_SUMMARY_BATCH_SIZE = 16
 /** Default maximum artifact size eligible for one cold blankness read. */
 export const DEFAULT_COLD_BLANK_PROBE_MAX_BYTES = 1024
+
+/** Default byte cap for one in-page file preview (a file larger than this reports truncated). */
+export const DEFAULT_READ_MAX_BYTES = 256 * 1024
+/** Leading bytes scanned for a NUL byte to classify a file as binary. */
+const READ_BINARY_PROBE_BYTES = 1024
 
 /** Conversation message event types (the pagination counting unit). */
 const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
@@ -601,6 +606,13 @@ export interface ApiProxyDefaults {
   openPath?: (path: string, signal: AbortSignal) => Promise<void>
   /** Native text-editor handoff; injectable for settings-document tests. */
   openTextFile?: (path: string, signal: AbortSignal) => Promise<void>
+  /**
+   * Read a text file's content for the in-page preview, capped at the given
+   * byte budget. Injectable for carrier tests; the default implementation uses
+   * `node:fs/promises` and throws a plain `Error` for any failure (an
+   * over-limit file is truncated and reported, not thrown).
+   */
+  readFile?: (path: string, maxBytes: number, signal: AbortSignal) => Promise<{ content: string; truncated: boolean }>
   /** Validated DEFLATE level for session-log ZIP entries; defaults to 6. */
   sessionExportCompressionLevel?: SessionLogCompressionLevel
   /** Maximum artifact size eligible for one cold blankness read. */
@@ -1866,6 +1878,85 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
     return defaults.openPath !== undefined || canOpenNativePath()
   }
 
+  /** Lowercased file-extension to highlighter language hint (mirrors tool-fs's read renderer). */
+  const READ_LANG_BY_EXTENSION: Readonly<Record<string, string>> = {
+    ts: 'ts', tsx: 'tsx', mts: 'ts', cts: 'ts',
+    js: 'js', jsx: 'jsx', mjs: 'js', cjs: 'js',
+    json: 'json', jsonc: 'json',
+    py: 'py', rb: 'rb', go: 'go', rs: 'rs', java: 'java',
+    c: 'c', h: 'c', cc: 'cpp', cpp: 'cpp', hpp: 'cpp', cxx: 'cpp',
+    cs: 'cs', kt: 'kotlin', swift: 'swift', php: 'php',
+    sh: 'sh', bash: 'sh', zsh: 'sh',
+    yaml: 'yaml', yml: 'yaml', toml: 'toml', ini: 'ini',
+    md: 'md', markdown: 'md', mdx: 'mdx',
+    html: 'html', htm: 'html', css: 'css', scss: 'scss', less: 'less',
+    sql: 'sql', xml: 'xml', lua: 'lua',
+  }
+
+  /** Derive the highlighter language hint from a path's extension (pure; `undefined` for none). */
+  function readLang(path: string): string | null {
+    const ext = extname(path).slice(1).toLowerCase()
+    if (ext === '') return null
+    return READ_LANG_BY_EXTENSION[ext] ?? null
+  }
+
+  /** Read a file's leading bytes; a leading NUL window flags it as binary, an
+   *  over-limit file is read to the cap and reported truncated (the caller
+   *  shows only the leading window). */
+  async function readFileText(
+    path: string, maxBytes: number, signal: AbortSignal,
+  ): Promise<{ content: string; truncated: boolean }> {
+    const info = await stat(path)
+    if (!info.isFile()) {
+      throw new Error(`not a file: ${path}`)
+    }
+    const cap = Math.max(1, maxBytes)
+    // Read at most cap + 1 bytes so a file larger than the cap is detected
+    // without reading it whole; an exactly-cap file stays non-truncated.
+    const readLength = Math.min(info.size, cap + 1)
+    const handle = await open(path, 'r')
+    try {
+      signal.throwIfAborted()
+      const buffer = Buffer.alloc(readLength === 0 ? 1 : readLength)
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+      const slice = buffer.subarray(0, bytesRead)
+      // A NUL byte in the leading probe window means binary; decoding such a
+      // buffer as utf-8 would render garbage, so fail and let the caller fall
+      // back to the OS opener. Probe only the portion that was read.
+      const probe = slice.subarray(0, Math.min(slice.length, READ_BINARY_PROBE_BYTES))
+      if (probe.includes(0)) throw new Error(`binary file: ${path}`)
+      const truncated = info.size > cap
+      const content = slice.subarray(0, truncated ? cap : slice.length).toString('utf8')
+      return { content, truncated }
+    } finally {
+      await handle.close()
+    }
+  }
+
+  /** Read one text file for the in-page preview, mapping failures onto the wire vocabulary. */
+  async function readFilePreview(
+    request: RpcRequest<unknown>, path: string, maxBytes: number, signal: AbortSignal,
+  ): Promise<RpcResponse<{ path: string; content: string; truncated: boolean; lang: string | null }>> {
+    try {
+      const read = defaults.readFile
+        ?? ((target, cap, readSignal) => readFileText(target, cap, readSignal))
+      const { content, truncated } = await read(path, maxBytes, signal)
+      return ok(request, { path, content, truncated, lang: readLang(path) })
+    } catch (error: unknown) {
+      if (signal.aborted) {
+        return err(request, { code: 'cancelled', message: 'file read was aborted', details: {} })
+      }
+      const tooLarge = error as { size?: unknown; cap?: unknown }
+      const { size, cap } = tooLarge
+      const isTooLarge = typeof size === 'number' && typeof cap === 'number'
+      return err(request, {
+        code: 'file-read-failed',
+        message: error instanceof Error ? error.message : String(error),
+        details: isTooLarge ? { path, size, maxBytes: cap } : { path },
+      })
+    }
+  }
+
   /** Where the resolved harness home came from, mirroring resolveDshHome's precedence. */
   function dshHomeSource(): 'default' | 'env' | 'boot-file' {
     const envHome = process.env[DSH_HOME_ENV]
@@ -2957,6 +3048,10 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
 
       async openPath(request, signal) {
         return openPath(request, request.payload.path, signal)
+      },
+
+      async readFile(request, signal) {
+        return readFilePreview(request, request.payload.path, request.payload.maxBytes ?? DEFAULT_READ_MAX_BYTES, signal)
       },
     },
 

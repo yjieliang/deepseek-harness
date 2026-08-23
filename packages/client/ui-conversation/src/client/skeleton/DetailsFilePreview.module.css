@@ -1,0 +1,86 @@
+/* File preview body inside the details column: a status line for loading /
+   error, the ReadBlock card, and a "open in system" secondary action. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.status {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.retry {
+  min-width: 72px;
+}
+
+/* Source / rendered toggle: a small segmented control above the card, shown
+   only for Markdown source. */
+.modeBar {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+.modeTab,
+.modeTabActive {
+  padding: 3px 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.modeTabActive {
+  background: var(--dsw-alias-button-floating-fill);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: var(--dsw-shadow-lv1);
+}
+
+/* A truncation notice sits above the card so the reader knows the file is a
+   leading window, not the whole file. */
+.truncated {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+.block {
+  /* ReadBlock's own expand control needs vertical room; the details body
+     already scrolls, so an internal cap just keeps a huge preview bounded. */
+  max-height: 100%;
+}
+
+.openInSystem {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-business-primary);
+  cursor: pointer;
+}
+
+.openInSystem:hover {
+  text-decoration: underline;
+}
