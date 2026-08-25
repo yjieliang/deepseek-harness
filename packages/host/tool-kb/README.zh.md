@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-知识库的**模型面向工具**——`kb_search`、`kb_add`、`kb_get`、`kb_update`、`kb_move`、`kb_delete`、`kb_links`、`kb_tags`、`kb_stats`、`kb_archive`、`kb_organize`、`kb_images`、`kb_import`、`kb_export`、`kb_clip`，作用于 `kb/` 工作区根目录。这是知识库能力的 agent 平面消费方：它拥有工具名、JSON schema、字段语法解析（`tag:`/`path:`/`status:`/`title:`）、批量操作闸门、提示词段与复合编排（归档、整理、导入、导出、剪藏）。所有读写都经 `ctx.kb`（[`@deepseek-ai/dsh-host-kb`](../kb) 网关服务）完成，浏览器面板与 agent 工具共享同一引擎、同一索引、同一写路径。
+知识库的**模型面向工具**——`kb_search`、`kb_add`、`kb_get`、`kb_update`、`kb_move`、`kb_rename`、`kb_delete`、`kb_links`、`kb_tags`、`kb_stats`、`kb_archive`、`kb_organize`、`kb_images`、`kb_import`、`kb_export`、`kb_clip`，作用于 `kb/` 工作区根目录。这是知识库能力的 agent 平面消费方：它拥有工具名、JSON schema、字段语法解析（`tag:`/`path:`/`status:`/`title:`）、批量操作闸门、提示词段与复合编排（归档、整理、导入、导出、剪藏）。所有读写都经 `ctx.kb`（[`@deepseek-ai/dsh-host-kb`](../kb) 网关服务）完成，浏览器面板与 agent 工具共享同一引擎、同一索引、同一写路径。
 
 ```ts ignore-check
 // Default deployment: the host knowledge-base feature, then the tools.
@@ -31,7 +31,8 @@ await ctx.plugin(ToolKb)                                // this package
 | `kb_add` | `title`, `content?`, `directory?`, `tags?`, `source?`, `summary?` | 新建带日期与 frontmatter 的文档（默认 `00-inbox`）。 |
 | `kb_get` | `path` | 全文读取：正文、frontmatter、反链、版本令牌。 |
 | `kb_update` | `path`, `content?`, `summary?`, `tags?`, `expectVersion?` | 乐观锁补丁更新；过期版本以冲突错误拒绝。 |
-| `kb_move` | `path`, `targetDirectory` | 移动/重命名（移动即改推导状态）。 |
+| `kb_move` | `path`, `targetDirectory` | 移动到其他目录（移动即改推导状态）。 |
+| `kb_rename` | `path`, `name` | 在当前目录内重命名：改文件名与 frontmatter 标题，保留其余元数据。 |
 | `kb_delete` | `path` | 移入 `.trash`（可恢复，绝不直接删除）。 |
 | `kb_links` | `path` | 一篇文档的出链与反链。 |
 | `kb_tags` | — | 带文档数的标签索引。 |
@@ -56,7 +57,7 @@ await ctx.plugin(ToolKb)                                // this package
 ##### 知识库引导段
 
 ```markdown
-知识库(Knowledge Base)位于工作区根目录 `kb/`,提供 kb_search / kb_add / kb_get / kb_update / kb_move / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 15 个工具。用户提到「知识库」「知识管理」「收藏」「剪藏」时,优先使用这些工具读写知识库,而不是通用文件工具。
+知识库(Knowledge Base)位于工作区根目录 `kb/`,提供 kb_search / kb_add / kb_get / kb_update / kb_move / kb_rename / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 16 个工具。用户提到「知识库」「知识管理」「收藏」「剪藏」时,优先使用这些工具读写知识库,而不是通用文件工具。
 ```
 
 #### Token 影响
@@ -71,7 +72,7 @@ await ctx.plugin(ToolKb)                                // this package
 
 #### 模型所见
 
-模型看到 15 个 `kb_*` 工具的[生成 schema](../../../docs/tool-catalog.md#deepseek-aidsh-tool-kb)。`kb_search` 的 schema 公布 `tag:/path:/status:/title:` 前缀；`kb_archive` 与 `kb_import` 公布批量确认行为。
+模型看到 16 个 `kb_*` 工具的[生成 schema](../../../docs/tool-catalog.md#deepseek-aidsh-tool-kb)。`kb_search` 的 schema 公布 `tag:/path:/status:/title:` 前缀；`kb_archive` 与 `kb_import` 公布批量确认行为。
 
 #### Token 影响
 
@@ -85,7 +86,7 @@ await ctx.plugin(ToolKb)                                // this package
 
 #### 模型所见
 
-每个工具返回引擎规范 JSON 的文本块：`kb_search` → `{ hits, total }`，`kb_add`/`kb_clip` → `{ path, ... }`，`kb_get` → `{ path, content, meta, backlinks, version }`，`kb_links` → `{ path, outLinks, backlinks }`，`kb_archive` → `{ dryRun, candidates, count }`，`kb_organize` → `{ report }`，`kb_images` → `{ total, images, orphans }`，`kb_import` → `{ imported, count }`，`kb_export` → `{ files, count }`。
+每个工具返回引擎规范 JSON 的文本块：`kb_search` → `{ hits, total }`，`kb_add`/`kb_clip` → `{ path, ... }`，`kb_get` → `{ path, content, meta, backlinks, version }`，`kb_links` → `{ path, outLinks, backlinks }`，`kb_move`/`kb_rename` → `{ from, to }`，`kb_archive` → `{ dryRun, candidates, count }`，`kb_organize` → `{ report }`，`kb_images` → `{ total, images, orphans }`，`kb_import` → `{ imported, count }`，`kb_export` → `{ files, count }`。
 
 #### Token 影响
 
@@ -99,7 +100,7 @@ await ctx.plugin(ToolKb)                                // this package
 
 #### 模型所见
 
-失败归一为 `Error: <message>`。本包稳定消息包括 `kb: 标题不能为空`、`kb: 缺少 path`、`kb: 仅支持 http/https URL`、`kb: 版本冲突,请重新读取后再更新`，以及批量闸门 `kb: 批量归档 <n> 篇超过确认阈值 <m>,请先用 dry-run 预览确认` / `kb: 批量导入 <n> 篇超过确认阈值 <m>,请分批导入`；引擎错误原样透传。
+失败归一为 `Error: <message>`。本包稳定消息包括 `kb: 标题不能为空`、`kb: 缺少 path`、`kb: 缺少 path 或 name`、`kb: 新名称不能为空`、`kb: 仅支持 http/https URL`、`kb: 版本冲突,请重新读取后再更新`，以及批量闸门 `kb: 批量归档 <n> 篇超过确认阈值 <m>,请先用 dry-run 预览确认` / `kb: 批量导入 <n> 篇超过确认阈值 <m>,请分批导入`；引擎错误原样透传。
 
 #### Token 影响
 

@@ -22,10 +22,10 @@ import type {
   KbCreateDirRequest, KbCreateDirResult, KbCreateRequest, KbCreateResult, KbDeleteRequest,
   KbDeleteResult, KbDirsResult, KbEmptyRequest, KbEmptyResult, KbGetRequest, KbGetResult,
   KbImagesResult, KbLinksResult, KbListRequest, KbListResult, KbMoveRequest, KbMoveResult,
-  KbPurgeRequest, KbPurgeResult, KbRenameDirRequest, KbRenameDirResult, KbResolveRequest,
-  KbResolveResult, KbRestoreRequest, KbRestoreResult, KbSaveRequest, KbSaveResult,
-  KbSearchRequest, KbSearchResult, KbStatsResult, KbTagsResult, KbToolSearchRequest,
-  KbTrashResult,
+  KbPurgeRequest, KbPurgeResult, KbRenameDirRequest, KbRenameDirResult, KbRenameRequest,
+  KbRenameResult, KbResolveRequest, KbResolveResult, KbRestoreRequest, KbRestoreResult,
+  KbSaveRequest, KbSaveResult, KbSearchRequest, KbSearchResult, KbStatsResult, KbTagsResult,
+  KbToolSearchRequest, KbTrashResult,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -315,6 +315,18 @@ export class KbGateway extends TypertRemoteService {
   async moveDoc(request: KbMoveRequest, signal: AbortSignal): Promise<KbMoveResult> {
     signal.throwIfAborted()
     return await this.engine.move(request, signal)
+  }
+
+  /**
+   * Rename a document within the same directory, updating the frontmatter title.
+   * @param request - source path and new stem name
+   * @param signal - abort signal for cooperative cancellation
+   * @returns source and destination paths
+   */
+  @Remote('renameDoc')
+  async renameDoc(request: KbRenameRequest, signal: AbortSignal): Promise<KbRenameResult> {
+    signal.throwIfAborted()
+    return await this.engine.rename(request, signal)
   }
 
   /**

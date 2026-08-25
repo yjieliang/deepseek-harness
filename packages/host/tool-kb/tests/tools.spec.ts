@@ -71,12 +71,12 @@ async function bench(seed: Record<string, string>): Promise<{
 }
 
 describe('tool-kb registration', () => {
-  it('registers the 15 tools and the prompt section', async () => {
+  it('registers the 16 tools and the prompt section', async () => {
     const { registry, sections } = await bench({})
     expect([...registry.keys()].sort()).toEqual([
       'kb_add', 'kb_archive', 'kb_clip', 'kb_delete', 'kb_export', 'kb_get', 'kb_images',
-      'kb_import', 'kb_links', 'kb_move', 'kb_organize', 'kb_search', 'kb_stats', 'kb_tags',
-      'kb_update',
+      'kb_import', 'kb_links', 'kb_move', 'kb_organize', 'kb_rename', 'kb_search', 'kb_stats',
+      'kb_tags', 'kb_update',
     ])
     expect(sections).toHaveLength(1)
     expect(sections[0]).toMatchObject({ name: 'knowledge-base', order: 30 })
@@ -125,6 +125,38 @@ describe('kb_add / kb_get / kb_update', () => {
     await expect(run('kb_update', {
       path: '10-技术/2026-08-12-a.md', content: '覆盖', expectVersion: read.version,
     })).rejects.toThrow(/版本冲突/)
+  })
+})
+
+describe('kb_rename', () => {
+  it('renames a document within the same directory and updates the title', async () => {
+    const { run } = await bench({
+      '10-技术/2026-08-12-旧文档.md': doc('旧文档', '2026-08-12', 'tags: [AI]\nsummary: 旧文档摘要\n'),
+    })
+    const result = await run('kb_rename', { path: '10-技术/2026-08-12-旧文档.md', name: '新文档' }) as { from: string; to: string }
+    expect(result.from).toBe('10-技术/2026-08-12-旧文档.md')
+    expect(result.to).toBe('10-技术/新文档.md')
+    // The old file should be blanked.
+    const oldContent = await run('kb_get', { path: '10-技术/2026-08-12-旧文档.md' })
+    expect((oldContent as { content: string }).content).toBe('')
+    // The new file should have the updated title and preserved metadata.
+    const read = await run('kb_get', { path: '10-技术/新文档.md' }) as { meta: Record<string, unknown>; content: string }
+    expect(read.meta.title).toBe('新文档')
+    expect(read.meta.tags).toEqual(['AI'])
+    expect(read.meta.summary).toBe('旧文档摘要')
+    expect(read.content).toContain('正文 旧文档')
+  })
+
+  it('refuses missing path', async () => {
+    const { run } = await bench({})
+    await expect(run('kb_rename', { path: '不存在.md', name: '新' })).rejects.toThrow()
+  })
+
+  it('refuses empty name', async () => {
+    const { run } = await bench({
+      '00-inbox/2026-08-12-a.md': doc('甲', '2026-08-12'),
+    })
+    await expect(run('kb_rename', { path: '00-inbox/2026-08-12-a.md', name: '  ' })).rejects.toThrow()
   })
 })
 

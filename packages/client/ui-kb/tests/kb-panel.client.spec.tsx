@@ -74,6 +74,10 @@ function makePanelProps() {
       from: path,
       to: `${targetDirectory}/${path.split('/').pop() ?? path}`,
     })),
+    rename: vi.fn(async ({ path, name }: { path: string; name: string }) => {
+      const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : ''
+      return { from: path, to: `${dir}${name}.md` }
+    }),
     remove: vi.fn(async () => undefined),
     trash: vi.fn(async () => []),
     refresh: vi.fn(async () => undefined),
@@ -178,6 +182,27 @@ describe('KbPanel three-column workspace', () => {
         path: '00-inbox/2026-08-10-乙.md',
         targetDirectory: '10-技术',
       })
+    })
+  })
+
+  it('renames a document through the card menu', async () => {
+    const panel = makePanelProps()
+    renderPanel(panel)
+
+    const cardTitle = (await screen.findAllByText('乙文档'))[0]
+    const card = cardTitle?.closest<HTMLElement>('[data-kb-menu]')
+    if (card === null || card === undefined) throw new Error('card container missing')
+    fireEvent.click(withinCard(card))
+    const renameButton = (await screen.findAllByText('重命名'))
+      .find(el => el.closest('[data-kb-menu]') !== null)
+    if (renameButton === undefined) throw new Error('rename menu item missing')
+    fireEvent.click(renameButton)
+    const input = card.querySelector<HTMLInputElement>('input')
+    if (input === null) throw new Error('rename input missing')
+    fireEvent.change(input, { target: { value: '新名称' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => {
+      expect(panel.rename).toHaveBeenCalledWith({ path: '00-inbox/2026-08-10-乙.md', name: '新名称' })
     })
   })
 

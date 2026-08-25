@@ -30,9 +30,10 @@ export type {
   KbCreateDirRequest, KbCreateDirResult, KbCreateRequest, KbCreateResult, KbDeleteRequest,
   KbDeleteResult, KbDocStatus, KbDocSummary, KbDirsResult, KbGetRequest, KbGetResult,
   KbListRequest, KbListResult, KbMoveRequest, KbMoveResult, KbPurgeRequest, KbPurgeResult,
-  KbRenameDirRequest, KbRenameDirResult, KbResolveRequest, KbResolveResult, KbRestoreRequest,
-  KbRestoreResult, KbSaveRequest, KbSaveResult, KbSearchRequest, KbSearchResult, KbStatsResult,
-  KbStatusFilter, KbTagCount, KbTagsResult, KbTrashEntry, KbTrashResult,
+  KbRenameDirRequest, KbRenameDirResult, KbRenameRequest, KbRenameResult, KbResolveRequest,
+  KbResolveResult, KbRestoreRequest, KbRestoreResult, KbSaveRequest, KbSaveResult,
+  KbSearchRequest, KbSearchResult, KbStatsResult, KbStatusFilter, KbTagCount, KbTagsResult,
+  KbTrashEntry, KbTrashResult,
 } from '@deepseek-ai/dsh-host-kb/types'
 export type {} from '@deepseek-ai/dsh-commands/remote'
 export type {} from '@deepseek-ai/dsh-file-reference/remote'

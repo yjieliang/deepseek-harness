@@ -6,8 +6,8 @@
 
 import type {
   KbCreateDirRequest, KbCreateRequest, KbCreateResult, KbDocSummary, KbGetResult, KbListRequest,
-  KbMoveRequest, KbMoveResult, KbRenameDirRequest, KbSaveRequest, KbSaveResult, KbStatsResult, KbTagCount,
-  KbTrashEntry,
+  KbMoveRequest, KbMoveResult, KbRenameDirRequest, KbRenameRequest, KbRenameResult, KbSaveRequest,
+  KbSaveResult, KbStatsResult, KbTagCount, KbTrashEntry,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -46,6 +46,8 @@ export interface KbInject {
   create: (request: KbCreateRequest) => Promise<KbCreateResult>
   /** Move a document into another directory. */
   move: (request: KbMoveRequest) => Promise<KbMoveResult>
+  /** Rename a document within the same directory, updating its title. */
+  rename: (request: KbRenameRequest) => Promise<KbRenameResult>
   /** Move a document into `.trash` (recoverable). */
   remove: (path: string) => Promise<void>
   /** List the recoverable trash. */

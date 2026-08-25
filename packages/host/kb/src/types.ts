@@ -334,6 +334,22 @@ export interface KbCreateDirResult {
   directory: string
 }
 
+/** Rename-document request: changes the filename within the same directory. */
+export interface KbRenameRequest {
+  /** Library-relative source path. */
+  path: string
+  /** New filename stem (without extension), e.g. `新文档名`. */
+  name: string
+}
+
+/** Rename-document response. */
+export interface KbRenameResult {
+  /** Source path. */
+  from: string
+  /** Destination path (renamed on collision). */
+  to: string
+}
+
 /** Rename-directory request: relocates the directory and every entry beneath it. */
 export interface KbRenameDirRequest {
   /** Library-relative directory to rename. */

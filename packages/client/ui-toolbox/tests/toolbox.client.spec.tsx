@@ -56,7 +56,7 @@ describe('ToolboxPanel', () => {
     fireEvent.change(tzSelects[0]!, { target: { value: 'UTC' } })
     const input = screen.getByPlaceholderText('1787565892901')
     fireEvent.change(input, { target: { value: '1700000000' } })
-    fireEvent.click(screen.getAllByRole('button').filter(b => b.textContent === '转换')[0])
+    fireEvent.click(screen.getAllByRole('button').filter(b => b.textContent === '转换')[0]!)
     expect(screen.getByText(/2023-11-14 22:13:20/)).toBeTruthy()
   })
 

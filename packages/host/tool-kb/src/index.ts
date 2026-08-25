@@ -50,7 +50,7 @@ type ResolvedConfig = Required<Config>
 
 /** The prompt section text, stable for model-visible transcripts. */
 const KB_PROMPT_SECTION =
-  '知识库(Knowledge Base)位于工作区根目录 `kb/`,提供 kb_search / kb_add / kb_get / kb_update / kb_move / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 15 个工具。用户提到「知识库」「知识管理」「收藏」「剪藏」时,优先使用这些工具读写知识库,而不是通用文件工具。'
+  '知识库(Knowledge Base)位于工作区根目录 `kb/`,提供 kb_search / kb_add / kb_get / kb_update / kb_move / kb_rename / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 16 个工具。用户提到「知识库」「知识管理」「收藏」「剪藏」时,优先使用这些工具读写知识库,而不是通用文件工具。'
 
 /** Canonical JSON-text render shared by every tool. */
 const toolRender = (_args: unknown, value: JsonValue): ContentBlock[] =>
@@ -220,6 +220,24 @@ export function apply(ctx: Context, config: Config): void {
       const input = args as { path?: string; targetDirectory?: string }
       if (!input.path || !input.targetDirectory) throw new Error('kb: 缺少 path 或 targetDirectory')
       return await ctx.kb.moveDoc({ path: input.path, targetDirectory: input.targetDirectory }, exec.signal)
+    },
+  })
+
+  register(ctx, {
+    name: 'kb_rename',
+    description: '重命名知识库文档(同一目录内更改文件名,同时更新文档标题)',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: '文档相对路径' },
+        name: { type: 'string', description: '新文件名(不含扩展名和路径)' },
+      },
+    },
+    output: { schema: { type: 'object', additionalProperties: true }, render: toolRender },
+    execute: async (args, exec) => {
+      const input = args as { path?: string; name?: string }
+      if (!input.path || !input.name) throw new Error('kb: 缺少 path 或 name')
+      return await ctx.kb.renameDoc({ path: input.path, name: input.name }, exec.signal)
     },
   })
 

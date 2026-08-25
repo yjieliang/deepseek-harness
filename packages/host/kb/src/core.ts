@@ -17,9 +17,9 @@ import type {
   KbCreateDirRequest, KbCreateDirResult, KbCreateRequest, KbCreateResult, KbDeleteRequest,
   KbDeleteResult, KbDocStatus, KbDocSummary, KbGetRequest, KbGetResult, KbImagesResult,
   KbLinksResult, KbListRequest, KbMoveRequest, KbMoveResult, KbPurgeRequest, KbPurgeResult,
-  KbRenameDirRequest, KbRenameDirResult, KbResolveRequest, KbResolveResult, KbRestoreRequest,
-  KbRestoreResult, KbSaveRequest, KbSaveResult, KbSearchFilters, KbSearchResult,
-  KbStatusFilter, KbTrashEntry, KbTrashResult,
+  KbRenameDirRequest, KbRenameDirResult, KbRenameRequest, KbRenameResult, KbResolveRequest,
+  KbResolveResult, KbRestoreRequest, KbRestoreResult, KbSaveRequest, KbSaveResult,
+  KbSearchFilters, KbSearchResult, KbStatusFilter, KbTrashEntry, KbTrashResult,
 } from './types.ts'
 
 /** One parsed document: frontmatter plus body. */
@@ -577,6 +577,44 @@ export class KbEngine {
     const from = await this.target(rel, signal)
     const destination = await this.target(to, signal)
     const text = await this.fs.readText(from, signal)
+    await this.fs.writeText(destination, text, undefined, signal)
+    await this.fs.writeText(from, ' ', undefined, signal)
+    this.dropIndexed(rel)
+    this.docs.delete(rel)
+    const next = parseFrontmatter(await this.fs.readText(destination, signal))
+    this.docs.set(to, next)
+    this.indexDoc(to, next)
+    await this.writeIndex(signal)
+    return { from: rel, to }
+  }
+
+  /**
+   * Rename a document within the same directory, updating the frontmatter title
+   * to match the new name. The document stays in its current directory; only the
+   * filename stem changes.
+   * @param request - source path and new stem
+   * @param signal - abort signal for cooperative cancellation
+   * @returns source and destination paths
+   */
+  async rename(request: KbRenameRequest, signal?: AbortSignal): Promise<KbRenameResult> {
+    await this.ensureInit(signal)
+    const rel = stripLeadingSlash(request.path)
+    const doc = this.docs.get(rel)
+    if (doc === undefined) throw new Error(`kb: 文档不存在: ${rel}`)
+    const name = request.name.trim()
+    if (name.length === 0) throw new Error('kb: 新名称不能为空')
+    const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : ''
+    const stem = sanitizeName(name)
+    let to = dir === '' ? `${stem}.md` : `${dir}/${stem}.md`
+    for (let seq = 2; this.docs.has(to) || to === rel; seq++) {
+      to = dir === '' ? `${stem}-${seq}.md` : `${dir}/${stem}-${seq}.md`
+    }
+    const from = await this.target(rel, signal)
+    const destination = await this.target(to, signal)
+    // Update the frontmatter title to match the new name, preserving all other fields.
+    const meta: Record<string, string | string[]> = { ...doc.meta, title: name }
+    meta.updated = today()
+    const text = renderDoc(meta, doc.body)
     await this.fs.writeText(destination, text, undefined, signal)
     await this.fs.writeText(from, ' ', undefined, signal)
     this.dropIndexed(rel)

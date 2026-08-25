@@ -847,6 +847,25 @@
   box-shadow: 0 0 0 2px var(--dsw-alias-state-business-tertiary);
 }
 
+.menuInput {
+  margin: 0 4px 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  font-size: 12.5px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  outline: none;
+  min-width: 132px;
+  transition: border-color var(--kb-transition), box-shadow var(--kb-transition);
+}
+
+.menuInput:focus-visible {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 2px var(--dsw-alias-state-business-tertiary);
+}
+
 .empty {
   color: var(--dsw-alias-label-tertiary);
   font-size: 13px;

@@ -100,7 +100,7 @@ const SEARCH_DEBOUNCE_MS = 300
  * @returns the panel, or null while closed.
  */
 export function KbPanel({
-  list, search, get, dirs, save, create, move, remove, trash, restore, purge, stats, tags,
+  list, search, get, dirs, save, create, move, rename, remove, trash, restore, purge, stats, tags,
   refresh, createDir, renameDir, assetUrl, close, useKbUi, t,
 }: KbPanelProps) {
   const state = useKbUi(snapshot => snapshot)
@@ -130,6 +130,8 @@ export function KbPanel({
   const [newDir, setNewDir] = useState('00-inbox')
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const [moveFor, setMoveFor] = useState<string | null>(null)
+  const [renameFor, setRenameFor] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   const [dirEdit, setDirEdit] = useState<{ mode: 'create' | 'rename'; parent: string } | null>(null)
   const [dirEditValue, setDirEditValue] = useState('')
   const [lastError, setLastError] = useState<string | null>(null)
@@ -201,6 +203,7 @@ export function KbPanel({
       if (!target.closest('[data-kb-menu]')) {
         setMenuFor(null)
         setMoveFor(null)
+        setRenameFor(null)
       }
     }
     document.addEventListener('mousedown', dismiss)
@@ -266,6 +269,17 @@ export function KbPanel({
     if (selected === null) return
     void remove(selected).then(() => {
       setSelected(null)
+      loadList(query, status, dir, tag)
+      refreshAux()
+    }).catch((error: unknown) => { setLastError(messageOf(error)) })
+  }
+
+  /** Rename a document within its directory and keep the view on it when selected. */
+  const renameDocument = (path: string, name: string): void => {
+    setRenameFor(null)
+    setMenuFor(null)
+    void rename({ path, name }).then((result) => {
+      if (selected === path) setSelected(result.to)
       loadList(query, status, dir, tag)
       refreshAux()
     }).catch((error: unknown) => { setLastError(messageOf(error)) })
@@ -637,7 +651,17 @@ export function KbPanel({
                           moveFor={moveFor}
                           dirList={dirList}
                           t={t}
-                          onMenu={(path) => { setMenuFor(menuFor === path ? null : path); setMoveFor(null) }}
+                          onMenu={(path) => { setMenuFor(menuFor === path ? null : path); setMoveFor(null); setRenameFor(null) }}
+                          renameFor={renameFor}
+                          renameValue={renameValue}
+                          onRenameValue={setRenameValue}
+                          onRenamePick={(path) => {
+                            setRenameFor(renameFor === path ? null : path)
+                            setRenameValue(docs.find(doc => doc.path === path)?.title ?? '')
+                            setMoveFor(null)
+                          }}
+                          onRename={renameDocument}
+                          onRenameCancel={() => { setRenameFor(null); setMenuFor(null) }}
                           onPin={path => void save({ path, pinned: !(docs.find(doc => doc.path === path)?.pinned ?? false) })
                             .then(() => { loadList(query, status, dir, tag) })
                             .catch((error: unknown) => { setLastError(messageOf(error)) })}
@@ -671,7 +695,17 @@ export function KbPanel({
                           moveFor={moveFor}
                           dirList={dirList}
                           t={t}
-                          onMenu={(path) => { setMenuFor(menuFor === path ? null : path); setMoveFor(null) }}
+                          onMenu={(path) => { setMenuFor(menuFor === path ? null : path); setMoveFor(null); setRenameFor(null) }}
+                          renameFor={renameFor}
+                          renameValue={renameValue}
+                          onRenameValue={setRenameValue}
+                          onRenamePick={(path) => {
+                            setRenameFor(renameFor === path ? null : path)
+                            setRenameValue(docs.find(doc => doc.path === path)?.title ?? '')
+                            setMoveFor(null)
+                          }}
+                          onRename={renameDocument}
+                          onRenameCancel={() => { setRenameFor(null); setMenuFor(null) }}
                           onPin={path => void save({ path, pinned: !(docs.find(doc => doc.path === path)?.pinned ?? false) })
                             .then(() => { loadList(query, status, dir, tag) })
                             .catch((error: unknown) => { setLastError(messageOf(error)) })}
@@ -1056,19 +1090,26 @@ function DirRow({
 
 /** One document card with its hover menu (pin / move / delete). */
 function DocCard({
-  doc, active, open, menuFor, moveFor, dirList, t, onMenu, onPin, onMovePick, onMoveTo, onDelete,
+  doc, active, open, menuFor, moveFor, renameFor, renameValue, dirList, t, onMenu, onPin,
+  onMovePick, onMoveTo, onRenameValue, onRenamePick, onRename, onRenameCancel, onDelete,
 }: {
   doc: KbDocSummary
   active: boolean
   open: () => void
   menuFor: string | null
   moveFor: string | null
+  renameFor: string | null
+  renameValue: string
   dirList: readonly string[]
   t: KbPanelProps['t']
   onMenu: (path: string) => void
   onPin: (path: string) => void
   onMovePick: (path: string) => void
   onMoveTo: (path: string, targetDirectory: string) => void
+  onRenameValue: (value: string) => void
+  onRenamePick: (path: string) => void
+  onRename: (path: string, name: string) => void
+  onRenameCancel: () => void
   onDelete: (path: string) => void
 }) {
   return (
@@ -1095,34 +1136,54 @@ function DocCard({
       </div>
       {menuFor === doc.path && (
         <div className={css.menu} data-kb-menu="" onClick={(event) => { event.stopPropagation() }}>
-          {!moveFor && (
-            <button type="button" className={css.menuItem} onClick={() => { onPin(doc.path) }}>
-              {doc.pinned ? t('menu.unpin') : t('menu.pin')}
-            </button>
-          )}
-          <button type="button" className={css.menuItem} onClick={() => { onMovePick(doc.path) }}>
-            {t('menu.move')}
-          </button>
-          {moveFor === doc.path && (
-            <div className={css.menuMove}>
-              <select
-                className={css.menuSelect}
-                defaultValue=""
-                onChange={(event) => {
-                  if (event.target.value.length > 0) onMoveTo(doc.path, event.target.value)
-                }}
-              >
-                <option value="" disabled>{t('menu.movePlaceholder')}</option>
-                {dirList.filter(entry => entry !== dirOf(doc.path)).map(entry => (
-                  <option key={entry} value={entry}>{entry}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          {!moveFor && (
-            <button type="button" className={css.menuItemDanger} onClick={() => { onDelete(doc.path) }}>
-              {t('menu.delete')}
-            </button>
+          {renameFor === doc.path ? (
+            <input
+              className={css.menuInput}
+              autoFocus
+              value={renameValue}
+              placeholder={t('menu.renamePlaceholder')}
+              onClick={(event) => { event.stopPropagation() }}
+              onChange={(event) => { onRenameValue(event.target.value) }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && renameValue.trim().length > 0) onRename(doc.path, renameValue.trim())
+                else if (event.key === 'Escape') onRenameCancel()
+              }}
+            />
+          ) : (
+            <>
+              {!moveFor && (
+                <button type="button" className={css.menuItem} onClick={() => { onPin(doc.path) }}>
+                  {doc.pinned ? t('menu.unpin') : t('menu.pin')}
+                </button>
+              )}
+              <button type="button" className={css.menuItem} onClick={() => { onRenamePick(doc.path) }}>
+                {t('menu.rename')}
+              </button>
+              <button type="button" className={css.menuItem} onClick={() => { onMovePick(doc.path) }}>
+                {t('menu.move')}
+              </button>
+              {moveFor === doc.path && (
+                <div className={css.menuMove}>
+                  <select
+                    className={css.menuSelect}
+                    defaultValue=""
+                    onChange={(event) => {
+                      if (event.target.value.length > 0) onMoveTo(doc.path, event.target.value)
+                    }}
+                  >
+                    <option value="" disabled>{t('menu.movePlaceholder')}</option>
+                    {dirList.filter(entry => entry !== dirOf(doc.path)).map(entry => (
+                      <option key={entry} value={entry}>{entry}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {!moveFor && (
+                <button type="button" className={css.menuItemDanger} onClick={() => { onDelete(doc.path) }}>
+                  {t('menu.delete')}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-The **model-facing knowledge-base tools** — `kb_search`, `kb_add`, `kb_get`, `kb_update`, `kb_move`, `kb_delete`, `kb_links`, `kb_tags`, `kb_stats`, `kb_archive`, `kb_organize`, `kb_images`, `kb_import`, `kb_export`, `kb_clip` — for the `kb/` workspace root. This is the agent-plane consumer of the knowledge-base capability: it owns the tool names, JSON schemas, field-syntax parsing (`tag:`/`path:`/`status:`/`title:`), bulk-operation gates, the prompt section, and the composite orchestrations (archive, organize, import, export, clip). Every read and write goes through `ctx.kb` — the [`@deepseek-ai/dsh-host-kb`](../kb) gateway service — so the browser panel and the agent tools share one engine, one index, and one write path.
+The **model-facing knowledge-base tools** — `kb_search`, `kb_add`, `kb_get`, `kb_update`, `kb_move`, `kb_rename`, `kb_delete`, `kb_links`, `kb_tags`, `kb_stats`, `kb_archive`, `kb_organize`, `kb_images`, `kb_import`, `kb_export`, `kb_clip` — for the `kb/` workspace root. This is the agent-plane consumer of the knowledge-base capability: it owns the tool names, JSON schemas, field-syntax parsing (`tag:`/`path:`/`status:`/`title:`), bulk-operation gates, the prompt section, and the composite orchestrations (archive, organize, import, export, clip). Every read and write goes through `ctx.kb` — the [`@deepseek-ai/dsh-host-kb`](../kb) gateway service — so the browser panel and the agent tools share one engine, one index, and one write path.
 
 ```ts ignore-check
 // Default deployment: the host knowledge-base feature, then the tools.
@@ -31,7 +31,8 @@ All keys are optional; the defaults are the shipped values.
 | `kb_add` | `title`, `content?`, `directory?`, `tags?`, `source?`, `summary?` | Create a dated document (default `00-inbox`) with generated frontmatter. |
 | `kb_get` | `path` | Full read: body, frontmatter, backlinks, version token. |
 | `kb_update` | `path`, `content?`, `summary?`, `tags?`, `expectVersion?` | Patch body or metadata with an optimistic lock; a stale lock fails with a conflict error. |
-| `kb_move` | `path`, `targetDirectory` | Move/rename (moving changes the derived status). |
+| `kb_move` | `path`, `targetDirectory` | Move to another directory (moving changes the derived status). |
+| `kb_rename` | `path`, `name` | Rename within the current directory: changes the filename and the frontmatter title, keeping the rest of the metadata. |
 | `kb_delete` | `path` | Move into `.trash` (recoverable; never a direct delete). |
 | `kb_links` | `path` | Outlinks and backlinks of one document. |
 | `kb_tags` | — | Tag index with document counts. |
@@ -56,7 +57,7 @@ Every request in this plugin's registration scope receives the knowledge-base gu
 ##### Knowledge-base guidance
 
 ```markdown
-知识库(Knowledge Base)位于工作区根目录 `kb/`,提供 kb_search / kb_add / kb_get / kb_update / kb_move / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 15 个工具。用户提到「知识库」「知识管理」「收藏」「剪藏」时,优先使用这些工具读写知识库,而不是通用文件工具。
+知识库(Knowledge Base)位于工作区根目录 `kb/`,提供 kb_search / kb_add / kb_get / kb_update / kb_move / kb_rename / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 16 个工具。用户提到「知识库」「知识管理」「收藏」「剪藏」时,优先使用这些工具读写知识库,而不是通用文件工具。
 ```
 
 #### Token effect
@@ -71,7 +72,7 @@ Prefix-stable while the plugin scope and section text are unchanged.
 
 #### What the model sees
 
-The model sees the [generated schemas for the 15 `kb_*` tools](../../../docs/tool-catalog.md#deepseek-aidsh-tool-kb). The `kb_search` schema advertises the `tag:/path:/status:/title:` prefixes; `kb_archive` and `kb_import` advertise the bulk-confirm behavior.
+The model sees the [generated schemas for the 16 `kb_*` tools](../../../docs/tool-catalog.md#deepseek-aidsh-tool-kb). The `kb_search` schema advertises the `tag:/path:/status:/title:` prefixes; `kb_archive` and `kb_import` advertise the bulk-confirm behavior.
 
 #### Token effect
 
@@ -85,7 +86,7 @@ Prefix-stable while the visible tool definitions and order are unchanged.
 
 #### What the model sees
 
-Each tool returns the engine's canonical JSON value rendered as a JSON text block: `kb_search` → `{ hits, total }`, `kb_add`/`kb_clip` → `{ path, ... }`, `kb_get` → `{ path, content, meta, backlinks, version }`, `kb_links` → `{ path, outLinks, backlinks }`, `kb_archive` → `{ dryRun, candidates, count }`, `kb_organize` → `{ report }`, `kb_images` → `{ total, images, orphans }`, `kb_import` → `{ imported, count }`, `kb_export` → `{ files, count }`.
+Each tool returns the engine's canonical JSON value rendered as a JSON text block: `kb_search` → `{ hits, total }`, `kb_add`/`kb_clip` → `{ path, ... }`, `kb_get` → `{ path, content, meta, backlinks, version }`, `kb_links` → `{ path, outLinks, backlinks }`, `kb_move`/`kb_rename` → `{ from, to }`, `kb_archive` → `{ dryRun, candidates, count }`, `kb_organize` → `{ report }`, `kb_images` → `{ total, images, orphans }`, `kb_import` → `{ imported, count }`, `kb_export` → `{ files, count }`.
 
 #### Token effect
 
@@ -99,7 +100,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-Failures are normalized as `Error: <message>`. This package's stable messages include `kb: 标题不能为空`, `kb: 缺少 path`, `kb: 仅支持 http/https URL`, `kb: 版本冲突,请重新读取后再更新`, and the bulk gates `kb: 批量归档 <n> 篇超过确认阈值 <m>,请先用 dry-run 预览确认` / `kb: 批量导入 <n> 篇超过确认阈值 <m>,请分批导入`; engine errors pass through verbatim.
+Failures are normalized as `Error: <message>`. This package's stable messages include `kb: 标题不能为空`, `kb: 缺少 path`, `kb: 缺少 path 或 name`, `kb: 新名称不能为空`, `kb: 仅支持 http/https URL`, `kb: 版本冲突,请重新读取后再更新`, and the bulk gates `kb: 批量归档 <n> 篇超过确认阈值 <m>,请先用 dry-run 预览确认` / `kb: 批量导入 <n> 篇超过确认阈值 <m>,请分批导入`; engine errors pass through verbatim.
 
 #### Token effect
 
