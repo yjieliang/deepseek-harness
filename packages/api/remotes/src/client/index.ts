@@ -7,6 +7,7 @@ import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
 import fileReferencesRemote from '@deepseek-ai/dsh-file-reference/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 import lookupLlmRemote from '@deepseek-ai/dsh-host-lookup-llm/remote'
+import toolboxRemote from '@deepseek-ai/dsh-host-toolbox/remote'
 import kbRemote from '@deepseek-ai/dsh-host-kb/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
 import sessionReferencesRemote from '@deepseek-ai/dsh-session-reference/remote'
@@ -20,6 +21,12 @@ export type {
   LookupExplainResult,
 } from '@deepseek-ai/dsh-host-lookup-llm/types'
 export type {
+  ToolboxTranslateRequest,
+  ToolboxTranslateResult,
+  ToolboxUuidRequest,
+  ToolboxUuidResult,
+} from '@deepseek-ai/dsh-host-toolbox/types'
+export type {
   KbCreateDirRequest, KbCreateDirResult, KbCreateRequest, KbCreateResult, KbDeleteRequest,
   KbDeleteResult, KbDocStatus, KbDocSummary, KbDirsResult, KbGetRequest, KbGetResult,
   KbListRequest, KbListResult, KbMoveRequest, KbMoveResult, KbPurgeRequest, KbPurgeResult,
@@ -32,6 +39,7 @@ export type {} from '@deepseek-ai/dsh-file-reference/remote'
 export type {} from '@deepseek-ai/dsh-goal/remote'
 export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 export type {} from '@deepseek-ai/dsh-host-lookup-llm/remote'
+export type {} from '@deepseek-ai/dsh-host-toolbox/remote'
 export type {} from '@deepseek-ai/dsh-host-kb/remote'
 export type {} from '@deepseek-ai/dsh-message-feedback/remote'
 export type {} from '@deepseek-ai/dsh-session-reference/remote'
@@ -132,7 +140,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
   try {
     for (const contribution of [
       commandsRemote, goalsRemote, dynamicRemote, fileReferencesRemote,
-      pluginInventoryRemote, lookupLlmRemote, kbRemote, messageFeedbackRemote,
+      pluginInventoryRemote, lookupLlmRemote, toolboxRemote, kbRemote, messageFeedbackRemote,
       sessionReferencesRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))

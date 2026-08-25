@@ -49,6 +49,9 @@
       "path": "../../host/kb"
     },
     {
+      "path": "../../host/toolbox"
+    },
+    {
       "path": "../../interaction/commands"
     },
     {

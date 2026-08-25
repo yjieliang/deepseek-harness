@@ -16,11 +16,12 @@ import type {
 import { formatFileMention } from '@deepseek-ai/dsh-file-reference/grammar'
 import type { FileReferenceCandidate } from '@deepseek-ai/dsh-file-reference/types'
 import type { SessionReferenceMentionCandidate } from '@deepseek-ai/dsh-session-reference/types'
+import { SessionReferenceCopyAction } from './SessionReferenceCopyAction.tsx'
 import { en, NS, zh, type ReferenceKey } from './locales.ts'
 
 /** Required services: the trigger registry, the Remote namespaces, and the copy. */
 export const inject = [
-  'inputTriggers', 'locale', 'remote', 'remote.fileReferences', 'remote.sessionReferenceResolver',
+  'inputTriggers', 'locale', 'remote', 'remote.fileReferences', 'remote.sessionReferenceResolver', 'slots',
 ]
 
 /**
@@ -87,6 +88,16 @@ export function apply(ctx: ClientContext): void {
   }
   const inputTriggers = ctx.get('inputTriggers') as InputTriggerServiceContract
   ctx.effect(() => inputTriggers.registerSource(source), 'ui-reference: @ source')
+  // The session-header "copy reference" utility: writes this session's
+  // canonical mention to the clipboard for pasting into another session.
+  ctx.slots.inject(
+    'conversation.session.header.utilities',
+    () => ctx.slots.register({
+      name: 'conversation.session.header.utilities',
+      id: 'session-reference-copy',
+      locale: NS,
+    }, SessionReferenceCopyAction),
+  )
 }
 
 type Translate = (key: ReferenceKey) => string

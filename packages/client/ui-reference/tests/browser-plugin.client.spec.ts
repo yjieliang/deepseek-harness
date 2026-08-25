@@ -6,7 +6,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import { SlotRegistry, type SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type {
   CandidateRequest, ClientSessionContext, InputTriggerCandidate, InputTriggerSource,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
@@ -17,6 +17,11 @@ import { apply as nodeApply } from '../src/index.ts'
 
 const sid = (value: string): SessionId => value as SessionId
 const session: ClientSessionContext = { sessionId: sid('target') }
+
+/** Slot ledger reader: entry ids currently registered in the header utility list. */
+function headerEntryIds(ctx: Context): (string | undefined)[] {
+  return ctx.slots.entries('conversation.session.header.utilities').map(entry => entry.options.id)
+}
 
 type RemoteEnvelope<T> =
   | { ok: true; value: T }
@@ -60,6 +65,14 @@ async function bench(
   })),
 ): Promise<{ ctx: Context; fiber: ReturnType<Context['plugin']>; source: InputTriggerSource }> {
   const ctx = new Context()
+  await ctx.plugin(SlotRegistry).await()
+  // Declare the header utility list so the copy-reference action can register.
+  ctx.slots.register({
+    name: 'root',
+    children: {
+      'conversation.session.header.utilities': { kind: 'list', scope: 'session' },
+    },
+  } as never, () => null)
   let source: InputTriggerSource | undefined
   ctx.provide('inputTriggers', {
     registerSource(candidate: InputTriggerSource) {
@@ -83,13 +96,19 @@ async function bench(
 }
 
 describe('apply', () => {
-  it('declares its services and releases the @ reference registration on disposal', async () => {
+  it('declares its services and releases the @ source and header action on disposal', async () => {
     expect(inject).toEqual([
-      'inputTriggers', 'locale', 'remote', 'remote.fileReferences', 'remote.sessionReferenceResolver',
+      'inputTriggers', 'locale', 'remote', 'remote.fileReferences', 'remote.sessionReferenceResolver', 'slots',
     ])
-    const { fiber } = await bench()
     let registered: InputTriggerSource | undefined
     const ctx = new Context()
+    await ctx.plugin(SlotRegistry).await()
+    ctx.slots.register({
+      name: 'root',
+      children: {
+        'conversation.session.header.utilities': { kind: 'list', scope: 'session' },
+      },
+    } as never, () => null)
     ctx.provide('inputTriggers', {
       registerSource(source: InputTriggerSource) {
         registered = source
@@ -105,12 +124,13 @@ describe('apply', () => {
     ctx.provide('remote.fileReferences', { list: () => Promise.resolve({ ok: true, value: [] }) })
     ctx.provide('remote.sessionReferenceResolver', { candidates: () => Promise.resolve({ ok: true, value: [] }) })
     ctx.provide('locale', new LocaleRuntime(ctx))
-    const ownFiber = ctx.plugin({ inject: [...inject], apply })
-    await ownFiber.await()
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
     expect(registered).toMatchObject({ trigger: '@', name: 'reference', showGroupTitle: false })
-    await ownFiber.dispose()
-    expect(registered).toBeUndefined()
+    expect(headerEntryIds(ctx)).toContain('session-reference-copy')
     await fiber.dispose()
+    expect(registered).toBeUndefined()
+    expect(headerEntryIds(ctx)).not.toContain('session-reference-copy')
   })
 
   it('the node half applies without host-side behavior', () => {

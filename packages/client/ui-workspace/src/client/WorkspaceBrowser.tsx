@@ -13,11 +13,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   Button, IconArchiveOutline20, IconCloseFill14, IconPersonalizationOutline16,
-  IconProjectAddOutline16, IconSearchOutline16, Menu, Modal, Tooltip,
+  IconProjectAddOutline16, IconSearchOutline16, Menu, Modal, Toast, Tooltip, writeClipboard,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   SessionId, SessionListState, SessionSearchResultItem, WorkspaceId, WorkspaceView,
 } from '@deepseek-ai/dsh-client-runtime/client'
+import { formatSessionReferenceMention } from '@deepseek-ai/dsh-session-reference/grammar'
 import type { WorkspaceBrowserProps } from './contract/slots.ts'
 import type { ArchivedNode, SessionNode, SessionOrderBy } from './tree.ts'
 import { deriveArchived, deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from './tree.ts'
@@ -243,6 +244,8 @@ type SessionTreeProps = Pick<
   onSessionRename: (sessionId: SessionNode['id'], currentTitle: string) => void
   /** Archive a session (row menu action; the row disappears on the state echo). */
   onSessionArchive: (sessionId: SessionNode['id']) => void
+  /** Copy a session's canonical mention to the clipboard (row menu action). */
+  onSessionCopyReference: (sessionId: SessionNode['id'], title: string) => void
   /** Session order behavior: fixed after edits, or additionally promoted by user activity. */
   orderBy: SessionOrderBy
 }
@@ -250,7 +253,7 @@ type SessionTreeProps = Pick<
 /** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
 function SessionTree({
   useSessions, startSession, open, forkSession, workspaces, archivedSessionIds,
-  onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive,
+  onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive, onSessionCopyReference,
   insertWorkspaceBefore, insertSessionBefore, orderBy,
   groupExpansion, setGroupExpanded,
   sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t,
@@ -518,6 +521,7 @@ function SessionTree({
                     onOpen={open}
                     onRename={onSessionRename}
                     onFork={forkSession}
+                    onCopyReference={onSessionCopyReference}
                     onArchive={onSessionArchive}
                     drag={dragProps}
                     t={t}
@@ -547,7 +551,7 @@ function SessionTree({
 
 /** The flat "In one list" body: every session is one draggable top-level row. */
 function FlatList({
-  useSessions, open, forkSession, onSessionRename, onSessionArchive, archivedSessionIds,
+  useSessions, open, forkSession, onSessionRename, onSessionArchive, onSessionCopyReference, archivedSessionIds,
   orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, t,
 }: Pick<
   SessionTreeProps,
@@ -556,6 +560,7 @@ function FlatList({
   | 'forkSession'
   | 'onSessionRename'
   | 'onSessionArchive'
+  | 'onSessionCopyReference'
   | 'archivedSessionIds'
   | 'orderBy'
   | 'sessionOrderByAccount'
@@ -634,6 +639,7 @@ function FlatList({
               onOpen={open}
               onRename={onSessionRename}
               onFork={forkSession}
+              onCopyReference={onSessionCopyReference}
               onArchive={onSessionArchive}
               flat
               drag={{
@@ -991,6 +997,19 @@ export function WorkspaceBrowser({
     })
   }
 
+  // Copy reference is a pure client clipboard write with no host round-trip;
+  // a transient toast is the only confirmation, and a declined write stays
+  // silent (the control never claims a copy the host refused).
+  const [copyToast, setCopyToast] = useState<{ seq: number; text: string } | null>(null)
+  const copyToastSeq = useRef(0)
+  const onSessionCopyReference = (sessionId: SessionNode['id'], title: string) => {
+    void writeClipboard(formatSessionReferenceMention({ sessionId, label: title })).then((accepted) => {
+      if (!accepted) return
+      copyToastSeq.current += 1
+      setCopyToast({ seq: copyToastSeq.current, text: t('menu.copied') })
+    })
+  }
+
   // Delete dialog is separate from the row so a successful removal can
   // unmount that row without tearing down the in-flight confirmation state.
   const [deleteTarget, setDeleteTarget] = useState<{ workspaceId: WorkspaceId; title: string } | null>(null)
@@ -1190,7 +1209,7 @@ export function WorkspaceBrowser({
               ? (
                 <FlatList
                   useSessions={useSessions} open={open} forkSession={forkSession}
-                  onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
+                  onSessionRename={onSessionRename} onSessionArchive={onSessionArchive} onSessionCopyReference={onSessionCopyReference}
                   archivedSessionIds={archivedSessionIds}
                   orderBy={orderBy}
                   sessionOrderByAccount={sessionOrderByAccount}
@@ -1205,6 +1224,7 @@ export function WorkspaceBrowser({
                   useSessions={useSessions}
                   onSessionRename={onSessionRename}
                   onSessionArchive={onSessionArchive}
+                  onSessionCopyReference={onSessionCopyReference}
                   forkSession={forkSession}
                   workspaces={workspaces}
                   groupExpansion={groupExpansion}
@@ -1345,6 +1365,13 @@ export function WorkspaceBrowser({
         {deleting && <div className={css.deleteStatus} role="status">{t('delete.pending')}</div>}
         {deleteError !== null && <div className={css.renameError} role="alert">{deleteError}</div>}
       </Modal>
+      {copyToast !== null && (
+        <Toast
+          key={copyToast.seq}
+          text={copyToast.text}
+          onDone={() => { setCopyToast(null) }}
+        />
+      )}
     </div>
   )
 }

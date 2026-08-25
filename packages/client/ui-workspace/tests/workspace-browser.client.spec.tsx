@@ -7,6 +7,7 @@ import type {
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
+import { formatSessionReferenceMention } from '@deepseek-ai/dsh-session-reference/grammar'
 import type { WorkspaceBrowserProps } from '../src/client/contract/slots.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
 import { UNGROUPED_KEY } from '../src/client/tree.ts'
@@ -377,6 +378,49 @@ describe('WorkspaceBrowser', () => {
       expect(screen.getByText('alpha-s')).toBeTruthy()
     } finally {
       warn.mockRestore()
+    }
+  })
+
+  it('copies a session reference from the row menu and announces it with a toast', async () => {
+    const writeText = vi.fn(async () => {})
+    const prior = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    try {
+      mount({
+        useSessions: hook(sessionState([summary('copy-s', 1, { displayTitle: 'Copy title' })])),
+        useWorkspaces: hook(workspaceState([workspace('alpha', ['copy-s'])])),
+      })
+      fireEvent.click(screen.getByText('alpha'))
+      fireEvent.click(screen.getByRole('button', { name: '会话“Copy title”的操作' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: '复制引用' }))
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith(formatSessionReferenceMention({ sessionId: sid('copy-s'), label: 'Copy title' }))
+      })
+      expect(screen.getByText('已复制')).toBeTruthy()
+    } finally {
+      if (prior === undefined) Reflect.deleteProperty(navigator, 'clipboard')
+      else Object.defineProperty(navigator, 'clipboard', prior)
+    }
+  })
+
+  it('stays silent when the host declines a reference copy', async () => {
+    const writeText = vi.fn(async () => { throw new Error('denied') })
+    const prior = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    try {
+      mount({
+        useSessions: hook(sessionState([summary('copy-s', 1)])),
+        useWorkspaces: hook(workspaceState([workspace('alpha', ['copy-s'])])),
+      })
+      fireEvent.click(screen.getByText('alpha'))
+      fireEvent.click(screen.getByRole('button', { name: '会话“copy-s”的操作' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: '复制引用' }))
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(screen.queryByRole('alert')).toBeNull()
+    } finally {
+      if (prior === undefined) Reflect.deleteProperty(navigator, 'clipboard')
+      else Object.defineProperty(navigator, 'clipboard', prior)
     }
   })
 

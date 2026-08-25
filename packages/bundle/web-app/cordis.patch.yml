@@ -115,6 +115,12 @@
     - id: lookup-llm
       name: '@deepseek-ai/dsh-host-lookup-llm'
 
+    # Developer toolbox: the toolbox Remote namespace (browser panel data) for
+    # translation (free API + model) and UUID generation. The model-facing
+    # surface stays out of the agent presets; this is the panel's data plane.
+    - id: toolbox
+      name: '@deepseek-ai/dsh-host-toolbox'
+
     # Knowledge base: the kb Remote namespace (browser panel data) and the
     # /dsh-kb image route. The model-facing kb_* tools stay in the agent
     # presets, not here. The library root is machine-global (shared by every
@@ -334,6 +340,11 @@
     # introduction (dictionary sources plus the lookupLlm Remote explanation).
     - id: ui-lookup
       name: '@deepseek-ai/dsh-client-ui-lookup'
+
+    # Developer toolbox: the sidebar footer trigger above Settings plus the
+    # overlay panel, over the toolbox Remote namespace.
+    - id: ui-toolbox
+      name: '@deepseek-ai/dsh-client-ui-toolbox'
 
     # Knowledge base: the sidebar footer trigger above Settings plus the
     # browse/edit overlay panel, over the kb Remote namespace.

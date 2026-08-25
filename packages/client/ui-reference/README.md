@@ -8,6 +8,8 @@ File picks preserve the natural text defined by the shared `@path` grammar as th
 
 Session picks insert an atomic inline reference whose hidden `ref` and clipboard representation are the canonical `@[label](dsh-session:…)` mention returned by the Host. Its visible form is a chat-bubble glyph plus the business-color session title, without a capsule; serialization never reconstructs identity from that title. Ordinary send carries the canonical mention through `session.prompt`; the session-reference service validates it and captures model context at `agent/pre-step`.
 
+The session header's `conversation.session.header.utilities` list carries a copy-reference button that writes the current session's own canonical mention (title label, falling back to the id) to the clipboard, formatted by the shared browser-safe `@deepseek-ai/dsh-session-reference/grammar` module, so a user can paste the reference into another session without re-deriving the encoding.
+
 The `/client` export is the plugin body (`apply`/`inject`) only; candidate encoding stays internal to the registration effect.
 
 ## Model Experience

@@ -228,6 +228,16 @@ describe('session reference URI and inline mentions', () => {
     })
   })
 
+  it('encodes the canonical URI byte-identically to Node base64url', () => {
+    // Covers every base64url remainder: 0, 2, and 1 bytes left in the final group.
+    for (const id of ['session-42', '源', 'ab', 'unicode/引号"/slash\\/line\n']) {
+      const sessionId = SessionId(id)
+      expect(encodeSessionReferenceUri(sessionId)).toBe(
+        `dsh-session:${Buffer.from(JSON.stringify(id), 'utf8').toString('base64url')}`,
+      )
+    }
+  })
+
   it('rejects malformed explicit references and base64url-shaped bare candidates', () => {
     expect(() => decodeSessionReferenceUri('https://example.test')).toThrow(expectCode('SESSION_REFERENCE_INVALID_REFERENCE'))
     expect(() => parseSessionReferenceText('see dsh-session:IiJ')).toThrow(expectCode('SESSION_REFERENCE_INVALID_REFERENCE'))
