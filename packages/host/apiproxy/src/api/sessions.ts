@@ -153,6 +153,14 @@ export interface SessionModels {
   /** Model selection for the session's next assembled step. */
   current: ModelSelection
   /**
+   * Model selection last used by a completed request, derived from the
+   * session log's `request/header` event. When this differs from `current`,
+   * the next assembled step will apply the new selection but the last
+   * completed request ran a different model — useful for surfaces that
+   * flag the discrepancy. Undefined when no request has been made yet.
+   */
+  actual: ModelSelection | undefined
+  /**
    * Whether an adapter currently serves `current.provider`, and therefore
    * whether this session can start a turn at all. Deliberately NOT derivable
    * from `groups`: catalog membership is advisory, so a route serving a model

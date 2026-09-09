@@ -250,10 +250,11 @@ export const sessionModelsRequestSchema = z.object({
 /** session.models response value. */
 export const sessionModelsValueSchema = z.object({
   current: modelSelectionSchema,
+  actual: modelSelectionSchema.optional(),
   routable: z.boolean(),
   groups: z.array(modelProviderGroupSchema),
   failures: z.array(modelCatalogFailureSchema),
-}) satisfies z.ZodType<Wire<ResponseValue<'session.models'>>>
+})
 
 /** session.selectModel request payload. */
 export const sessionSelectModelRequestSchema = z.object({

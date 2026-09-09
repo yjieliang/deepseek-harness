@@ -2487,6 +2487,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       models: request => ok(request, {
         current: modelSelections.get(request.payload.sessionId)
           ?? { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        actual: undefined,
         // The fixture's routes all serve; a surface exercising the blocked
         // posture drives it through its own stub.
         routable: true,

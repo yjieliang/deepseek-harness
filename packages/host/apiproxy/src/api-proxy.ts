@@ -2292,7 +2292,17 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
         const current = selectionFor(found.agent).current
         const { groups, failures } = await buildModelCatalog(ctx)
         const routable = routeServed(current.provider)
-        return ok(request, { current: { ...current }, routable, groups, failures })
+        const logged = found.agent.session.requestHeader()?.config
+        const actual: ModelSelection | undefined = logged === undefined
+          ? undefined
+          : {
+            provider: logged.provider,
+            model: logged.model,
+            ...logged.reasoningEffort === undefined
+              ? {}
+              : { reasoningEffort: logged.reasoningEffort },
+          }
+        return ok(request, { current: { ...current }, actual, routable, groups, failures })
       },
 
       async selectModel(request) {

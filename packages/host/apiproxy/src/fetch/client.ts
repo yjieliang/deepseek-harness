@@ -179,7 +179,7 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'session.search': sessionSearchValueSchema,
   'session.create': sessionCreateValueSchema,
   'session.history': sessionHistoryValueSchema,
-  'session.models': sessionModelsValueSchema,
+  'session.models': sessionModelsValueSchema as unknown as z.ZodType<Wire<ResponseValue<'session.models'>>>,
   'session.selectModel': sessionSelectModelValueSchema,
   'session.rename': sessionRenameValueSchema,
   'session.fork': sessionForkValueSchema,

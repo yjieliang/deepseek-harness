@@ -210,6 +210,9 @@ export function ModelSelect(
 
   const modelLabel = currentChoice?.model.name ?? t('trigger.fallback')
   const triggerLabel = effortLabel === undefined ? modelLabel : `${modelLabel} · ${effortLabel}`
+  // Whether the last completed request used a different model than the selected one.
+  const mismatch = state.current !== null && state.actual !== null
+    && (state.current.provider !== state.actual.provider || state.current.model !== state.actual.model)
   const triggerAria = currentChoice === undefined
     ? t('trigger.selectAria')
     : effortLabel === undefined
@@ -243,6 +246,7 @@ export function ModelSelect(
         }}
       >
         <span className={css.triggerLabel}>{modelLabel}</span>
+        {mismatch && <IconWarningOutline16 className={css.warningIcon} />}
         {effortLabel !== undefined && <span className={css.triggerEffort}>{effortLabel}</span>}
         <IconChevronDownOutline14 className={clsx(css.chevron, open && css.chevronOpen)} />
       </button>
@@ -257,6 +261,12 @@ export function ModelSelect(
         >
           {pane === 'root' && (
             <>
+              {mismatch && (
+                <div className={css.warning}>
+                  <IconWarningOutline16 />
+                  <span>{t('warning.modelMismatch')}</span>
+                </div>
+              )}
               <button ref={itemRef()} type="button" role="menuitem" className={css.cell} onClick={() => { setPane('model') }}>
                 <span className={css.cellLabel}>{t('menu.model')}</span>
                 <span className={css.cellValue}>{modelLabel}</span>

@@ -45,6 +45,7 @@ function scriptedApi(overrides: {
       }),
       models: r => ok(r, {
         current: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+        actual: undefined,
         routable: true,
         groups: [],
         failures: [],
