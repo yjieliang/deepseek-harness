@@ -8,6 +8,8 @@
 
 选择会话会插入一个原子的行内引用，其隐藏 `ref` 与剪贴板表示均为宿主返回的规范 `@[label](dsh-session:…)` mention。可见形式为聊天气泡图标加业务色会话标题，不使用胶囊容器；序列化永远不会根据该标题重建身份。普通发送会通过 `session.prompt` 携带规范 mention，session-reference 服务会在 `agent/pre-step` 校验它并捕获模型上下文。
 
+会话页头的 `conversation.session.header.utilities` 列表提供一个复制引用按钮，把当前会话自身的规范 mention（标题标签，回退到 id）写入剪贴板，由共享的浏览器安全模块 `@deepseek-ai/dsh-session-reference/grammar` 负责格式化，用户无需重新推导编码即可把该引用粘贴到另一个会话。
+
 `/client` 只导出插件主体（`apply`／`inject`）；候选编码保留在注册 effect 内部。
 
 ## 模型体验

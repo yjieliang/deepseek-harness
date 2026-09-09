@@ -33,7 +33,7 @@
 
 文档排序与置顶：`kb.list` 置顶优先、更新日期次之；`pinned: true` frontmatter 标记经 `kb.saveDoc.pinned` 写入与清除，并上报在每一行摘要上。
 
-目录管理：`kb.createDir` 经 `.keep` 标记建目录并拒绝保留根；`kb.renameDir` 重命名目录并搬迁其下每个条目（文档、图片与嵌套目录），重建被移动文档的索引。保留根与归档目录不可重命名。`kb.renameDoc` 重命名单个文档（改变其文件名与 frontmatter 标题，保留其余元数据），并构造无冲突的文件名茎。
+目录管理：`kb.createDir` 经 `.keep` 标记建目录并拒绝保留根；`kb.renameDir` 重命名目录并搬迁其下每个条目（文档、图片与嵌套目录），重建被移动文档的索引。保留根与归档目录不可重命名。`kb.renameDoc` 在当前目录内重命名单个文档（改变其文件名与 frontmatter 标题，保留其余元数据），并构造无冲突的文件名茎。
 
 ## 模型体验
 
