@@ -990,6 +990,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'source and destination paths',
       },
       {
+        signature: '@Remote(\'renameDoc\') async renameDoc(request: KbRenameRequest, signal: AbortSignal): Promise<KbRenameResult>',
+        description: 'Rename a document within the same directory, updating the frontmatter title.',
+        parameters: [{ name: 'request', description: 'source path and new stem name' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
+        returns: 'source and destination paths',
+      },
+      {
         signature: '@Remote(\'createDir\') async createDir(request: KbCreateDirRequest, signal: AbortSignal): Promise<KbCreateDirResult>',
         description: 'Create a library directory through a `.keep` marker.',
         parameters: [{ name: 'request', description: 'the library-relative directory path' }, { name: 'signal', description: 'abort signal for cooperative cancellation' }],
@@ -3661,6 +3667,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'KbRenameDirResult',
     declaration: 'export interface KbRenameDirResult {\n    from: string;\n    to: string;\n    moved: number;\n}',
+  },
+  {
+    name: 'KbRenameRequest',
+    declaration: 'export interface KbRenameRequest {\n    path: string;\n    name: string;\n}',
+  },
+  {
+    name: 'KbRenameResult',
+    declaration: 'export interface KbRenameResult {\n    from: string;\n    to: string;\n}',
   },
   {
     name: 'KbResolveRequest',

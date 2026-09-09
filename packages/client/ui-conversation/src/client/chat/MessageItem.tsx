@@ -9,7 +9,10 @@ import type {
   ModelRetryNode, TurnErrorNode, UserMessageNode,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { JsonBlock, MessageText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
+import type {
+  ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps, ReferenceTokenAppearance,
+  ReferenceTokenKindFor, RenderRefGlyph,
+} from '../contract/slots.ts'
 import { ReferenceIcon } from '../reference/ReferenceIcon.tsx'
 import { CompactionItem } from './CompactionItem.tsx'
 import { ContextInjectionRow } from './ContextInjectionRow.tsx'
@@ -151,9 +154,13 @@ function TurnMaxTokensItem({ t }: {
  * Plain-text `/name` / `@name` word-boundary tokens decorate (the sent text
  * IS the reference — the bubble uses the same plainest token
  * scan as the composer, minus the lexicon: sent tokens were validated at
- * compose time, so shape alone decorates).
+ * compose time, so shape alone decorates). `@<prefix>` tokens resolve their
+ * kind through the appearance face's registry mapping and render
+ * non-core kinds' glyphs through its slot-routed dispatcher; without the
+ * face only the core heuristic applies, so a contributed token reads as a
+ * plain `@` path and an unknown kind renders without a domain glyph.
  */
-function projectUserText(text: string, sessionLabels: readonly string[]): ReactNode {
+function projectUserText(text: string, sessionLabels: readonly string[], appearance?: ReferenceTokenAppearance): ReactNode {
   const ranges: { start: number; end: number; label: string; kind: 'session' | 'plain' }[] = []
   for (const rawLabel of [...new Set(sessionLabels)].sort((a, b) => b.length - a.length)) {
     const label = `@${rawLabel}`
@@ -185,7 +192,7 @@ function projectUserText(text: string, sessionLabels: readonly string[]): ReactN
     const referenceKind = kind === 'session'
       ? 'session'
       : label.startsWith('@')
-        ? label.endsWith('/') ? 'folder' : 'file'
+        ? (appearance?.kindForToken(label.slice(1)) ?? (label.endsWith('/') ? 'folder' : 'file'))
         : undefined
     const displayLabel = referenceKind === undefined
       ? label
@@ -200,7 +207,9 @@ function projectUserText(text: string, sessionLabels: readonly string[]): ReactN
         title={label}
       >
         {referenceKind !== undefined && (
-          <ReferenceIcon kind={referenceKind} size={16} className={css.refIcon} />
+          referenceKind === 'session' || referenceKind === 'file' || referenceKind === 'folder'
+            ? <ReferenceIcon kind={referenceKind} size={16} className={css.refIcon} />
+            : appearance?.renderGlyph({ kind: referenceKind, size: 16, className: css.refIcon })
         )}
         {displayLabel}
       </span>,
@@ -214,10 +223,14 @@ function projectUserText(text: string, sessionLabels: readonly string[]): ReactN
 
 /** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
-  content, renderMessageImages, actions, pending = false, referenceLabels = [], t,
+  content, renderMessageImages, renderRefGlyph, kindForToken, actions, pending = false, referenceLabels = [], t,
 }: {
   content: readonly unknown[]
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
+  /** Slot-routed glyph dispatcher for contributed reference kinds (absent in direct mounts without a chain). */
+  renderRefGlyph?: RenderRefGlyph | undefined
+  /** Contributed token→kind mapping (absent defers every plain token to the core heuristic). */
+  kindForToken?: ReferenceTokenKindFor | undefined
   /** Optional IconActions (or similar) below the bubble; receives the joined text. */
   actions?: (text: string) => ReactNode
   /** Whether this is the Host-authoritative pre-admission steering projection. */
@@ -229,12 +242,18 @@ function UserStyleBubble({
   const { text, images, rest } = contentParts(content)
   const truncated = (total: number): string => t('json.truncated', { total })
   const showBubble = text !== '' || rest.length > 0
+  // The projection face exists only when the threading delivered both
+  // halves; production always does (ChatView joins its dispatcher onto the
+  // inject's mapping), so a lone half degrades to the core heuristic.
+  const appearance = renderRefGlyph === undefined || kindForToken === undefined
+    ? undefined
+    : { kindForToken, renderGlyph: renderRefGlyph }
   return (
     <div className={css.userRow} data-pending-steering={pending || undefined} data-time-hover-root>
       <div className={css.userStack}>
         {renderMessageImages({ images, align: 'end' })}
         {showBubble && <div className={css.bubble}>
-          {projectUserText(text, referenceLabels)}
+          {projectUserText(text, referenceLabels, appearance)}
           {rest.map((block, i) => <JsonBlock key={i} label={t('message.extraBlock')} payload={block} truncatedLabel={truncated} />)}
         </div>}
         {referenceLabels.length > 0 && (
@@ -251,18 +270,24 @@ function UserStyleBubble({
 /**
  * Render one Host-authoritative pending steering item with the same visual
  * language as its eventual durable transcript node.
- * @param props - Pending message content and conversation translator.
+ * @param props - Pending message content, the reference projection face, and the conversation translator.
  * @returns the pending steering bubble.
  */
-export function PendingSteeringBubble({ content, renderMessageImages, t }: {
+export function PendingSteeringBubble({ content, renderMessageImages, renderRefGlyph, kindForToken, t }: {
   content: readonly unknown[]
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
+  /** Slot-routed glyph dispatcher for contributed reference kinds. */
+  renderRefGlyph?: RenderRefGlyph | undefined
+  /** Contributed token→kind mapping. */
+  kindForToken?: ReferenceTokenKindFor | undefined
   t: ChatViewSlotProps['t']
 }): ReactNode {
   return (
     <UserStyleBubble
       content={content}
       renderMessageImages={renderMessageImages}
+      renderRefGlyph={renderRefGlyph}
+      kindForToken={kindForToken}
       pending
       t={t}
       actions={text => (
@@ -279,13 +304,15 @@ export function PendingSteeringBubble({ content, renderMessageImages, t }: {
 
 /** User and admitted-steering keyed Chat renderer. */
 export const UserMessageNodeView = memo(function UserMessageNodeView({
-  node, renderMessageImages, t,
+  node, renderMessageImages, renderRefGlyph, kindForToken, t,
 }: ChatNodeViewProps<'user' | 'steering'>) {
   const data = node.data
   return (
     <UserStyleBubble
       content={data.content}
       renderMessageImages={renderMessageImages}
+      renderRefGlyph={renderRefGlyph}
+      kindForToken={kindForToken}
       {...data.referenceLabels === undefined ? {} : { referenceLabels: data.referenceLabels }}
       t={t}
       actions={text => (

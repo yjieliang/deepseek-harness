@@ -15,9 +15,11 @@ export const name = 'client-ui-kb-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: the trigger and the panel register into declared
- * slots (a presentation effect owned by the slot registry), and every read
- * goes through the `kb` Remote namespace without durable client state.
+ * No runtime invariant: the trigger, the panel, and the reference-glyph
+ * occupants register into declared slots (a presentation effect owned by the
+ * slot registry); the trigger source and appearance registration are
+ * registries whose disposal is proven by the client specs; every read goes
+ * through the `kb` Remote namespace without durable client state.
  */
 const install: InvariantInstaller = () => {}
 

@@ -14,7 +14,7 @@ DeepSeek Harness GUI 的 Web 知识库特性：一个位于 Settings 上方的�
 
 ## 模型体验
 
-间接地，经 `kb` Remote 命名空间，面板的每个操作都读写工作区 `kb/` 根下的文件，从不触及模型；模型面向的 `kb_*` 工具位于 knowledge-base agent preset，并拥有任何模型可见的效果。
+间接地，经 `kb` Remote 命名空间，面板的每个操作都读写 `$DSH_HOME/kb`（任何工作区之外）的机器全局库，从不触及模型；模型面向的 `kb_*` 工具位于 [`@deepseek-ai/dsh-tool-kb`](../../host/tool-kb) 并拥有任何模型可见的效果，同时本包还向统一的 `@` 引用菜单贡献知识库域（`knowledge-base` 触发来源、`@kb:` appearance 注册，以及两个 `conversation.*.refGlyph` chain 占位）。
 
 #### KV Cache 影响
 

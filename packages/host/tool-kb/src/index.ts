@@ -50,7 +50,13 @@ type ResolvedConfig = Required<Config>
 
 /** The prompt section text, stable for model-visible transcripts. */
 const KB_PROMPT_SECTION =
-  '知识库(Knowledge Base)位于工作区根目录 `kb/`,提供 kb_search / kb_add / kb_get / kb_update / kb_move / kb_rename / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 16 个工具。用户提到「知识库」「知识管理」「收藏」「剪藏」时,优先使用这些工具读写知识库,而不是通用文件工具。'
+  '知识库(Knowledge Base)位于 $DSH_HOME/kb(不在工作区路径内,不要用 read 文件工具打开),提供 kb_search / kb_get / kb_add / kb_update / kb_move / kb_rename / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 16 个工具。\n\n'
+  + '【按需检索】默认不要主动检索知识库。只有当用户明确表达参考知识库意图时才调用 kb_* 工具:\n'
+  + '- 用户消息包含「知识库」「kb」「笔记」「根据XX文档」「我记得知识库里有」等明确指向词汇;\n'
+  + '- 用户消息含 @kb:path 引用(用 kb_get 按路径读取)或 [[标题]] wiki 链接(用 kb_search 按标题定位,再 kb_get 读取);\n'
+  + '- 用户明确要求「查知识库/查笔记/找那篇」。\n\n'
+  + '【引用语法】@ 开头的路径默认是工作区文件,用 read 读取;但 @kb: 开头的引用(含 @kb:"带空格的路径")是 $DSH_HOME/kb 下的知识库文档,必须用 kb_get 按路径读取,不要用 read。\n\n'
+  + '普通对话、工作区文件操作不要触发 kb_search。'
 
 /** Canonical JSON-text render shared by every tool. */
 const toolRender = (_args: unknown, value: JsonValue): ContentBlock[] =>
@@ -108,19 +114,22 @@ function clampTopK(value: number | undefined, fallback: number): number {
  */
 export function apply(ctx: Context, config: Config): void {
   const resolved = config as ResolvedConfig
+  // Order 100 places this section after the file-reference section (order 99):
+  // its 【引用语法】 paragraph is the model's latest word on the `@` grammar,
+  // carving `@kb:` out of the workspace-file rule.
   ctx.effect(() => ctx.systemPrompt.section({
     name: 'knowledge-base',
-    order: 30,
+    order: 100,
     text: KB_PROMPT_SECTION,
   }), 'tool-kb: prompt section')
 
   register(ctx, {
     name: 'kb_search',
-    description: '检索知识库:关键词匹配标题/别名/摘要/标签/正文,支持 tag:xxx、path:xxx、status:inbox、title:xxx 语法',
+    description: '检索知识库:关键词匹配标题/别名/摘要/标签/正文,支持 tag:xxx、path:xxx、status:inbox、title:xxx 语法。若用户表述口语化(如「那篇讲用户习惯的」),先把目标扩为 2-4 个候选关键词(中文原文 + 可能的技术/英文别名 + 标签词),用空格分隔再搜索,以提高召回。',
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '检索关键词,多词空格为 AND;支持 tag:/path:/status:/title: 前缀过滤器' },
+        query: { type: 'string', description: '检索关键词,多词空格为 AND;口语化表述请先展开为多组候选关键词再搜索;支持 tag:/path:/status:/title: 前缀过滤器' },
         topK: { type: 'integer', description: `返回条数上限,默认 ${resolved.searchTopK}` },
       },
     },

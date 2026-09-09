@@ -27,7 +27,7 @@ All keys are optional; the defaults are the shipped values.
 
 | Tool | Arguments | Behavior |
 |---|---|---|
-| `kb_search` | `query`, `topK?` | Keyword search over title/aliases/tags/summary/body with BM25 ranking; `tag:`/`path:`/`status:`/`title:` prefixes filter the hits. |
+| `kb_search` | `query`, `topK?` | Keyword search over title/aliases/tags/summary/body with BM25 ranking; `tag:`/`path:`/`status:`/`title:` prefixes filter the hits. The tool description directs the agent to expand a colloquial query into 2–4 candidate keywords before searching, to raise recall. |
 | `kb_add` | `title`, `content?`, `directory?`, `tags?`, `source?`, `summary?` | Create a dated document (default `00-inbox`) with generated frontmatter. |
 | `kb_get` | `path` | Full read: body, frontmatter, backlinks, version token. |
 | `kb_update` | `path`, `content?`, `summary?`, `tags?`, `expectVersion?` | Patch body or metadata with an optimistic lock; a stale lock fails with a conflict error. |
@@ -52,12 +52,21 @@ Canonical successes are the engine's JSON results (`{ hits, total }`, `{ path }`
 
 #### What the model sees
 
-Every request in this plugin's registration scope receives the knowledge-base guidance section, telling the agent to prefer `kb_*` tools over generic file tools when the user mentions the knowledge base, knowledge management, favorites, or clipping.
+Every request in this plugin's registration scope receives the knowledge-base guidance section. It tells the agent where the library lives (`$DSH_HOME/kb`, outside the workspace), to **not** search it by default, and to invoke `kb_*` tools only when the user explicitly signals a reference-intent (mentions the knowledge base, names a specific note, uses an `@kb:path` or `[[title]]` reference, or asks to look something up). The section sits at order 100 — after the file-reference section's `@`-grammar rule — so its 【引用语法】 paragraph is the model's latest word carving `@kb:` out of the workspace-file rule.
 
 ##### Knowledge-base guidance
 
 ```markdown
-知识库(Knowledge Base)位于工作区根目录 `kb/`,提供 kb_search / kb_add / kb_get / kb_update / kb_move / kb_rename / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 16 个工具。用户提到「知识库」「知识管理」「收藏」「剪藏」时,优先使用这些工具读写知识库,而不是通用文件工具。
+知识库(Knowledge Base)位于 $DSH_HOME/kb(不在工作区路径内,不要用 read 文件工具打开),提供 kb_search / kb_get / kb_add / kb_update / kb_move / kb_rename / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 16 个工具。
+
+【按需检索】默认不要主动检索知识库。只有当用户明确表达参考知识库意图时才调用 kb_* 工具:
+- 用户消息包含「知识库」「kb」「笔记」「根据XX文档」「我记得知识库里有」等明确指向词汇;
+- 用户消息含 @kb:path 引用(用 kb_get 按路径读取)或 [[标题]] wiki 链接(用 kb_search 按标题定位,再 kb_get 读取);
+- 用户明确要求「查知识库/查笔记/找那篇」。
+
+【引用语法】@ 开头的路径默认是工作区文件,用 read 读取;但 @kb: 开头的引用(含 @kb:"带空格的路径")是 $DSH_HOME/kb 下的知识库文档,必须用 kb_get 按路径读取,不要用 read。
+
+普通对话、工作区文件操作不要触发 kb_search。
 ```
 
 #### Token effect

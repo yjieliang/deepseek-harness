@@ -82,6 +82,17 @@ export interface CommandClaim {
 }
 
 /**
+ * Reference appearance kinds. The core kinds (`'session' | 'file' | 'folder'`)
+ * render through the conversation package's built-in glyph catalog. Any other
+ * kind is a contributed domain: it renders through the conversation
+ * reference-glyph chain slots, and it registers its plain-text token prefixes
+ * on `ctx.referenceAppearances` so transcript scanning maps `@<prefix>` tokens
+ * back to the kind. An unknown kind with neither an occupant nor a
+ * registration renders without a domain glyph — the documented default.
+ */
+export type ReferenceAppearance = 'session' | 'file' | 'folder' | (string & {})
+
+/**
  * Inline reference insertion. The draft holds the complete display text while
  * the occurrence retains its range; the owner supplies both user-facing projections at insert time
  * (the model representation is serialized on submit via the source codec).
@@ -92,7 +103,7 @@ export interface ReferenceInsert {
   /** Inline display label (fallback-cached on the occurrence). */
   readonly label: string
   /** Optional domain glyph shown beside the label. */
-  readonly appearance?: 'session' | 'file' | 'folder'
+  readonly appearance?: ReferenceAppearance
   /** Clipboard / persistence projection, e.g. `/name` (never the model form). */
   readonly clipboardText: string
 }

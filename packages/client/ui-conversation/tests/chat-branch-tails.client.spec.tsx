@@ -13,7 +13,9 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import type {
   ChatConversationViewNode, ConversationNode,
 } from '@deepseek-ai/dsh-client-runtime/client'
-import type { ChatNodeViewProps } from '../src/client/contract/slots.ts'
+import type {
+  ChatNodeViewProps, ReferenceTokenKindFor, RenderRefGlyph,
+} from '../src/client/contract/slots.ts'
 import {
   formatMessageClock, msUntilNextLocalMidnight, startOfLocalDay,
 } from '../src/client/chat/message-chrome.ts'
@@ -49,10 +51,12 @@ interface MessageItemProps {
   readonly node: ConversationNode
   readonly t: ChatNodeViewProps['t']
   readonly referenceLabels?: readonly string[]
+  readonly kindForToken?: ReferenceTokenKindFor | undefined
+  readonly renderRefGlyph?: RenderRefGlyph | undefined
 }
 
 /** Legacy-node fixture adapter for the independently registered renderers. */
-function MessageItem({ node, t: translate, referenceLabels }: MessageItemProps) {
+function MessageItem({ node, t: translate, referenceLabels, kindForToken, renderRefGlyph }: MessageItemProps) {
   const kind = node.kind === 'assistant' ? 'assistant-step' : node.kind
   const viewNode: ChatConversationViewNode = {
     key: `fixture:${node.kind}:${node.seq}`,
@@ -68,7 +72,13 @@ function MessageItem({ node, t: translate, referenceLabels }: MessageItemProps) 
         ? { ...node, referenceLabels }
         : node,
   }
-  const props = { node: viewNode, t: translate, renderMessageImages } as ChatNodeViewProps
+  const props = {
+    node: viewNode,
+    t: translate,
+    renderMessageImages,
+    ...(kindForToken === undefined ? {} : { kindForToken }),
+    ...(renderRefGlyph === undefined ? {} : { renderRefGlyph }),
+  } as ChatNodeViewProps
   switch (node.kind) {
     case 'user':
     case 'steering':
@@ -85,6 +95,54 @@ function MessageItem({ node, t: translate, referenceLabels }: MessageItemProps) 
       throw new Error(`unsupported MessageItem fixture kind: ${node.kind}`)
   }
 }
+
+describe('user reference chips', () => {
+  it('renders an @kb: path as a knowledge-base chip with the domain glyph through the chain occupant', () => {
+    const view = render(
+      <MessageItem
+        t={t}
+        kindForToken={(tokenAfterAt: string) => (tokenAfterAt.startsWith('kb:') ? 'kb' : undefined)}
+        renderRefGlyph={owner => (owner.kind === 'kb' ? <i data-testid="ref-glyph-kb" /> : null)}
+        node={{
+          kind: 'user',
+          seq: 1,
+          time: 1_000,
+          content: [{ type: 'text', text: '看 @kb:10-技术/note.md 里的结论' }] as never,
+          source: null,
+        }}
+      />,
+    )
+    const chip = view.container.querySelector('[data-ref-chip="kb"]')
+    expect(chip).not.toBeNull()
+    expect(chip?.textContent).toBe('note.md')
+    // The stub occupant's own element renders where the core glyph would.
+    expect(chip?.querySelector('[data-testid="ref-glyph-kb"]')).not.toBeNull()
+    expect(chip?.querySelector('svg')).toBeNull()
+  })
+
+  it('an @kb: chip without a chain occupant keeps the chip without a domain glyph', () => {
+    // All chain entries decline → the fallback catalog renders nothing for an
+    // unknown kind (the documented default): the chip survives, glyphless.
+    const view = render(
+      <MessageItem
+        t={t}
+        kindForToken={(tokenAfterAt: string) => (tokenAfterAt.startsWith('kb:') ? 'kb' : undefined)}
+        renderRefGlyph={() => null}
+        node={{
+          kind: 'user',
+          seq: 1,
+          time: 1_000,
+          content: [{ type: 'text', text: '看 @kb:10-技术/note.md 里的结论' }] as never,
+          source: null,
+        }}
+      />,
+    )
+    const chip = view.container.querySelector('[data-ref-chip="kb"]')
+    expect(chip).not.toBeNull()
+    expect(chip?.querySelector('svg')).toBeNull()
+    expect(chip?.querySelector('[data-testid="ref-glyph-kb"]')).toBeNull()
+  })
+})
 
 describe('MessageItem arms', () => {
   it('renders an adjacent session mention as a chip even without trailing whitespace', () => {

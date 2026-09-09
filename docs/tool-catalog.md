@@ -28,7 +28,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-fs-search` | `glob`, `grep` | `ctx.tools`, `ctx.subprocess`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | glob and grep are unconditional discovery tools that spawn the packaged ripgrep binary (`@vscode/ripgrep`) through ctx.subprocess as ordinary foreground calls (never background jobs) — no host `rg` install and no shell layer. The catalog uses `sampleOverCapGlobResults: true`; deployments must choose that behavior explicitly. Capped results save the complete formatted list through the optional ctx.spillStore backend; returned locators are follow-up-readable/searchable when the backend exposes local paths in co-located deployments. |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
-| `@deepseek-ai/dsh-tool-kb` | `kb_add`, `kb_archive`, `kb_clip`, `kb_delete`, `kb_export`, `kb_get`, `kb_images`, `kb_import`, `kb_links`, `kb_move`, `kb_organize`, `kb_search`, `kb_stats`, `kb_tags`, `kb_update` | `ctx.tools`, `ctx.kb`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The 15 kb_* tools are the agent-plane consumer of the knowledge-base capability over ctx.kb; bulk operations gate on batchConfirmN with a preview-first error, and kb_clip degrades to URL-and-title without a mounted web service. |
+| `@deepseek-ai/dsh-tool-kb` | `kb_add`, `kb_archive`, `kb_clip`, `kb_delete`, `kb_export`, `kb_get`, `kb_images`, `kb_import`, `kb_links`, `kb_move`, `kb_organize`, `kb_rename`, `kb_search`, `kb_stats`, `kb_tags`, `kb_update` | `ctx.tools`, `ctx.kb`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The 16 kb_* tools are the agent-plane consumer of the knowledge-base capability over ctx.kb; bulk operations gate on batchConfirmN with a preview-first error, and kb_clip degrades to URL-and-title without a mounted web service. |
 | `@deepseek-ai/dsh-tool-memory` | `memory_add`, `memory_list`, `memory_propose`, `memory_remove` | `ctx.tools`, `ctx.habits`, `ctx.systemPrompt`, `ctx.userQuestions (memory_propose confirmation)` | `tool/call`, `tool/result after a user question confirms a proposal` | - | Model-facing user-habit memory tools (memory_add/list/remove/propose) over the habits seam; memory_propose asks for user confirmation before writing. |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`, `schedule_delete`, `schedule_list` | `ctx.tools`, `ctx.sessions`, `Session persistence`, `a future live root Agent` | `tool/call`, `schedule/change create or delete`, `tool/result` | - | Registered only inside live root Agent scopes created after the opt-in Schedule plugin loads. Version 1 accepts after_seconds, explicit absolute at, and bounded fixed-rate every_seconds, and discloses session-local delivery; management reads and mutations require the shared Session persistence barrier. |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema. |
@@ -1305,9 +1305,31 @@ Source: [`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/inde
 
 Source: [`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
 
+### `kb_rename`
+
+重命名知识库文档(同一目录内更改文件名,同时更新文档标题)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "文档相对路径"
+    },
+    "name": {
+      "type": "string",
+      "description": "新文件名(不含扩展名和路径)"
+    }
+  }
+}
+```
+
+Source: [`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
 ### `kb_search`
 
-检索知识库:关键词匹配标题/别名/摘要/标签/正文,支持 tag:xxx、path:xxx、status:inbox、title:xxx 语法
+检索知识库:关键词匹配标题/别名/摘要/标签/正文,支持 tag:xxx、path:xxx、status:inbox、title:xxx 语法。若用户表述口语化(如「那篇讲用户习惯的」),先把目标扩为 2-4 个候选关键词(中文原文 + 可能的技术/英文别名 + 标签词),用空格分隔再搜索,以提高召回。
 
 ```json
 {
@@ -1315,7 +1337,7 @@ Source: [`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/inde
   "properties": {
     "query": {
       "type": "string",
-      "description": "检索关键词,多词空格为 AND;支持 tag:/path:/status:/title: 前缀过滤器"
+      "description": "检索关键词,多词空格为 AND;口语化表述请先展开为多组候选关键词再搜索;支持 tag:/path:/status:/title: 前缀过滤器"
     },
     "topK": {
       "type": "integer",
@@ -1390,7 +1412,7 @@ Source: [`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/inde
 
 Source: [`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
 
-The 15 kb_* tools are the agent-plane consumer of the knowledge-base capability over ctx.kb; bulk operations gate on batchConfirmN with a preview-first error, and kb_clip degrades to URL-and-title without a mounted web service.
+The 16 kb_* tools are the agent-plane consumer of the knowledge-base capability over ctx.kb; bulk operations gate on batchConfirmN with a preview-first error, and kb_clip degrades to URL-and-title without a mounted web service.
 
 <a id="deepseek-aidsh-tool-memory"></a>
 

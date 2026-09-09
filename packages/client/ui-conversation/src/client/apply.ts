@@ -286,6 +286,7 @@ export function apply(ctx: Context): void {
       'conversation.input.attachments': { kind: 'single', scope: 'session-maybe' },
       'conversation.input.plan': { kind: 'single', scope: 'session' },
       'conversation.input.model': { kind: 'single', scope: 'session' },
+      'conversation.input.refGlyph': { kind: 'chain', scope: 'session-maybe' },
     },
     inject: (sessionId: SessionId | undefined): ComposerBarInjected => {
       if (sessionId === undefined) {
@@ -385,6 +386,7 @@ export function apply(ctx: Context): void {
     children: {
       'conversation.chat.node': { kind: 'keyed', scope: 'session', inject: CHAT_NODE_INJECT },
       'conversation.message.images': { kind: 'single', scope: 'session' },
+      'conversation.chat.refGlyph': { kind: 'chain', scope: 'session' },
     },
     store: chatStore,
     inject: (sessionId: SessionId, actions: BoundActions<typeof chatStore>): ChatViewInjected => {
@@ -435,6 +437,14 @@ export function apply(ctx: Context): void {
               // Fork or child-rename failure keeps the source view untouched.
             })
         },
+        // The contributed-appearance token→kind mapping (ReferenceTokenKindFor):
+        // read per call through the optional service, so composing a domain in
+        // or out takes effect live and an absent service maps every token to
+        // undefined. The glyph half routes through the chat ref-glyph chain
+        // slot, so ChatView joins its own slot-routed dispatcher onto this
+        // mapping — the ReactNode content stays slot-routed, never a bare
+        // ReactNode producer out of the apply closure.
+        appearance: (tokenAfterAt: string) => ctx.get('referenceAppearances')?.kindForToken(tokenAfterAt),
       }
     },
   }, ChatView)

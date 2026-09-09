@@ -4,6 +4,7 @@
  * highlight, the claim hint as ghost text). Zero React — the skeleton renders
  * the instructions; tests drive this directly.
  */
+import type { ReferenceAppearance } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { InputState } from './contract.ts'
 
 /** The claim-token highlight range (always draft-leading while the watch holds). */
@@ -23,8 +24,8 @@ export interface ChipRender {
   /** Exact inline text whose native glyph metrics determine layout. */
   readonly text: string
   readonly label: string
-  /** Optional domain glyph beside the label. */
-  readonly appearance?: 'session' | 'file' | 'folder'
+  /** Optional domain glyph beside the label (contributed kinds render through the reference-glyph chain slot). */
+  readonly appearance?: ReferenceAppearance
   /** Owner-resolution failure styling bit. */
   readonly invalid: boolean
 }

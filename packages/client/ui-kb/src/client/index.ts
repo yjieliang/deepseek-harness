@@ -9,13 +9,19 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale), the layout
 // plugin's `shell.overlay` and the sidebar's `sidebar.footer.action` SlotMap
-// declarations, and the `remote.kb` inject seat.
+// declarations, the `remote.kb` inject seat, the trigger pipeline's
+// `inputTriggers`/`referenceAppearances` merges, and the conversation
+// reference-glyph chain-slot declarations.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
+import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { KbPanel } from './KbPanel.tsx'
 import { KbTrigger } from './KbTrigger.tsx'
+import { KbRefGlyph, selectKbGlyph } from './KbRefGlyph.tsx'
+import { createKbReferenceSource, KB_APPEARANCE } from './reference-source.ts'
 import type { KbInject } from './contract.ts'
 import { en, zh } from './locales.ts'
 import { KbUiController } from './store.ts'
@@ -26,8 +32,11 @@ export { KbUiController } from './store.ts'
 /** Dictionary namespace owned by this plugin. */
 const NS = 'kb'
 
-/** Required services: the slot registry, the dictionaries, the Remote carrier, and the kb namespace. */
-export const inject = ['slots', 'locale', 'remote', 'remote.kb']
+/**
+ * Required services: the slot registry, the dictionaries, the Remote carrier, the kb namespace,
+ * the trigger pipeline, and the appearance registry.
+ */
+export const inject = ['slots', 'locale', 'remote', 'remote.kb', 'inputTriggers', 'referenceAppearances']
 
 /** Unwrap one Remote call's result envelope, folding failures into an Error. */
 async function call<T>(
@@ -93,4 +102,24 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: injected,
   }, KbPanel))
+
+  // The kb domain of the unified `@` menu: its own trigger source beside the
+  // file/session source, plus the plain-text `@kb:` appearance mapping and
+  // one reference-glyph occupant per conversation chain slot.
+  ctx.effect(() => ctx.inputTriggers.registerSource(createKbReferenceSource(
+    signal => ctx.remote.kb.list({}, signal).then(result => result.ok ? result.value.docs : []),
+    ctx.locale.bind(NS),
+  )), 'ui-kb: @kb reference source')
+  ctx.effect(
+    () => ctx.referenceAppearances.register({ kind: KB_APPEARANCE, tokenPrefixes: ['kb:'] }),
+    'ui-kb: kb reference appearance',
+  )
+  ctx.slots.inject('conversation.input.refGlyph', () => ctx.slots.register(
+    { name: 'conversation.input.refGlyph', select: selectKbGlyph },
+    KbRefGlyph,
+  ))
+  ctx.slots.inject('conversation.chat.refGlyph', () => ctx.slots.register(
+    { name: 'conversation.chat.refGlyph', select: selectKbGlyph },
+    KbRefGlyph,
+  ))
 }

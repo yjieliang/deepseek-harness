@@ -27,3 +27,7 @@
 ## acp-agent
 
 面向程序化客户端的 ACP（Agent Client Protocol）自动化服务器，支持会话、权限和取消操作。详见 [ACP 示例参考](acp-agent/README.md)。
+
+## kb-agent
+
+ACP 自动化树旁挂载宿主知识库引擎与模型面向的 `kb_*` 工具，驱动 `$DSH_HOME/kb` 的机器全局 Markdown 库。快照组合经运行 workspace 播种库并无 key 重放；详见 [kb-agent 示例参考](kb-agent/README.md)。

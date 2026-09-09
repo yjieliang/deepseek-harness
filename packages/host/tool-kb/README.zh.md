@@ -52,12 +52,21 @@ await ctx.plugin(ToolKb)                                // this package
 
 #### 模型所见
 
-本插件注册作用域内的每个请求都会收到知识库引导段：用户提到「知识库」「知识管理」「收藏」「剪藏」时优先使用 `kb_*` 工具而非通用文件工具。
+本插件注册作用域内的每个请求都会收到知识库引导段：它告知库位于 `$DSH_HOME/kb`（工作区之外），**默认不要检索**，且仅当用户明确表达引用意图（提到知识库、点名某篇笔记、给出 `@kb:path` 或 `[[标题]]` 引用、明确要求查找）时才调用 `kb_*` 工具。段落位于 order 100——在 file-reference 段的 `@` 语法规则之后——其【引用语法】一段是模型对 `@` 语法的最终裁决，把 `@kb:` 从工作区文件规则中剥离。
 
 ##### 知识库引导段
 
 ```markdown
-知识库(Knowledge Base)位于工作区根目录 `kb/`,提供 kb_search / kb_add / kb_get / kb_update / kb_move / kb_rename / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 16 个工具。用户提到「知识库」「知识管理」「收藏」「剪藏」时,优先使用这些工具读写知识库,而不是通用文件工具。
+知识库(Knowledge Base)位于 $DSH_HOME/kb(不在工作区路径内,不要用 read 文件工具打开),提供 kb_search / kb_get / kb_add / kb_update / kb_move / kb_rename / kb_delete / kb_links / kb_tags / kb_stats / kb_archive / kb_organize / kb_images / kb_import / kb_export / kb_clip 共 16 个工具。
+
+【按需检索】默认不要主动检索知识库。只有当用户明确表达参考知识库意图时才调用 kb_* 工具:
+- 用户消息包含「知识库」「kb」「笔记」「根据XX文档」「我记得知识库里有」等明确指向词汇;
+- 用户消息含 @kb:path 引用(用 kb_get 按路径读取)或 [[标题]] wiki 链接(用 kb_search 按标题定位,再 kb_get 读取);
+- 用户明确要求「查知识库/查笔记/找那篇」。
+
+【引用语法】@ 开头的路径默认是工作区文件,用 read 读取;但 @kb: 开头的引用(含 @kb:"带空格的路径")是 $DSH_HOME/kb 下的知识库文档,必须用 kb_get 按路径读取,不要用 read。
+
+普通对话、工作区文件操作不要触发 kb_search。
 ```
 
 #### Token 影响

@@ -1,0 +1,18 @@
+# Knowledge-base demo and snapshot-record composition: the ACP automation
+# tree plus the host kb engine and the model-facing kb_* tools. The library
+# root keeps its default `$DSH_HOME/kb`, so a live demo edits the machine's
+# real library while a snapshot run (DSH_HOME pointed at the run cwd) gets a
+# fresh library per scenario. `trashRetentionDays: 0` keeps the purge sweep
+# from scheduling a timer no snapshot asserts on.
+- id: base
+  name: '@deepseek-ai/cordis-plugin-include'
+  config:
+    path: ../acp-agent/cordis.yml
+    patches:
+      - insert:
+          - id: kb
+            name: '@deepseek-ai/dsh-host-kb'
+            config:
+              trashRetentionDays: 0
+          - id: kb-tools
+            name: '@deepseek-ai/dsh-tool-kb'

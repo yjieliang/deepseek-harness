@@ -65,6 +65,8 @@ function mountBar(shell: SessionInputShell, over?: { running?: boolean; disabled
     useLexicon: bindSnapshotSelector(shell.lexicon),
     useMenuLauncher: bindSnapshotSelector(createSnapshotStore<string | null>(null)),
     renderSlot: (() => null) as InputBarProps['renderSlot'],
+    renderSlotChain: ((_key: string, _owner: object, opts?: { fallback?: React.ReactNode }) =>
+      opts?.fallback ?? null) as InputBarProps['renderSlotChain'],
     stop: vi.fn(),
     command: () => Promise.resolve(true),
     // Mirrors the real lookup chain (conversation namespace, then common).

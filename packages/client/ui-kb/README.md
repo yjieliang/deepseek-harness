@@ -14,7 +14,7 @@ The trigger and the panel share one `KbUiController` open-state store through th
 
 ## Model Experience
 
-Indirectly, through the `kb` Remote namespace, every panel action reads or writes files under the workspace `kb/` root and never reaches the model; the model-facing `kb_*` tools live in the knowledge-base agent preset and own any model-visible effect.
+Indirectly, through the `kb` Remote namespace, every panel action reads or writes the machine-global library at `$DSH_HOME/kb` (outside any workspace) and never reaches the model; the model-facing `kb_*` tools live in [`@deepseek-ai/dsh-tool-kb`](../../host/tool-kb) and own any model-visible effect, while this package also contributes the knowledge-base domain of the unified `@` reference menu (the `knowledge-base` trigger source, the `@kb:` appearance registration, and the two `conversation.*.refGlyph` chain occupants).
 
 #### KV Cache effect
 

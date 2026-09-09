@@ -16,7 +16,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ConversationTimelineSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { Button, IconChevronDownOutline14, IconChevronUpOutline14, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { ChatViewSlotProps, RenderMessageImages } from '../contract/slots.ts'
+import type { ChatViewSlotProps, RenderMessageImages, RenderRefGlyph } from '../contract/slots.ts'
+import { ReferenceIcon } from '../reference/ReferenceIcon.tsx'
 import { PendingSteeringBubble } from './MessageItem.tsx'
 import { ChatNodeSeat } from './ChatNodeSeat.tsx'
 import { formatRunDuration } from './message-chrome.ts'
@@ -156,8 +157,9 @@ function TurnStatus({ startTime, t }: {
  * ordered business Node crosses the keyed renderer seat.
  */
 export function ChatView({
-  useSession, useSessions, useStore, renderSlot, sessionId, openFile, loadOlder, loadImage, inspectCall, chatScroll, forkAt,
-  fileMentions, t,
+  useSession, useSessions, useStore, renderSlot, renderSlotChain, sessionId, openFile, loadOlder,
+  loadImage, inspectCall, chatScroll, forkAt,
+  fileMentions, appearance, t,
 }: ChatViewSlotProps) {
   const order = useSession(s => s.chat.order)
   const nodeStore = useSession(s => s.chat.nodes)
@@ -213,6 +215,17 @@ export function ChatView({
   const renderMessageImages = useCallback<RenderMessageImages>(
     owner => renderSlot('conversation.message.images', { ...owner, loadImage }),
     [loadImage, renderSlot],
+  )
+  // Reference-glyph dispatcher for user and steering bubbles: contributed
+  // kinds elect a chain occupant; the all-decline fallback keeps the core
+  // catalog and renders nothing for a kind with no occupant (the documented
+  // default). Joined onto the inject's token→kind mapping to form the
+  // ReferenceTokenAppearance face threaded to the bubble projection.
+  const renderRefGlyph = useCallback<RenderRefGlyph>(
+    owner => renderSlotChain('conversation.chat.refGlyph', owner, {
+      fallback: <ReferenceIcon kind={owner.kind} size={owner.size} className={owner.className} />,
+    }),
+    [renderSlotChain],
   )
   const runningTurnStart = useMemo(() => runningTurnStartTime(timeline), [timeline])
 
@@ -513,6 +526,8 @@ export function ChatView({
               inspectCall={inspectCall}
               forkAt={forkAt}
               renderMessageImages={renderMessageImages}
+              renderRefGlyph={renderRefGlyph}
+              kindForToken={appearance}
               fileMentions={fileMentions}
               renderSlot={renderSlot}
               t={t}
@@ -529,6 +544,8 @@ export function ChatView({
               key={item.id}
               content={item.content}
               renderMessageImages={renderMessageImages}
+              renderRefGlyph={renderRefGlyph}
+              kindForToken={appearance}
               t={t}
             />
           ))}

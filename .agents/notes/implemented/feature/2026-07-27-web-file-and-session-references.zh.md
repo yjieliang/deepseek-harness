@@ -10,7 +10,7 @@ Web 输入框已有可复用的斜杠命令／引用触发流水线，但它的 
 
 ## 决策
 
-Web 通过 `@deepseek-ai/dsh-client-ui-reference` 暴露一个合并的 `@file` 与 `@session` 菜单。每次处理未加引号的查询时，它会并发启动两项 Remote 发现调用，以确定性顺序把文件排在会话之前，并使用注册在 locale 字典中的标签；不可选择的文件与会话分组标题会区分两个连续的候选分组，且不会进入键盘选择索引。该 source 在加载和已结算状态下都会隐藏原始组标题，因为可见分组由这些分组标题拥有。尚未闭合的带引号 token 只搜索文件。任一候选领域都可以独立失败，不会隐藏另一领域成功返回的行。
+Web 暴露一个合并的 `@file`、`@session` 与知识库菜单：`@deepseek-ai/dsh-client-ui-reference` 贡献文件与会话 source，`@deepseek-ai/dsh-client-ui-kb` 贡献知识库域，由[知识库文档引用](2026-08-18-kb-on-demand-and-reference.md)这一 Agent Note 覆盖。每次处理未加引号的查询时，该 reference source 会并发启动两项 Remote 发现调用，以确定性顺序把文件排在会话之前，并使用注册在 locale 字典中的标签；不可选择的文件与会话分组标题会区分两个连续的候选分组，且不会进入键盘选择索引。该 source 在加载和已结算状态下都会隐藏原始组标题，因为可见分组由这些分组标题拥有。尚未闭合的带引号 token 只搜索文件。任一候选领域都可以独立失败，不会隐藏另一领域成功返回的行。
 
 文件功能遵循由三个包构成的 seam：`@deepseek-ai/dsh-file-reference` 拥有 `ctx.fileReferences`、共享 `@path` token 语法、候选形状和稳定的模型指引；`@deepseek-ai/dsh-file-reference-local` 拥有每个 agent（智能体）有界的宿主文件系统索引、失效处理和作用域内的提示词安装；`dsh-client-ui-reference` 消费生成的 Remote 命名空间与共享语法。选择文件会创建带文件图标与文件名的原子输入框引用，其序列化形式仍只是路径提示词文本。目录保持为带文件夹图标的可编辑路径文本，并在尾部斜杠后重新触发补全。
 

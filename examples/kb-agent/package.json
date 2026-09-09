@@ -1,0 +1,7 @@
+{
+  "name": "@deepseek-ai/dsh-example-kb-agent",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Knowledge-base demo: the ACP automation tree plus the host kb engine and the model-facing kb_* tools over the machine-global markdown library"
+}

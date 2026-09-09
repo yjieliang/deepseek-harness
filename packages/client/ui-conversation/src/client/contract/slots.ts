@@ -12,6 +12,7 @@ import type {
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MessageId } from '@deepseek-ai/dsh-client-connection/client'
+import type { ReferenceAppearance } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { ComposerBlock } from '../input/blocks.ts'
 import type {
@@ -56,6 +57,49 @@ export interface MessageImagesOwnerProps {
 
 /** Slot-backed renderer used by chat nodes without importing an attachment implementation. */
 export type RenderMessageImages = (owner: Omit<MessageImagesOwnerProps, 'loadImage'>) => ReactNode
+
+/**
+ * Owner currency of the two reference-glyph chain slots
+ * (`conversation.input.refGlyph`, `conversation.chat.refGlyph`): one inline
+ * reference's domain-glyph request. The dispatching component names the kind
+ * and the presentation parameters; a contributor elects the request through
+ * its own `select` and renders the glyph from the same carrier.
+ */
+export interface RefGlyphOwnerProps {
+  /** The reference appearance kind the glyph identifies. */
+  kind: ReferenceAppearance
+  /** Requested square edge in pixels. */
+  size?: number
+  /** Host CSS class for the glyph. */
+  className?: string | undefined
+}
+
+/** Slot-backed reference-glyph dispatcher threaded to chat renderers (the renderMessageImages posture). */
+export type RenderRefGlyph = (owner: RefGlyphOwnerProps) => ReactNode
+
+/**
+ * The token→kind half of the transcript reference projection: the
+ * contributed-appearance registry's plain-text mapping — the only part the
+ * apply closure can supply, since the glyph half must route through a chain
+ * slot and therefore lives with the dispatching entry.
+ */
+export type ReferenceTokenKindFor = (tokenAfterAt: string) => ReferenceAppearance | undefined
+
+/**
+ * Plain-text reference-token projection handed to transcript bubbles: the
+ * contributed token→kind mapping plus the glyph dispatcher for the mapped
+ * kinds. renderGlyph's ReactNode output routes through the
+ * `conversation.chat.refGlyph` chain slot — the compliant slot-routed form
+ * for ReactNode content, never a bare ReactNode producer; core kinds fall
+ * through its fallback to the built-in catalog, and an unknown kind without
+ * an occupant renders without a domain glyph.
+ */
+export type ReferenceTokenAppearance = {
+  /** The contributed token→kind mapping. */
+  kindForToken: ReferenceTokenKindFor
+  /** Render one kind's domain glyph. */
+  renderGlyph: RenderRefGlyph
+}
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
@@ -112,6 +156,16 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     }
     /** Optional renderer for one consecutive group of durable message images. */
     'conversation.message.images': { kind: 'single'; scope: 'session'; owner: MessageImagesOwnerProps }
+    /**
+     * One transcript reference chip's domain glyph (user and steering
+     * bubbles), dispatched per chip: entries elect the request by kind
+     * (`select`); the core session/file/folder glyphs stay with the owner's
+     * built-in catalog as the all-decline fallback, and a kind with no
+     * occupant renders without a domain glyph — the documented default.
+     * Declared by this package's chat-view entry, which threads the
+     * dispatched glyphs to the bubble projection as owner props.
+     */
+    'conversation.chat.refGlyph': { kind: 'chain'; scope: 'session'; owner: RefGlyphOwnerProps }
     /**
      * The chat view's per-command row hole: keyed dispatch on the command
      * name (`command/run.name`; a run-less cross-window node has none and
@@ -233,6 +287,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * command face through its own inject.
      */
     'conversation.composer.bar': { kind: 'single'; scope: 'session-maybe'; owner: ComposerBarOwnerProps }
+    /**
+     * One composer reference chip's domain glyph, dispatched per chip: same
+     * currency, election, and fallback contract as
+     * `conversation.chat.refGlyph`. Declared by this package's composer-bar
+     * entry, which dispatches at the chip's render site.
+     */
+    'conversation.input.refGlyph': { kind: 'chain'; scope: 'session-maybe'; owner: RefGlyphOwnerProps }
     /** Optional draft-image rail, drop target, and preview surface inside the composer. */
     'conversation.input.attachments': {
       kind: 'single'
@@ -403,6 +464,18 @@ export interface ChatNodeOwnerProps {
   forkAt: (seq: number) => void
   /** Render a historical image group through the attachment slot. */
   renderMessageImages: RenderMessageImages
+  /**
+   * Render one reference domain glyph through the chat ref-glyph chain slot
+   * (the owner's slot-routed dispatcher); undefined in direct-mount tests
+   * leaves contributed kinds without a domain glyph.
+   */
+  renderRefGlyph?: RenderRefGlyph | undefined
+  /**
+   * Map a plain-text `@`-token to its contributed appearance kind (the
+   * referenceAppearances registry's mapping); undefined leaves every token
+   * to the core heuristic.
+   */
+  kindForToken?: ReferenceTokenKindFor | undefined
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
 }
 
@@ -581,11 +654,15 @@ export interface InputControlOwnerProps {
   locked: boolean
 }
 
-/** Full composer-bar props: standard kit & owner share & control-seat render share & injected share (hooks bound) & locale seat. */
+/**
+ * Full composer-bar props: standard kit & owner share & control-seat/ref-glyph render shares
+ * & injected share (hooks bound) & locale seat.
+ */
 export type ComposerBarProps =
   PropsRuntime<'conversation.composer.bar'>
   & PropsRenderSlots<
     'conversation.input.attachments' | 'conversation.input.plan' | 'conversation.input.model'
+    | 'conversation.input.refGlyph'
   >
   & InjectFace<ComposerBarInjected>
   & PropsLocale<'conversation'>
@@ -758,12 +835,23 @@ export interface ChatViewInjected {
    * absent or the turn produced nothing worth linking.
    */
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
+  /**
+   * The token→kind half of the bubble reference projection
+   * ({@link ReferenceTokenKindFor}), resolved in the apply closure through
+   * the optional `referenceAppearances` service — read per call, so
+   * contributing or retiring a kind takes effect live, and an absent service
+   * maps every token to undefined. The glyph half cannot be synthesized
+   * here: it routes through the chat ref-glyph chain slot, so the view joins
+   * its own slot-routed dispatcher onto this mapping before threading the
+   * full {@link ReferenceTokenAppearance} face down.
+   */
+  appearance?: ReferenceTokenKindFor | undefined
 }
 
-/** Full chat-view component props: runtime & its Tool/command/tail render shares & store & injected & locale seat. */
+/** Full chat-view component props: runtime & its node/image/ref-glyph render shares & store & injected & locale seat. */
 export type ChatViewSlotProps =
   PropsRuntime<'conversation.view'>
-  & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images'>
+  & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images' | 'conversation.chat.refGlyph'>
   & PropsStore<ChatStore> & ChatViewInjected & PropsLocale<'conversation'>
 
 /** Full props of the attachment plugin's composer entry. */

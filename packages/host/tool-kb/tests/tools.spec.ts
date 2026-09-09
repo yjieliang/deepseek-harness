@@ -79,7 +79,7 @@ describe('tool-kb registration', () => {
       'kb_tags', 'kb_update',
     ])
     expect(sections).toHaveLength(1)
-    expect(sections[0]).toMatchObject({ name: 'knowledge-base', order: 30 })
+    expect(sections[0]).toMatchObject({ name: 'knowledge-base', order: 100 })
   })
 })
 

@@ -1,0 +1,4 @@
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":1,"agentInfo":{"name":"deepseek-harness-acp","version":"0.0.1"},"agentCapabilities":{"promptCapabilities":{"image":false,"audio":false,"embeddedContext":false}},"authMethods":[]}}
+{"jsonrpc":"2.0","id":2,"result":{"sessionId":"{{sessionId}}"}}
+{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"{{sessionId}}","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"在知识库中检索「模型路由」,找到 1 篇笔记:\n\n- **标题**:DSH 模型路由方案\n- **路径**:`00-inbox/2026-08-12-模型路由方案.md`(收集箱,inbox 状态)\n- **摘要**:记录 DSH 会话级模型路由的候选方案与最终取舍\n- **标签**:`routing`、`会话`、`设计`\n- **更新时间**:2026-08-12\n\n未读取文档全文,也未创建或修改任何文档。"}}}}
+{"jsonrpc":"2.0","id":3,"result":{"stopReason":"end_turn"}}

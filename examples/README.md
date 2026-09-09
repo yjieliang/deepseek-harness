@@ -27,3 +27,7 @@ An opt-in Web overlay for durable, Session-local reminders. It supports positive
 ## acp-agent
 
 An Agent Client Protocol automation server for programmatic clients, with session, permission, and cancellation support. See the [ACP example reference](acp-agent/README.md).
+
+## kb-agent
+
+The ACP automation tree with the host knowledge-base engine and the model-facing `kb_*` tools mounted beside it, driving the machine-global markdown library at `$DSH_HOME/kb`. Snapshot compositions seed the library through the run workspace and replay keylessly; see the [kb-agent example reference](kb-agent/README.md).

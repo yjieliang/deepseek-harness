@@ -217,6 +217,8 @@ function mount(
             seatOwners.push({ key, owner: seatOwner })
             return null
           }) as InputBarProps['renderSlot']}
+          renderSlotChain={((_key: string, _owner: object, chainOpts?: { fallback?: React.ReactNode }) =>
+            chainOpts?.fallback ?? null) as InputBarProps['renderSlotChain']}
           {...bar}
         />
       )

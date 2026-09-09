@@ -174,6 +174,8 @@ async function scopedBench(register?: (inputTriggers: InputTriggerService) => vo
     useLexicon: bindSnapshotSelector(shell.lexicon),
     useMenuLauncher: bindSnapshotSelector(controller.launcher),
     renderSlot: (() => null) as InputBarProps['renderSlot'],
+    renderSlotChain: ((_key: string, _owner: object, opts?: { fallback?: React.ReactNode }) =>
+      opts?.fallback ?? null) as InputBarProps['renderSlotChain'],
     stop: vi.fn(),
     command: () => Promise.resolve(true),
     // Mirrors the real lookup chain (conversation namespace, then common).

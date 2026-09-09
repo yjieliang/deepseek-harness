@@ -134,6 +134,14 @@ async images(signal: AbortSignal): Promise<KbImagesResult>
 @Remote('moveDoc') async moveDoc(request: KbMoveRequest, signal: AbortSignal): Promise<KbMoveResult>
 
 /**
+ * Rename a document within the same directory, updating the frontmatter title.
+ * @param request - source path and new stem name
+ * @param signal - abort signal for cooperative cancellation
+ * @returns source and destination paths
+ */
+@Remote('renameDoc') async renameDoc(request: KbRenameRequest, signal: AbortSignal): Promise<KbRenameResult>
+
+/**
  * Create a library directory through a `.keep` marker.
  * @param request - the library-relative directory path
  * @param signal - abort signal for cooperative cancellation

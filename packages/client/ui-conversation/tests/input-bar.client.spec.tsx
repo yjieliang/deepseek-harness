@@ -14,6 +14,7 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { ClientContext, ConversationSnapshot, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SubmitOutcome } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+import type { RefGlyphOwnerProps } from '../src/client/contract/slots.ts'
 import { SessionInputShell } from '../src/client/input/facade.ts'
 import type {
   ComposerAttachment, ComposerAttachmentsOwnerProps,
@@ -93,6 +94,8 @@ interface BenchOptions {
   commandMenuOpen?: boolean
   busyEnter?: 'queue' | 'steer'
   toggleCommandMenu?: (selection: { start: number; end: number }) => void
+  /** The composer ref-glyph chain's stub occupant (undefined dispatches the owner fallback). */
+  refGlyph?: (owner: RefGlyphOwnerProps) => React.ReactNode | null
 }
 
 /** One pending queue row (the runtime snapshot shape, as the dock tests build it). */
@@ -151,6 +154,12 @@ function bench(over?: BenchOptions) {
     if (key === 'conversation.input.model') return over?.modelEntry ?? null
     return null
   }) as InputBarProps['renderSlot']
+  const renderSlotChain = ((key: string, owner: object, opts?: { fallback?: React.ReactNode }) => {
+    if (key === 'conversation.input.refGlyph' && over?.refGlyph !== undefined) {
+      return over.refGlyph(owner as RefGlyphOwnerProps)
+    }
+    return opts?.fallback ?? null
+  }) as InputBarProps['renderSlotChain']
   const props: InputBarProps = {
     sessionId: SID,
     SessionProvider: ({ children }) => children(SID),
@@ -190,6 +199,7 @@ function bench(over?: BenchOptions) {
     // Mirrors the real lookup chain (conversation namespace, then common).
     t: over?.t ?? makeTranslate(zh, commonZh),
     renderSlot,
+    renderSlotChain,
     variant: over?.variant ?? 'composer',
     ...(over?.inert === true ? { disabled: true } : {}),
     ...(over?.workspacePickerOpen !== undefined ? { workspacePickerOpen: over.workspacePickerOpen } : {}),
@@ -1180,6 +1190,41 @@ describe('decorations', () => {
     expect(shell.snapshot.occurrences).toHaveLength(1)
     expect(shell.snapshot.draft).toBe('参考 @会话一 内容')
     expect(shell.snapshot.occurrences[0]).toMatchObject({ offset: 3, length: 4 })
+  })
+
+  it('a contributed reference kind renders its glyph through the ref-glyph chain occupant', () => {
+    const { view, shell } = bench({
+      refGlyph: owner => (owner.kind === 'kb' ? <i data-testid="chip-glyph-kb" /> : null),
+    })
+    act(() => {
+      shell.setDraft('查 @k 内容')
+      shell.insertReference(
+        { source: 'reference', ref: 'kb1', label: 'kb1', appearance: 'kb', clipboardText: '@kb1' },
+        { start: 2, end: 4, draftRev: shell.snapshot.draftRev },
+      )
+    })
+    const chip = view.container.querySelector('[data-decoration="chip"]')
+    expect(chip?.getAttribute('data-reference-appearance')).toBe('kb')
+    expect(chip?.querySelector('[data-testid="chip-glyph-kb"]')).not.toBeNull()
+    // The stub occupant replaces the core catalog: no built-in glyph renders.
+    expect(chip?.querySelector('svg')).toBeNull()
+  })
+
+  it('a contributed reference kind without a chain occupant keeps the chip without a domain glyph', () => {
+    const { view, shell } = bench()
+    act(() => {
+      shell.setDraft('查 @k 内容')
+      shell.insertReference(
+        { source: 'reference', ref: 'kb1', label: 'kb1', appearance: 'kb', clipboardText: '@kb1' },
+        { start: 2, end: 4, draftRev: shell.snapshot.draftRev },
+      )
+    })
+    const chip = view.container.querySelector('[data-decoration="chip"]')
+    expect(chip).not.toBeNull()
+    expect(chip?.getAttribute('data-reference-appearance')).toBe('kb')
+    // The all-decline fallback is the core catalog, which renders nothing for
+    // an unknown kind — the chip stays, glyphless.
+    expect(chip?.querySelector('svg')).toBeNull()
   })
 
   it('keeps the textarea glyph layer transparent when a structured reference becomes disabled', () => {

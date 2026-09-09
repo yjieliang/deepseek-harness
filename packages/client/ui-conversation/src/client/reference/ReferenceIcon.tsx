@@ -1,22 +1,30 @@
 import type { ReactNode } from 'react'
+import type { ReferenceAppearance } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import {
   IconBrowseOutline16, IconFolderClose16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
-/** Reference domains with distinct composer and transcript glyphs. */
-export type ReferenceIconKind = 'session' | 'file' | 'folder'
+/**
+ * Reference kinds the built-in catalog glyphs (the core domains). Contributed
+ * appearance kinds have no built-in glyph: their domain occupants render
+ * through the reference-glyph chain slots, and an unknown kind renders null.
+ */
+export type ReferenceIconKind = ReferenceAppearance
 
 /** Props shared by inline reference glyphs. */
 export interface ReferenceIconProps {
   kind: ReferenceIconKind
-  size?: number
+  size?: number | undefined
   className?: string | undefined
 }
 
 /**
  * Render the icon that identifies one inline reference domain.
  * @param props - Reference kind, optional size, and optional CSS class.
- * @returns The corresponding current-color SVG glyph.
+ * @returns The corresponding current-color SVG glyph, or null for a kind
+ *   without a built-in glyph (the documented default: contributed domains
+ *   render through the chain slots, and without an occupant a reference
+ *   renders without a domain glyph).
  */
 export function ReferenceIcon({ kind, size = 16, className }: ReferenceIconProps): ReactNode {
   switch (kind) {
@@ -31,5 +39,9 @@ export function ReferenceIcon({ kind, size = 16, className }: ReferenceIconProps
       )
     case 'file': return <IconBrowseOutline16 size={size} className={className} />
     case 'folder': return <IconFolderClose16 size={size} className={className} />
+    // Documented default: a contributed kind has no domain glyph in this
+    // catalog — its occupant renders through the reference-glyph chain slot,
+    // and an unknown kind renders nothing.
+    default: return null
   }
 }

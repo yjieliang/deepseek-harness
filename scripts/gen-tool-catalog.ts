@@ -387,7 +387,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(ToolKb)
     },
     note:
-      'The 15 kb_* tools are the agent-plane consumer of the knowledge-base capability over ctx.kb; bulk operations gate on batchConfirmN with a preview-first error, and kb_clip degrades to URL-and-title without a mounted web service.',
+      'The 16 kb_* tools are the agent-plane consumer of the knowledge-base capability over ctx.kb; bulk operations gate on batchConfirmN with a preview-first error, and kb_clip degrades to URL-and-title without a mounted web service.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-memory',

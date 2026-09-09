@@ -30,7 +30,7 @@
 | `@deepseek-ai/dsh-tool-fs-search` | `glob`、`grep` | `ctx.tools`、`ctx.subprocess`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn 随包提供的 ripgrep 二进制文件（`@vscode/ripgrep`），并作为普通前台调用运行，绝不作为后台任务；无需在宿主机安装 `rg`，也不经过 shell 层。本目录使用 `sampleOverCapGlobResults: true`；部署必须显式选择该行为。结果超过上限时，会通过可选的 ctx.spillStore 后端保存完整的格式化列表；在共置部署中，如果后端公开本地路径，返回的定位信息可供后续读取／搜索。 |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`、`terminal_list`、`terminal_open`、`terminal_read`、`terminal_send`、`terminal_signal` | `ctx.tools`、`ctx.terminals`、`ctx.systemPrompt`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。 |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`、`get_goal`、`update_goal` | `ctx.tools`、`ctx.agents`、`ctx.goals`、`ctx.systemPrompt`、`a calling Agent in an authorized open turn` | `tool/call`、`goal/change for mutations`、`tool/result` | - | create、edit、pause 和 resume 要求直接来自人类的根权限；complete 和 blocked 也接受确切的当前 Goal Round。blocked 的默认下限是 3 个获准的 Round。 |
-| `@deepseek-ai/dsh-tool-kb` | `kb_add`、`kb_archive`、`kb_clip`、`kb_delete`、`kb_export`、`kb_get`、`kb_images`、`kb_import`、`kb_links`、`kb_move`、`kb_organize`、`kb_search`、`kb_stats`、`kb_tags`、`kb_update` | `ctx.tools`、`ctx.kb`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | 15 个 kb_* 工具是知识库能力在 ctx.kb 之上的 agent 平面消费方；批量操作以 batchConfirmN 门控并先预览后执行，未挂 web 服务时 kb_clip 降级为仅存 URL+标题。 |
+| `@deepseek-ai/dsh-tool-kb` | `kb_add`、`kb_archive`、`kb_clip`、`kb_delete`、`kb_export`、`kb_get`、`kb_images`、`kb_import`、`kb_links`、`kb_move`、`kb_organize`、`kb_rename`、`kb_search`、`kb_stats`、`kb_tags`、`kb_update` | `ctx.tools`、`ctx.kb`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | 16 个 kb_* 工具是知识库能力在 ctx.kb 之上的 agent 平面消费方；批量操作以 batchConfirmN 门控并先预览后执行，未挂 web 服务时 kb_clip 降级为仅存 URL+标题。 |
 | `@deepseek-ai/dsh-tool-memory` | `memory_add`、`memory_list`、`memory_propose`、`memory_remove` | `ctx.tools`、`ctx.habits`、`ctx.systemPrompt`、`ctx.userQuestions (memory_propose confirmation)` | `tool/call`、`tool/result after a user question confirms a proposal` | - | 面向模型的用户习惯记忆工具（memory_add/list/remove/propose）位于 habits seam 之上；memory_propose 在写入前请求用户确认。 |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`、`schedule_delete`、`schedule_list` | `ctx.tools`、`ctx.sessions`、Session 持久化、未来创建的 live 根 Agent | `tool/call`、`schedule/change create or delete`、`tool/result` | - | 仅在选择启用的 Schedule 插件加载后创建的 live 根 Agent scope 内注册。版本 1 接受 after_seconds、显式绝对 at 和有界固定速率 every_seconds，并披露 session-local 交付；管理读取与变更必须通过共享的 Session 持久化 barrier。 |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`、`ctx.lsp`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，因此其模型可见 schema 在更换提供方时保持稳定。运行时要求已注册提供方，例如 `@deepseek-ai/dsh-lsp-stdio`；如果没有提供方，查询会返回结构化 `LSP_UNAVAILABLE` 错误，而不会改变 schema。 |
@@ -1309,9 +1309,31 @@ URL 剪藏:抓取网页正文存入知识库收集箱;抓取受限时降级为�
 
 来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
 
+### `kb_rename`
+
+重命名知识库文档(同一目录内更改文件名,同时更新文档标题)
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "文档相对路径"
+    },
+    "name": {
+      "type": "string",
+      "description": "新文件名(不含扩展名和路径)"
+    }
+  }
+}
+```
+
+来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
+
 ### `kb_search`
 
-检索知识库:关键词匹配标题/别名/摘要/标签/正文,支持 tag:xxx、path:xxx、status:inbox、title:xxx 语法
+检索知识库:关键词匹配标题/别名/摘要/标签/正文,支持 tag:xxx、path:xxx、status:inbox、title:xxx 语法。若用户表述口语化(如「那篇讲用户习惯的」),先把目标扩为 2-4 个候选关键词(中文原文 + 可能的技术/英文别名 + 标签词),用空格分隔再搜索,以提高召回。
 
 ```json
 {
@@ -1319,7 +1341,7 @@ URL 剪藏:抓取网页正文存入知识库收集箱;抓取受限时降级为�
   "properties": {
     "query": {
       "type": "string",
-      "description": "检索关键词,多词空格为 AND;支持 tag:/path:/status:/title: 前缀过滤器"
+      "description": "检索关键词,多词空格为 AND;口语化表述请先展开为多组候选关键词再搜索;支持 tag:/path:/status:/title: 前缀过滤器"
     },
     "topK": {
       "type": "integer",
@@ -1394,7 +1416,7 @@ URL 剪藏:抓取网页正文存入知识库收集箱;抓取受限时降级为�
 
 来源：[`packages/host/tool-kb/src/index.ts`](../packages/host/tool-kb/src/index.ts)
 
-15 个 kb_* 工具是知识库能力在 ctx.kb 之上的 agent 平面消费方；批量操作以 batchConfirmN 门控并先预览后执行，未挂 web 服务时 kb_clip 降级为仅存 URL+标题。
+16 个 kb_* 工具是知识库能力在 ctx.kb 之上的 agent 平面消费方；批量操作以 batchConfirmN 门控并先预览后执行，未挂 web 服务时 kb_clip 降级为仅存 URL+标题。
 
 
 

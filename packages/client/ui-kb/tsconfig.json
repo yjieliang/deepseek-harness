@@ -21,6 +21,12 @@
       "path": "../runtime"
     },
     {
+      "path": "../ui-conversation"
+    },
+    {
+      "path": "../ui-input-trigger"
+    },
+    {
       "path": "../ui-layout"
     },
     {

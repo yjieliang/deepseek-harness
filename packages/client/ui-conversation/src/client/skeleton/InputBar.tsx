@@ -39,7 +39,7 @@ export type InputBarProps = ComposerBarProps
 export function InputBar({
   useSession, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
   resolveSubmitMode, toggleCommandMenu, stop, command, t,
-  renderSlot, useNotices, useLexicon, useMenuLauncher,
+  renderSlot, renderSlotChain, useNotices, useLexicon, useMenuLauncher,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
   placeholder, accessory, overlay, leftItems, rightItems, footer,
@@ -560,7 +560,15 @@ export function InputBar({
               : (
                 <span className={css.chipTrigger}>
                   <span className={css.chipTriggerGlyph}>{chip.text[0]}</span>
-                  <ReferenceIcon kind={chip.appearance} size={16} className={css.chipIcon} />
+                  {/* Contributed kinds route their glyph through the
+                      reference-glyph chain; the all-decline fallback keeps
+                      the core catalog (and renders nothing for a kind with
+                      no occupant — the documented default). */}
+                  {renderSlotChain(
+                    'conversation.input.refGlyph',
+                    { kind: chip.appearance, size: 16, className: css.chipIcon },
+                    { fallback: <ReferenceIcon kind={chip.appearance} size={16} className={css.chipIcon} /> },
+                  )}
                 </span>
               )}
             <span>{chip.text.slice(1)}</span>

@@ -17,7 +17,8 @@ import {
 } from '@deepseek-ai/dsh-client-runtime/client'
 import { RpcId } from '@deepseek-ai/dsh-client-connection/client'
 import type {
-  ChatNode, ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps, SelectionTarget, UseChatNodeTurnData,
+  ChatNode, ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps, RefGlyphOwnerProps,
+  ReferenceTokenKindFor, SelectionTarget, UseChatNodeTurnData,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -149,7 +150,15 @@ function emptyWorkspaces() {
   return bindSnapshotSelector(store)
 }
 
-function makeHarness(init?: Partial<ConversationSnapshot>) {
+/** Harness mounts: the reference projection face and the chat ref-glyph chain's stub occupant. */
+interface HarnessMounts {
+  /** The contributed token→kind mapping (the inject's appearance face). */
+  appearance?: ReferenceTokenKindFor
+  /** The chat ref-glyph chain's stub occupant (undefined dispatches the owner fallback). */
+  refGlyphOccupant?: (owner: RefGlyphOwnerProps) => React.ReactNode | null
+}
+
+function makeHarness(init?: Partial<ConversationSnapshot>, mounts?: HarnessMounts) {
   const { set, source } = makeSource(init)
   const openDetails = vi.fn<(t: SelectionTarget) => void>()
   const openFile = vi.fn<(path: string) => Promise<void>>().mockResolvedValue(undefined)
@@ -259,6 +268,12 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
         return opts?.fallback ?? null
     }
   }) as unknown as ChatViewSlotProps['renderSlot']
+  const renderSlotChain = ((key: string, owner: object, opts?: { fallback?: React.ReactNode }) => {
+    if (key === 'conversation.chat.refGlyph' && mounts?.refGlyphOccupant !== undefined) {
+      return mounts.refGlyphOccupant(owner as RefGlyphOwnerProps)
+    }
+    return opts?.fallback ?? null
+  }) as ChatViewSlotProps['renderSlotChain']
   // SessionProvider seat arrives with the session-scope child declaration;
   // ChatView never invokes it (render-prop pass-through stub).
   const SessionProviderStub: ChatViewSlotProps['SessionProvider'] = ({ children }) => <>{children(SID)}</>
@@ -279,6 +294,7 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
     useStore: bindSnapshotSelector(chat),
     actions: chat.actions,
     renderSlot,
+    renderSlotChain,
     SessionProvider: SessionProviderStub,
     openDetails,
     openFile,
@@ -289,6 +305,8 @@ function makeHarness(init?: Partial<ConversationSnapshot>) {
     forkAt,
     // Absent-service default; mention tests override with a real resolver.
     fileMentions: () => undefined,
+    // The inject's appearance face arrives only when a mounts entry supplies it.
+    ...(mounts?.appearance !== undefined ? { appearance: mounts.appearance } : {}),
     // Mirrors the real lookup chain (conversation namespace, then common).
     t,
   }
@@ -535,6 +553,40 @@ describe('ChatView', () => {
 
     expect(view.getAllByText('same steering')).toHaveLength(2)
     expect(view.container.querySelectorAll('[data-pending-steering]')).toHaveLength(1)
+  })
+
+  it('routes contributed reference glyphs through the chat ref-glyph chain to both bubble paths', () => {
+    // The durable user bubble crosses ChatNodeSeat's owner share; the pending
+    // steering bubble takes the same face as direct props — both dispatch the
+    // contributed kind through the view's slot-routed glyph dispatcher.
+    const pending = {
+      id: 'steer-kb-occurrence' as never,
+      messageId: 'steer-kb-message' as never,
+      placement: 'steering' as const,
+      content: [{ type: 'text' as const, text: '看 @kb:10-技术/note.md' }],
+      preview: '看 @kb:10-技术/note.md',
+      text: '看 @kb:10-技术/note.md',
+    }
+    const h = makeHarness(
+      {
+        nodes: [user(1, '看 @kb:10-技术/note.md 里的结论')],
+        queue: [pending],
+        running: true,
+      },
+      {
+        appearance: (tokenAfterAt: string) => (tokenAfterAt.startsWith('kb:') ? 'kb' : undefined),
+        refGlyphOccupant: owner => (owner.kind === 'kb' ? <i data-testid="ref-glyph-kb" /> : null),
+      },
+    )
+    const view = render(<h.ChatView {...h.props} />)
+    const chips = [...view.container.querySelectorAll('[data-ref-chip="kb"]')]
+    expect(chips).toHaveLength(2)
+    for (const chip of chips) {
+      expect(chip.textContent).toBe('note.md')
+      expect(chip.querySelector('[data-testid="ref-glyph-kb"]')).not.toBeNull()
+      // The stub occupant replaces the core catalog: no built-in glyph.
+      expect(chip.querySelector('svg')).toBeNull()
+    }
   })
 
   it('animates only the latest unresolved model retry', () => {

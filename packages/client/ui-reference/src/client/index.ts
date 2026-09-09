@@ -1,12 +1,11 @@
 /**
  * Unified Web `@` reference source. File and session discovery run through
  * the cancellable generated Remote namespaces in parallel with deterministic
- * ordering and labels.
+ * ordering and labels. Other reference domains (e.g. the knowledge base) are
+ * independent trigger sources contributed by their owning plugins.
  *
  * @module @deepseek-ai/dsh-client-ui-reference/client
  */
-// Type-only: pulls the generated Remote API and ctx.remote merge through the Client assembly boundary.
-import type {} from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
