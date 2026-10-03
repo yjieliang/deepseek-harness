@@ -832,6 +832,60 @@ describe('writeFileAtomic — temp-file safety', () => {
     expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
   })
 
+  it('publishes through an exclusive copy when the filesystem rejects hard links', async () => {
+    const file = join(dir, 'a.txt')
+    const unsupported = Object.assign(new Error('link on exfat'), { code: 'EISDIR' })
+
+    await writeFileAtomic(file, 'ours', undefined, undefined, {
+      linkFile: async () => { throw unsupported },
+    }, { displayPath: file })
+
+    expect(await readFile(file, 'utf8')).toBe('ours')
+    expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
+  })
+
+  it('rejects a copy-fallback collision as FS_NOT_OBSERVED', async () => {
+    const file = join(dir, 'a.txt')
+    const unsupported = Object.assign(new Error('link on exfat'), { code: 'EISDIR' })
+    const collision = Object.assign(new Error('target existed'), { code: 'EEXIST' })
+
+    await expect(writeFileAtomic(file, 'ours', undefined, undefined, {
+      linkFile: async () => { throw unsupported },
+      publishCopy: async () => { throw collision },
+    }, { displayPath: file })).rejects.toMatchObject({
+      code: 'FS_NOT_OBSERVED',
+      message: `cannot overwrite existing "${file}" without reading it first`,
+      cause: collision,
+    })
+    await expect(stat(file)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
+  })
+
+  it('maps a link failure without an errno code to FS_IO_ERROR', async () => {
+    const file = join(dir, 'a.txt')
+    const oddCode = Object.assign(new Error('odd code'), { code: 42 })
+
+    for (const failure of ['link failed', new Error('no code'), oddCode]) {
+      await expect(writeFileAtomic(file, 'ours', undefined, undefined, {
+        linkFile: async () => { throw failure },
+      }, { displayPath: file })).rejects.toMatchObject({ code: 'FS_IO_ERROR' })
+    }
+    await expect(stat(file)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('maps a failing exclusive-copy fallback and cleans staging', async () => {
+    const file = join(dir, 'a.txt')
+    const unsupported = Object.assign(new Error('link on exfat'), { code: 'EISDIR' })
+    const copyFailure = Object.assign(new Error('copy denied'), { code: 'EACCES' })
+
+    await expect(writeFileAtomic(file, 'ours', undefined, undefined, {
+      linkFile: async () => { throw unsupported },
+      publishCopy: async () => { throw copyFailure },
+    }, { displayPath: file })).rejects.toMatchObject({ code: 'FS_IO_ERROR', cause: copyFailure })
+    await expect(stat(file)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await readdir(dir)).filter(name => name.includes('.tmp'))).toEqual([])
+  })
+
   it('maps a guarded-create target-inspection failure and cleans staging', async () => {
     const file = join(dir, 'a.txt')
     const linkFailure = Object.assign(new Error('link failed'), { code: 'EIO' })

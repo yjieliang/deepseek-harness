@@ -6,8 +6,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { createReadStream, realpath as realpathCallback } from 'node:fs'
-import { chmod, link, lstat, mkdir, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
+import { constants, createReadStream, realpath as realpathCallback } from 'node:fs'
+import { chmod, copyFile, link, lstat, mkdir, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises'
 import type { BigIntStats, Dirent, Stats } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { TextDecoder, promisify } from 'node:util'
@@ -49,6 +49,21 @@ function errorMessage(error: unknown): string {
 
 function isPermissionError(error: unknown): boolean {
   return error instanceof Error && 'code' in error && (error.code === 'EACCES' || error.code === 'EPERM')
+}
+
+/**
+ * Errno values a filesystem returns when it cannot publish through a hard link:
+ * exFAT reports `EISDIR` on Windows, and other platforms/mounts report
+ * `ENOTSUP`, `ENOSYS`, `EXDEV`, or `EPERM`. The guarded path inspects the target
+ * first, so these codes mean "unsupported primitive" rather than "the target
+ * exists" — publication may retry through an exclusive copy instead of failing.
+ */
+const LINK_UNSUPPORTED_CODES = new Set(['EISDIR', 'ENOTSUP', 'ENOSYS', 'EXDEV', 'EPERM'])
+
+function isLinkUnsupported(error: unknown): boolean {
+  if (!(error instanceof Error) || !('code' in error)) return false
+  const code = error.code
+  return typeof code === 'string' && LINK_UNSUPPORTED_CODES.has(code)
 }
 
 function throwIfAborted(signal: AbortSignal | undefined, verb: string): void {
@@ -93,6 +108,8 @@ export interface FsIoInternals {
   replaceFile?: (replaced: string, replacement: string) => Promise<void>
   /** Override the hard-link no-replace publication boundary. */
   linkFile?: (existingPath: string, newPath: string) => Promise<void>
+  /** Override the exclusive-copy fallback for filesystems that reject hard links. */
+  publishCopy?: (source: string, destination: string) => Promise<void>
   /** Override target inspection after guarded publication fails. */
   inspectPublicationTarget?: (path: string) => Promise<BigIntStats>
   /** Override staging-directory removal for commit-point failure coverage. */
@@ -533,12 +550,28 @@ async function removeStagingDirOrThrow(
   throw originalError
 }
 
-async function throwGuardedCreateFailure(
-  error: unknown,
+/**
+ * Publish a guarded create after the hard-link primitive was rejected.
+ *
+ * Link errno values vary by platform and filesystem, so inspect the target entry
+ * first: a collision must not be confused with missing hard-link support. When the
+ * target really is absent and the filesystem cannot link (exFAT reports `EISDIR`),
+ * retry through an exclusive copy, which keeps the no-replace guarantee.
+ * @param failure - the rejected hard-link attempt.
+ * @param absolutePath - destination path.
+ * @param displayPath - caller-facing path for diagnostics.
+ * @param inspectPublicationTarget - inspects the destination after the failure.
+ * @param tempPath - staged, synced content to publish.
+ * @param publishCopy - exclusive-copy publication boundary.
+ */
+async function publishAbsentTarget(
+  failure: unknown,
   absolutePath: string,
   displayPath: string,
   inspectPublicationTarget: (path: string) => Promise<BigIntStats>,
-): Promise<never> {
+  tempPath: string,
+  publishCopy: (source: string, destination: string) => Promise<void>,
+): Promise<void> {
   let existing: BigIntStats | undefined
   try {
     existing = await inspectPublicationTarget(absolutePath)
@@ -548,26 +581,42 @@ async function throwGuardedCreateFailure(
     }
   }
 
-  // Link errno values vary by platform and filesystem. Inspect the target entry
-  // after failure so a collision is not confused with missing hard-link support.
   if (existing !== undefined) {
     if (!existing.isFile()) {
-      throw new FsError(`cannot write "${displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE', { cause: error })
+      throw new FsError(`cannot write "${displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE', { cause: failure })
     }
     throw new FsError(
       `cannot overwrite existing "${displayPath}" without reading it first`,
       'FS_NOT_OBSERVED',
-      { cause: error },
+      { cause: failure },
     )
   }
-  if (isEEXIST(error)) {
+  if (isEEXIST(failure)) {
     throw new FsError(
       `cannot overwrite existing "${displayPath}" without reading it first`,
       'FS_NOT_OBSERVED',
-      { cause: error },
+      { cause: failure },
     )
   }
-  throw new FsError(`cannot write "${displayPath}": ${errorMessage(error)}`, 'FS_IO_ERROR', { cause: error })
+  if (!isLinkUnsupported(failure)) {
+    throw new FsError(`cannot write "${displayPath}": ${errorMessage(failure)}`, 'FS_IO_ERROR', { cause: failure })
+  }
+  try {
+    await publishCopy(tempPath, absolutePath)
+  } catch (copyFailure: unknown) {
+    if (isEEXIST(copyFailure)) {
+      throw new FsError(
+        `cannot overwrite existing "${displayPath}" without reading it first`,
+        'FS_NOT_OBSERVED',
+        { cause: copyFailure },
+      )
+    }
+    throw new FsError(
+      `cannot write "${displayPath}": ${errorMessage(failure)}; exclusive copy also failed: ${errorMessage(copyFailure)}`,
+      'FS_IO_ERROR',
+      { cause: copyFailure },
+    )
+  }
 }
 
 /**
@@ -582,8 +631,9 @@ async function throwGuardedCreateFailure(
  * @param signal - cancellation checked before final publication.
  * @param internals - Test hook for pinning temp names and observing the staged file.
  * @param createIfAbsent - when provided, publish with a hard-link no-replace
- * primitive; a concurrent creator's file is preserved and this write is
- * rejected with `FS_NOT_OBSERVED` using the supplied display path.
+ * primitive, falling back to an exclusive copy when the filesystem rejects links
+ * (exFAT reports `EISDIR`); a concurrent creator's file is preserved and this
+ * write is rejected with `FS_NOT_OBSERVED` using the supplied display path.
  */
 export async function writeFileAtomic(
   absolutePath: string,
@@ -606,6 +656,8 @@ export async function writeFileAtomic(
   const copyFileDacl = internals.copyFileDacl ?? copyFileDaclWin32
   const replaceFile = internals.replaceFile ?? replaceFileWin32
   const linkFile = internals.linkFile ?? link
+  const publishCopy = internals.publishCopy
+    ?? ((source: string, destination: string) => copyFile(source, destination, constants.COPYFILE_EXCL))
   const inspectPublicationTarget = internals.inspectPublicationTarget
     ?? (path => lstat(path, { bigint: true }))
   const removeStagingDir = internals.removeStagingDir
@@ -634,7 +686,7 @@ export async function writeFileAtomic(
       try {
         await linkFile(tempPath, absolutePath)
       } catch (error: unknown) {
-        await throwGuardedCreateFailure(error, absolutePath, createIfAbsent.displayPath, inspectPublicationTarget)
+        await publishAbsentTarget(error, absolutePath, createIfAbsent.displayPath, inspectPublicationTarget, tempPath, publishCopy)
       }
     } else if (platform === 'win32' && mode !== undefined) {
       try {
