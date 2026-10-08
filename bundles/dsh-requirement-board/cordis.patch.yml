@@ -1,0 +1,31 @@
+# Requirement Board — one Host row plus the browser half declared in package.json.
+#
+# Every field under `config` is optional; the plugin resolves and validates them
+# in host/config.js and fails loud on a malformed value.
+- insert:
+    - id: requirement-board
+      name: dsh-requirement-board
+      config:
+        # Template a new requirement binds to when the caller names none.
+        defaultTemplateId: tpl-standard
+        # Requirements whose active node has not moved for this many hours are
+        # reported as stalled in the statistics.
+        stallAfterHours: 72
+        # Hours an execution lock survives untouched before another session may
+        # take it over; a lock is always takeable when its session is orphaned.
+        staleClaimHours: 8
+        # Contribute the live board to every model step's runtime context.
+        promptContext: true
+        # Upper bound on requirements named in that context.
+        promptMaxItems: 12
+        # How many requirements one session may reserve in its execution queue
+        # (§5.3); the bound refuses a further append instead of dropping the
+        # oldest reservation.
+        maxQueueItems: 20
+        # Serve the browser half's snapshot/command/SSE routes.
+        http: true
+        # One-time import of the pre-migration board document. Off by default so
+        # a development board never absorbs another deployment's records; stage R
+        # turns it on for exactly one start. The document path is derived from
+        # $DSH_PROFILE_DIR (or ~/.dsh) and never configured here.
+        importLegacy: false

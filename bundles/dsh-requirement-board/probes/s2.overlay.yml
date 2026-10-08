@@ -1,0 +1,18 @@
+# S2 route-proof overlay (correct-key run). Pair it with dev.overlay.yml:
+#
+#   dsh web --patch .artifacts/requirement-board/dev.overlay.yml \
+#           --patch .artifacts/requirement-board/probes/s1.overlay.yml \
+#           --patch .artifacts/requirement-board/probes/s2.overlay.yml --port 3099
+#
+# Writes a v1 `requirement_board` record through the overlay's
+# `routes.requirement_board: sqlite`; the SQLite file must then contain the
+# unit's record table. The file is deleted after inspection so stage 0 opens a
+# clean unit (the SQLite backend rejects a later v2 descriptor over a v1 stamp).
+- insert:
+    - id: s2-route-probe
+      name: "file:///C:/code/deepseek-harness/.artifacts/requirement-board/probes/s2-route-probe.js"
+      config:
+        domain: requirement_board
+        database: "C:/code/deepseek-harness/.artifacts/requirement-board/dev-board.db"
+        jsonRoot: "C:/code/deepseek-harness/.artifacts/requirement-board/probes/s2-correct-storages"
+        result: "s2-route-result.json"

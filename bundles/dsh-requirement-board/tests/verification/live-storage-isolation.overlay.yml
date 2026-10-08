@@ -1,0 +1,10 @@
+# Verification-only isolation: the author's row writes its SQLite database to
+# `.artifacts/requirement-board/dev-board.db`, which the peer's live server on
+# port 3099 uses at the same time. This overlay re-points only that path, so the
+# verification run on 3101 never shares mutable board state with the peer; every
+# preset row and the declaration under test stay exactly as `dev.overlay.yml`
+# declares them.
+- id: storage-sqlite
+  config:
+    path: !!js process.cwd() + '/.artifacts/requirement-board/tests/verification/live-board.db'
+    journalMode: wal

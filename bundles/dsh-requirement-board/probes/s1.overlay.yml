@@ -1,0 +1,12 @@
+# S1 probe overlay (development-only diagnostic, not part of the product).
+#
+# Mounts probes/s1-probe.js inside the real dsh process so the import question is
+# answered by the runtime's own module pipeline. The row name is an absolute
+# file URL on purpose: the probe is not an installable package, so it must not
+# depend on profile package resolution.
+#
+#   dsh web --patch .artifacts/requirement-board/dev.overlay.yml \
+#           --patch .artifacts/requirement-board/probes/s1.overlay.yml --port 3099
+- insert:
+    - id: s1-probe
+      name: "file:///C:/code/deepseek-harness/.artifacts/requirement-board/probes/s1-probe.js"

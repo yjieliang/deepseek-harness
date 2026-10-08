@@ -1,0 +1,33 @@
+# S2 route-proof overlay (control run): every route key is the HYPHENATED name.
+#
+#   dsh web --patch .artifacts/requirement-board/probes/s2-control.overlay.yml --port 3099
+#
+# Self-contained on purpose: it must not inherit dev.overlay.yml, whose correct
+# route would mask the control. The wrong key must produce the silent fallback:
+# the v1 `requirement_board` record lands under the JSON backend root and no
+# unit table appears in the SQLite file.
+#
+# The JSON backend root is redirected into probes/ so the fallback write stays
+# inside the development tree instead of the real `~/.dsh/storages`.
+- insert:
+    - id: storage-sqlite
+      name: "@deepseek-ai/dsh-storage-sqlite"
+      config:
+        path: "C:/code/deepseek-harness/.artifacts/requirement-board/probes/s2-control.db"
+        journalMode: wal
+- id: storage-domain
+  config:
+    backend: json
+    routes:
+      requirement-board: sqlite
+- id: storage-json
+  config:
+    root: "C:/code/deepseek-harness/.artifacts/requirement-board/probes/s2-control-storages"
+- insert:
+    - id: s2-route-probe
+      name: "file:///C:/code/deepseek-harness/.artifacts/requirement-board/probes/s2-route-probe.js"
+      config:
+        domain: requirement_board
+        database: "C:/code/deepseek-harness/.artifacts/requirement-board/probes/s2-control.db"
+        jsonRoot: "C:/code/deepseek-harness/.artifacts/requirement-board/probes/s2-control-storages"
+        result: "s2-control-result.json"

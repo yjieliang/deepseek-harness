@@ -1,0 +1,12 @@
+# Stage R red control: a hyphenated route key instead of the storage unit name.
+#
+# `storage-domain` validates unit names by /^[a-z][a-z0-9_]*$/ and the board's
+# unit is `requirement_board`; a route key with a hyphen matches no unit, so the
+# unit silently falls back to the default `json` backend and nothing reports the
+# miss. `backend` is restated because an id-targeted patch replaces the row's
+# config object wholesale.
+- id: storage-domain
+  config:
+    backend: json
+    routes:
+      requirement-board: sqlite

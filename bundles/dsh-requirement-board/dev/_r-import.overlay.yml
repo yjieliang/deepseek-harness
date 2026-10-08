@@ -1,0 +1,23 @@
+# 仅阶段 R 一次性导入用（ROLE-DISPATCH §13.2 step 4）——不属于任何常驻层。
+#
+# Applied for exactly one launch:
+#   node --import tsx/esm apps/cli/src/bin.ts --profile web \
+#     --patch .artifacts/requirement-board/_r-import.overlay.yml --port 3109 --no-open
+# The profile patch (`~/.dsh/profiles/web/cordis.patch.yml`) never carries
+# `importLegacy`: it keeps the plugin's default (false), so an ordinary launch can
+# not import anything. This file is the only place the switch is ever true, and it
+# must not be merged into the profile.
+#
+# The whole 8-key config is restated because an id-targeted patch replaces the
+# row's config object instead of merging into it — the same rule that forces the
+# profile patch to restate `storage-domain` in full.
+- id: requirement-board
+  config:
+    defaultTemplateId: tpl-standard
+    stallAfterHours: 72
+    staleClaimHours: 8
+    promptContext: true
+    promptMaxItems: 12
+    maxQueueItems: 20
+    http: true
+    importLegacy: true

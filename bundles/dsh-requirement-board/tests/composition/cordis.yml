@@ -1,0 +1,92 @@
+# Test-only REAL composition for the requirement-board Host plugin.
+#
+# Booted through app-boot's Loader in a child Node process by
+# `tests/loader.mjs`; see `README.md` in this directory for the run command,
+# the repository precedent this follows, and the scenarios it carries.
+#
+# Every mounted package is a real workspace package loaded from source. Only the
+# process-owned, nondeterministic inputs are substituted:
+#   - `web-server-stub` provides `webServer` and records route registrations
+#     instead of binding a port, so the channel starts no HTTP listener;
+#   - `agents-stub` and `preset-registry-stub` stand in for the live session and
+#     preset registries (no session is created and the Harness home is untouched),
+#     while the role declaration itself is the real `role.js` row;
+#   - the storage root comes from `RB_BOARD_STORAGE_ROOT`, so the board's unit
+#     lives in the runner's temporary directory, never in the Harness home.
+#
+# Relative names resolve beside this file (app-boot sets the Loader base URL to
+# the config directory).
+- id: system-prompt
+  name: '../../../../packages/core/system-prompt/src/index.ts'
+
+- id: tools
+  name: '../../../../packages/core/tools/src/index.ts'
+
+# The real storage stack. The board injects `storageDomain`, so the hub, one
+# backend, and the domain form must all be mounted for the board to activate.
+- id: storage
+  name: '../../../../packages/storage/storage/src/index.ts'
+
+- id: storage-json
+  name: '../../../../packages/storage/storage-json/src/index.ts'
+  config:
+    # Nondeterministic input: the medium's root. The runner supplies one
+    # temporary directory per scenario, and the driver refuses to boot without it.
+    root: !!js process.env.RB_BOARD_STORAGE_ROOT
+
+- id: storage-domain
+  name: '../../../../packages/storage/storage-domain/src/index.ts'
+  config:
+    # The domain form needs a default route plus the board's route. The key MUST
+    # be the domain name `requirement_board` (`UNIT_NAME_RE` allows no hyphen):
+    # a hyphenated key would not match and would silently fall back to `backend`.
+    backend: json
+    routes:
+      requirement_board: json
+
+- id: web-server-stub
+  name: './stub-web-server.mjs'
+
+# The end-to-end role chain (`ROLE-DISPATCH.md` §2.1, §2.3). `agents` is the
+# external session registry; the preset registry and the preset's own role
+# declaration share one isolated realm, exactly as a real preset group does.
+- id: agents-stub
+  name: './stub-agent-registry.mjs'
+
+- id: preset-art
+  name: cordis:group
+  group: true
+  isolate:
+    requirementBoardRole: true
+  config:
+    - id: board-role-art
+      name: '../../role.js'
+      config:
+        roleId: art
+        roleName: Art Director
+        duties:
+          - 美术与音频资产规范
+          - 资产合规清单
+    - id: preset-registry-stub
+      name: './stub-preset-registry.mjs'
+      config:
+        declaredPreset: art
+
+- id: requirement-board
+  name: '../../index.js'
+  config:
+    defaultTemplateId: tpl-standard
+    stallAfterHours: 72
+    promptContext: true
+    promptMaxItems: 12
+    http: true
+    # This composition mounts no job registry and no sub-agent producer, so
+    # execution sync can observe nothing. Left on it would warn once at mount
+    # about the registries the channel deliberately omits, which would drown the
+    # scenario's own log assertions; the shipped composition mounts `jobs` and
+    # keeps the default. The synchronizer itself is exercised end-to-end by
+    # `tests/runs.mjs` against a real domain and the real `apply` wiring.
+    executionSync: false
+    # Off, exactly as the shipped row config has it: the channel must never
+    # absorb another deployment's legacy document.
+    importLegacy: false
