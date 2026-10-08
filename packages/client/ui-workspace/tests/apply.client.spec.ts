@@ -13,12 +13,14 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { WorkspaceBrowserInjected, WorkspacePickerInjected } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import {
-  type ArchiveSessionInjected, type ForkSessionInjected, menuOpenStateFactory, type PinSessionInjected,
+  type ArchiveSessionInjected, type CopySessionNameInjected, type ForkSessionInjected, menuOpenStateFactory,
+  type PinSessionInjected,
   type RenameSessionInjected, type RowToastInjected, type SessionArchiveConfirmInjected, type SessionRenameDialogInjected,
   type WorkspaceViewStoreHandle,
 } from '../src/client/contract/slots.ts'
 import { WorkspaceBrowser } from '../src/client/rows/WorkspaceBrowser.tsx'
 import { ArchiveSessionMenuItem, ArchiveSessionRowButton, SessionArchiveConfirmDialog } from '../src/client/session-actions/ArchiveSession.tsx'
+import { CopySessionNameMenuItem } from '../src/client/session-actions/CopySessionName.tsx'
 import { ForkSessionMenuItem } from '../src/client/session-actions/ForkSession.tsx'
 import { PinSessionMenuItem, PinSessionRowButton } from '../src/client/session-actions/PinSession.tsx'
 import { RenameSessionMenuItem, SessionRenameDialog } from '../src/client/session-actions/RenameSession.tsx'
@@ -218,7 +220,7 @@ describe('ui-workspace apply', () => {
     await Promise.resolve()
     expect(after.slots.entries('conversation.hero.workspace')[0]!.component).toBe(WorkspacePicker)
     // The row actions follow the browser's own declaration, whenever it lands.
-    expect(after.slots.entries(MENU_ITEM)).toHaveLength(4)
+    expect(after.slots.entries(MENU_ITEM)).toHaveLength(5)
     expect(after.slots.entries(ROW_ACTION)).toHaveLength(2)
     expect(after.slots.entries('shell.overlay')).toHaveLength(3)
   })
@@ -239,6 +241,7 @@ describe('ui-workspace apply', () => {
     expect(rows(MENU_ITEM)).toEqual([
       ['pin', 100, PinSessionMenuItem, 'workspace'],
       ['rename', 200, RenameSessionMenuItem, 'workspace'],
+      ['copy-name', 250, CopySessionNameMenuItem, 'workspace'],
       ['fork', 300, ForkSessionMenuItem, 'workspace'],
       ['archive', 400, ArchiveSessionMenuItem, 'workspace'],
     ])
@@ -269,6 +272,28 @@ describe('ui-workspace apply', () => {
       expect(faceOf(entry(b.slots, MENU_ITEM, id))).not.toHaveProperty('notify')
       expect(faceOf(entry(b.slots, ROW_ACTION, id))).not.toHaveProperty('notify')
     }
+  })
+
+  it('copies a Session name and reports both clipboard outcomes through the shared notice', async () => {
+    const b = await bench()
+    declare(b.slots, 'sidebar.workspaces', 'shell.overlay')
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const toast = faceOf(entry(b.slots, 'shell.overlay', 'workspace.row-toast')) as RowToastInjected
+    const copy = faceOf(entry(b.slots, MENU_ITEM, 'copy-name')) as CopySessionNameInjected
+
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    onTestFinished(() => { Reflect.deleteProperty(navigator, 'clipboard') })
+
+    copy.copySessionName('Session title')
+    expect(writeText).toHaveBeenCalledWith('Session title')
+    await vi.waitFor(() => { expect(toast.hooks.toast.getSnapshot()?.kind).toBe('nameCopied') })
+
+    // A refused write is the one outcome the row itself cannot show: the menu
+    // that owned it is gone, so the notice carries it.
+    writeText.mockRejectedValueOnce(new Error('denied'))
+    copy.copySessionName('Session title')
+    await vi.waitFor(() => { expect(toast.hooks.toast.getSnapshot()?.kind).toBe('nameCopyFailed') })
   })
 
   it('derives the pinned and archived Sets from the Workspace snapshot, rebuilt only when it changes', async () => {
@@ -596,7 +621,7 @@ describe('ui-workspace apply', () => {
     declare(b.slots, 'sidebar.workspaces', 'conversation.hero.workspace', 'conversation.empty.workspace', 'shell.overlay')
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(b.slots.entries(MENU_ITEM)).toHaveLength(4)
+    expect(b.slots.entries(MENU_ITEM)).toHaveLength(5)
     expect(b.slots.entries(ROW_ACTION)).toHaveLength(2)
     expect(b.slots.entries('shell.overlay')).toHaveLength(3)
     await fiber.dispose()

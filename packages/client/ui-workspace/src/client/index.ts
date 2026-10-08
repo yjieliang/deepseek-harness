@@ -7,8 +7,8 @@
  * own `single` directory-flow child hole for the composed picker package's
  * client half. WorkspaceBrowser additionally declares the two Session row
  * action lists, and this apply registers the shipped actions — pin, rename,
- * fork, archive — into them the way any client plugin would, each with its
- * own behavior, plus the rename dialog and the row-action notice into
+ * copy name, fork, archive — into them the way any client plugin would, each
+ * with its own behavior, plus the rename dialog and the row-action notice into
  * `shell.overlay` (see the contract module doc). It also declares two
  * Session-row seats: the leading decoration a row renders only while its own
  * primary state is idle, and the section the row's hover card renders between
@@ -23,6 +23,7 @@ import type {
   IWorkspaces, SessionActivity, WorkspaceArchiveError, WorkspaceSnapshot,
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HostObservable, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 // Type-only: pulls the Controller service merges.
@@ -36,7 +37,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the Session root standard-hook merge.
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import {
-  type ArchiveSessionInjected, type ForkSessionInjected, menuOpenStateFactory, type PinSessionInjected,
+  type ArchiveSessionInjected, type CopySessionNameInjected, type ForkSessionInjected, menuOpenStateFactory,
+  type PinSessionInjected,
   type SessionArchiveConfirmInjected, type SessionArchiveConfirmRequest,
   type RenameSessionInjected, type RowToast, type RowToastInjected, type RowToastState, type SessionRenameDialogInjected,
   type WorkspaceBrowserInjected, type WorkspacePickerInjected,
@@ -47,6 +49,7 @@ import { createWorkspaceViewStore } from './stores.ts'
 import { WorkspaceBrowser } from './rows/WorkspaceBrowser.tsx'
 import { ArchiveSessionMenuItem, ArchiveSessionRowButton, SessionArchiveConfirmDialog } from './session-actions/ArchiveSession.tsx'
 import { derive } from './session-actions/derived.ts'
+import { CopySessionNameMenuItem } from './session-actions/CopySessionName.tsx'
 import { ForkSessionMenuItem } from './session-actions/ForkSession.tsx'
 import { PinSessionMenuItem, PinSessionRowButton } from './session-actions/PinSession.tsx'
 import { RenameSessionMenuItem, SessionRenameDialog } from './session-actions/RenameSession.tsx'
@@ -217,6 +220,15 @@ export function apply(ctx: Context): void {
     },
   })
   const renameInjected = (): RenameSessionInjected => ({ requestSessionRename })
+  // The menu closes on select, so the write's outcome reaches the user through
+  // the frame-wide notice rather than in the row.
+  const copyNameInjected = (): CopySessionNameInjected => ({
+    copySessionName: (title) => {
+      void writeClipboard(title).then((copied) => {
+        notify({ kind: copied ? 'nameCopied' : 'nameCopyFailed' })
+      })
+    },
+  })
   const renameDialogInjected = (): SessionRenameDialogInjected => ({
     hooks: { renameRequest },
     settleSessionRename: shortcutControls.closeRename,
@@ -285,6 +297,7 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('sidebar.workspaces.session.menu.item', function* () {
     yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'pin', order: 100, locale: NS, inject: pinInjected }, PinSessionMenuItem)
     yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'rename', order: 200, locale: NS, inject: renameInjected }, RenameSessionMenuItem)
+    yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'copy-name', order: 250, locale: NS, inject: copyNameInjected }, CopySessionNameMenuItem)
     yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'fork', order: 300, locale: NS, inject: forkInjected }, ForkSessionMenuItem)
     yield ctx.slots.register({ name: 'sidebar.workspaces.session.menu.item', id: 'archive', order: 400, locale: NS, inject: archiveInjected }, ArchiveSessionMenuItem)
   })

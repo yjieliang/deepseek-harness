@@ -134,8 +134,9 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'sidebar.session.row.hover': { kind: 'list'; scope: 'root'; owner: SessionRowScheduleOwnerProps }
     /**
      * The rows of one Session's "..." menu, in ascending `order`. ui-workspace
-     * registers the shipped rows here — `pin` (100), `rename` (200), `fork`
-     * (300), `archive` (400) — so a plugin row is placed by its own `order`
+     * registers the shipped rows here — `pin` (100), `rename` (200),
+     * `copy-name` (250), `fork` (300), `archive` (400) — so a plugin row is
+     * placed by its own `order`
      * among them. Use a package-namespaced `id`; reusing a shipped id at
      * another `priority` shadows that row. Each entry renders one
      * `role="menuitem"` `<button>` (the shipped rows use ui-primitives'
@@ -294,6 +295,10 @@ export type RowToast =
   | { kind: 'unpinFailed' }
   | { kind: 'archivedNotOpenable' }
   | { kind: 'defaultWorkspaceFailed' }
+  /** A Session name reached the clipboard. */
+  | { kind: 'nameCopied' }
+  /** The clipboard refused a Session name write. */
+  | { kind: 'nameCopyFailed' }
   /**
    * An explicit New Session request that failed. `message` is untranslated:
    * a Host refusal as `code: message` — the stable code stays in the copy so
@@ -388,6 +393,16 @@ export interface ForkSessionInjected {
 export interface RenameSessionInjected {
   /** Ask for the rename dialog, seeded with the row's current title. */
   requestSessionRename: (sessionId: SessionId, currentTitle: string) => void
+}
+
+/**
+ * Copy-name action share: the row hands over its title only; the clipboard
+ * write and the notice it raises live in the injected callback, because the
+ * row unmounts with the menu that dismissed it.
+ */
+export interface CopySessionNameInjected {
+  /** Copy a Session's name to the clipboard, raising the outcome notice. */
+  copySessionName: (title: string) => void
 }
 
 /** A Session rename the rename action asked for; the dialog entry opens on it. */

@@ -27,6 +27,7 @@ import {
   ArchiveSessionMenuItem, ArchiveSessionRowButton, SessionArchiveConfirmDialog,
 } from '../src/client/session-actions/ArchiveSession.tsx'
 import { ForkSessionMenuItem } from '../src/client/session-actions/ForkSession.tsx'
+import { CopySessionNameMenuItem } from '../src/client/session-actions/CopySessionName.tsx'
 import { PinSessionMenuItem, PinSessionRowButton } from '../src/client/session-actions/PinSession.tsx'
 import { RenameSessionMenuItem, SessionRenameDialog } from '../src/client/session-actions/RenameSession.tsx'
 import { RowActionToast } from '../src/client/session-actions/RowActionToast.tsx'
@@ -228,6 +229,24 @@ describe('fork and rename rows', () => {
     expect(requestSessionRename).toHaveBeenCalledWith(sid('one'), 'Session title')
     expect(setMenuOpen).toHaveBeenCalledWith(false)
     expect(callOrder(setMenuOpen)).toBeLessThan(callOrder(requestSessionRename))
+  })
+
+  it('copy name closes the menu, then hands the row title to the clipboard share', () => {
+    const { state, setMenuOpen } = openMenu()
+    const copySessionName = vi.fn()
+    render(<CopySessionNameMenuItem {...menuRow(state)} copySessionName={copySessionName} />)
+    fireEvent.click(screen.getByRole('menuitem', { name: '复制会话名称' }))
+    expect(copySessionName).toHaveBeenCalledWith('Session title')
+    expect(setMenuOpen).toHaveBeenCalledWith(false)
+    expect(callOrder(setMenuOpen)).toBeLessThan(callOrder(copySessionName))
+  })
+
+  it('copy name offers nothing for a Session that has no name', () => {
+    const { state } = openMenu()
+    const copySessionName = vi.fn()
+    const menu = render(<CopySessionNameMenuItem {...menuRow(state)} displayTitle="  " copySessionName={copySessionName} />)
+    expect(menu.container.childElementCount).toBe(0)
+    expect(screen.queryByRole('menuitem')).toBeNull()
   })
 })
 
@@ -571,6 +590,7 @@ describe('RowActionToast', () => {
   it.each([
     ['pinFailed', '置顶失败，请稍后重试'],
     ['unpinFailed', '取消置顶失败，请稍后重试'],
+    ['nameCopyFailed', '复制失败'],
     ['archivedNotOpenable', '已归档对话暂时无法查看，请取消归档后查看'],
     ['defaultWorkspaceFailed', '无法创建默认工作区，请通过“选择工作区”选择文件夹'],
   ] as const)('shows the %s warning and takes it down when its hold ends', (kind, text) => {
@@ -582,6 +602,24 @@ describe('RowActionToast', () => {
       expect(alert.textContent).toBe(text)
       expect(alert.querySelector('button')).toBeNull()
       act(() => { vi.advanceTimersByTime(4000) })
+      expect(dismissToast).toHaveBeenCalledOnce()
+      expect(screen.queryByRole('alert')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows a copied Session name on the ordinary hold, with no warning icon', () => {
+    vi.useFakeTimers()
+    try {
+      const { dismissToast, notify } = toastSurface()
+      notify({ kind: 'nameCopied' })
+      const alert = screen.getByRole('alert')
+      expect(alert.textContent).toBe('已复制会话名称')
+      expect(alert.querySelector('button')).toBeNull()
+      act(() => { vi.advanceTimersByTime(3999) })
+      expect(dismissToast).not.toHaveBeenCalled()
+      act(() => { vi.advanceTimersByTime(1) })
       expect(dismissToast).toHaveBeenCalledOnce()
       expect(screen.queryByRole('alert')).toBeNull()
     } finally {
