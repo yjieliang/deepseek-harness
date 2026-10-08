@@ -25,7 +25,13 @@
 .toggle:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .toggle svg { flex: none; width: 14px; height: 14px; }
 @container (max-width: 620px) { .presented { grid-template-columns: minmax(0, 1fr); } }
-.actions { display: inline-flex; flex: none; pointer-events: auto; }
+.actions { display: inline-flex; align-items: center; gap: 4px; flex: none; pointer-events: auto; }
+/* Copy affordance for a delivery's absolute path: the same 24px hairline row as
+   the contributed open control beside it, and the same check-swap feedback as
+   the transcript's icon actions. */
+.iconAction { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 5px; border: none; border-radius: var(--dsw-radius-sm); background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
+.iconAction svg { width: 14px; height: 14px; }
+.iconAction:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); }
 
 .secondaryText[data-success] { animation-name: success-fade; animation-timing-function: ease-out; animation-fill-mode: forwards; }
 @keyframes success-fade { to { opacity: 0; } }

@@ -1,12 +1,32 @@
 // @vitest-environment jsdom
 /** Explicit file actions preserve their destination, availability, and independent failure state. */
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { PresentedFileCard } from '../src/client/PresentedFileCard.tsx'
 import { en, zh } from '../src/client/locales.ts'
 
 afterEach(cleanup)
+
+/** Install a replaceable browser clipboard and hand back the undo. */
+function installClipboard(writeText: (text: string) => Promise<void>): () => void {
+  const prior = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+  return () => {
+    if (prior === undefined) Reflect.deleteProperty(navigator, 'clipboard')
+    else Object.defineProperty(navigator, 'clipboard', prior)
+  }
+}
+
+/** Settle writeClipboard's own await, then the .then that lands the success chrome. */
+async function settle(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+  })
+}
+
 const props = () => ({
   cwd: undefined,
   file: { path: 'out/report.pdf', description: 'Final report', seq: 4, index: 1 },
@@ -14,7 +34,7 @@ const props = () => ({
   phase: undefined,
   onPreview: vi.fn(),
   actions: <button type="button">Native file action</button>,
-  t: makeTranslate(en),
+  t: makeTranslate(en, commonEn),
 })
 it('localizes reveal failures and accurately reports a directory-only action', () => {
   const p = props()
@@ -69,4 +89,40 @@ it('renders the supplied action independently from the card preview', () => {
   expect(p.onPreview).not.toHaveBeenCalled()
   fireEvent.click(view.getByRole('button', { name: 'Preview out/report.pdf in sidebar' }))
   expect(p.onPreview).toHaveBeenCalledOnce()
+})
+
+it('copies the resolved absolute path, confirms once, and restores the control', async () => {
+  vi.useFakeTimers()
+  const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+  const restoreClipboard = installClipboard(writeText)
+  try {
+    const p = props()
+    const view = render(<PresentedFileCard {...p} cwd="/work" file={{ ...p.file, path: 'out/report.pdf' }} />)
+    fireEvent.click(view.getByRole('button', { name: en['presented.copyPath'] }))
+    expect(writeText).toHaveBeenCalledWith('/work/out/report.pdf')
+    await settle()
+    // A second activation inside the confirmation window neither re-copies nor stacks a timer.
+    fireEvent.click(view.getByRole('button', { name: commonEn.copied }))
+    expect(writeText).toHaveBeenCalledTimes(1)
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(view.getByRole('button', { name: en['presented.copyPath'] })).toBeTruthy()
+  } finally {
+    restoreClipboard()
+    vi.useRealTimers()
+  }
+})
+
+it('keeps the copy control on the copy label when the clipboard refuses the write', async () => {
+  const writeText = vi.fn<(text: string) => Promise<void>>().mockRejectedValue(new Error('denied'))
+  const restoreClipboard = installClipboard(writeText)
+  try {
+    const p = props()
+    const view = render(<PresentedFileCard {...p} cwd={'C:\\work'} file={{ ...p.file, path: 'out\\report.pdf' }} />)
+    fireEvent.click(view.getByRole('button', { name: en['presented.copyPath'] }))
+    await settle()
+    expect(writeText).toHaveBeenCalledWith('C:\\work\\out\\report.pdf')
+    expect(view.getByRole('button', { name: en['presented.copyPath'] })).toBeTruthy()
+  } finally {
+    restoreClipboard()
+  }
 })
