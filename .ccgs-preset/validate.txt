@@ -1,0 +1,24 @@
+PARSE OK
+patches: 1
+row id: preset-ccgs-studio | declaration id: ccgs-studio | order: 62
+name: CCGS 工作室模式
+plugin rows: 15
+  - persona  @deepseek-ai/dsh-persona
+  - agent-instructions  @deepseek-ai/dsh-agent-instructions
+  - tool-bash  @deepseek-ai/dsh-tool-bash  disabled=process.platform === 'win32'
+  - tool-pwsh  @deepseek-ai/dsh-tool-pwsh  disabled=process.platform !== 'win32'
+  - tool-fs  @deepseek-ai/dsh-tool-fs
+  - tool-fs-search  @deepseek-ai/dsh-tool-fs-search
+  - tool-jobs  @deepseek-ai/dsh-tool-jobs
+  - skill-filesystem  @deepseek-ai/dsh-skill-filesystem
+  - tool-skill  @deepseek-ai/dsh-tool-skill
+  - compaction  cordis:group  [group: 3]
+  - tool-ask-user  @deepseek-ai/dsh-tool-ask-user
+  - tool-todo  @deepseek-ai/dsh-tool-todo
+  - tool-web  @deepseek-ai/dsh-tool-web
+  - present  @deepseek-ai/dsh-tool-present
+  - tool-subagent  @deepseek-ai/dsh-tool-subagent
+package: dsh-ccgs-studio | patch field: "./presets/ccgs-studio.patch.yml"
+skill dir: D:/AI/test/ccgs-essence/03-技能 | exists: true | entries: 75
+persona prefix chars: 2171 | suffix has {{cwd}}: true
+description: 用 74 个工作室技能带第一次做游戏的人走 minimal 路线，引擎配置 → 一页 brief → 故事 → 建造 → 关门（Godot 4 / 2D）。

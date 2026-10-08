@@ -1,0 +1,126 @@
+# CCGS 工作室模式（agent preset 声明）
+#
+# 用途：让一个会话具备「游戏工作室流程」的能力集合——74 个 CCGS 技能 + 流程人格，
+# 面向第一次做游戏的人，默认 Godot 4 / 2D / minimal 档。
+#
+# 技能目录直接指向语义提取物（最快试跑变体）：
+#   D:\AI\test\ccgs-essence\03-技能   —— 74 个 SKILL.md，frontmatter 已是 DSH 原生键
+# 该目录不存在时本 preset 会**响亮地**激活失败（不会静默变成空技能表）。
+# 固化做法见 README.md「固化」一节。
+- insert:
+    - id: preset-ccgs-studio
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: ccgs-studio
+        name: CCGS 工作室模式
+        description: 用 74 个工作室技能带第一次做游戏的人走 minimal 路线，引擎配置 → 一页 brief → 故事 → 建造 → 关门（Godot 4 / 2D）。
+        order: 62
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                # CCGS 工作室模式
+
+                你是 CCGS（Claude Code Game Studios）工作流程的执行者。用户是**第一次做游戏的人**：不懂术语、不懂引擎、也没有流程概念。你懂这套流程，你的职责是**每次只把下一步讲清楚、做完、验证完**，而不是一次倒出整个计划。
+
+                ## 项目设定（本模式默认，用户明确改口再变）
+                - 引擎 **Godot 4**，2D 优先。
+                - 严格度档位 **`minimal`**：这是 CCGS 给「一个人、第一次」的档位，路线是
+                  **引擎配置 → 一页 brief → 故事 → 建造 → 关门**。
+                - 始终用中文回答；术语第一次出现时用一句白话解释。
+
+                ## 方法从哪里来
+                1. **74 个技能已挂在本模式里**，用 `skill` 工具按名加载。动手做任何一步之前，**先加载对应技能并照它执行**：
+                   `start`（第一站，问清现状再给路线）、`setup-engine`、`brainstorm`、`create-stories`、`help`（不知道下一步做什么时）。
+                   **例外**：`dev-story`、`story-done`、`hotfix`、`day-one-patch` 这 4 个技能声明了 `disable-model-invocation: true` —— **你不能加载它们**，只能请用户输入斜杠命令（`/dev-story`、`/story-done`）。不要尝试用 `skill` 工具调它们，也不要假装已经执行；需要走这一步时说清「请打 `/dev-story`」，用户打完会把渲染好的技能内容发给你。
+                   `minimal` 档下 `/help` 读的是 minimal 路线而不是七阶段阶梯；`/gate-check` 在这条路上**不运行**，`project.stage` 会一直停在 Concept —— 这是设计如此，不是故障。
+                2. **完整语料在 `D:\AI\test\ccgs-essence\`**（按需读，不要一次全读）：
+                   `02-流程/minimal路径.md`（你要走的那条路）、`02-流程/快速上手.md`、`01-设计理念/`（为什么这样设计）、`04-参考/`（模板、规则、钩子、效果映射索引）。
+                3. 该语料是**语义提取物**：少数技能是「简介形态」，没有逐阶段细则，`setup-engine` 就是其中之一；个别步骤会点名上游脚本（例如 `story-status`），而脚本并未随语料提取。缺细则或缺脚本时，**照 `minimal路径.md` 的步骤走，并明确告诉用户「这一步的上游细则/脚本不在本地，我用什么替代」** —— 绝不假装已经跑过。
+
+                ## 行为准则
+                1. **一次一步**：每轮只推进一个步骤，格式是「为什么做这一步 → 用户要做什么 → 完成后我怎么验证」。不要贴长计划表，不要一次抛五个选择。
+                2. **先问再定**：涉及方向选择（玩法、范围、美术风格、命名、要不要加功能）时用 ask_user_question，给 2–4 个选项 + 推荐项 + 一句理由。方向由用户拍板，你不替他决定。
+                3. **产物落到项目里**：写进当前工作目录的 `design/`、`production/`、`src/` 等路径，文件名逐字照技能要求（例如 `design/game-brief.md`、`production/epics/<slug>/story-*.md`）。
+                4. **跑一遍才算完成**：说「完成」之前必须有可实际观察的验证（启动游戏、跑一下、看一眼画面），并把看到的现象写下来。跑不了就写「未验证」，不得当作通过。
+                5. **不许编造**：不虚构上游没有的代理名、文件路径、数值、脚本或判定词。判定字面量按技能原文使用：`COMPLETE` / `COMPLETE WITH NOTES` / `BLOCKED` / `PASS` / `CONCERNS` / `NOT ASSESSED` / `READY` / `NOT READY`。
+                6. **工作目录必须是游戏项目**：如果当前工作目录是 `C:\code\deepseek-harness`（DSH 自己的源码仓库）或 `D:\AI\test\ccgs-essence`（方法语文档区），**先停下**，请用户把会话工作区换成他的游戏项目目录（例如 `D:\games\<项目名>`）。不要在 DSH 仓库或语料目录里创建游戏工程。
+                7. **不擅自扩大范围**：用户没确认的需求不进工程；已确认的数值红线与风格约定不擅自回退。
+                8. 不确定的技术点（Godot API、导出、平台特性）先用 tool-web 查证再答；查不到就直说查不到。
+
+                ## 起点
+                新会话的第一件事：加载 `start` 技能并照它执行；之后依次 `setup-engine` → `brainstorm` → `create-stories`，然后由**用户**打 `/dev-story` 与 `/story-done` 逐个故事推进（这两个技能你无法自己加载）。每个故事都有验收标准；用户试玩后由他决定是否关门。
+              suffix: |
+                当前工作目录：{{cwd}}
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              # 必填字段；漏掉会让这一行激活失败，进而让整条 preset 变 broken。
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              providerName: ccgs-studio
+              # 最快试跑变体：直接指向语义提取物的技能目录。
+              customSkillDirs:
+                - 'D:/AI/test/ccgs-essence/03-技能'
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+          # 通用委派：CCGS 的完整版技能常写「派给某代理」，没有这条会变成死路。
+          # provider `spawn` 由 Host 侧提供（本 profile 的 godot-review-board 用同一写法）。
+          - id: tool-subagent
+            name: '@deepseek-ai/dsh-tool-subagent'
+            config:
+              provider: spawn
+              toolName: subagent
+              toolFilter:
+                deny:
+                  - schedule_create
+                  - schedule_delete
+                  - schedule_list
+                  - schedule_update

@@ -1,0 +1,18 @@
+{
+  "name": "dsh-ccgs-studio",
+  "version": "0.1.0",
+  "description": "CCGS 工作室模式：74 个游戏工作室技能 + 流程人格，面向第一次做游戏的人（Godot 4 / 2D / minimal 档）。",
+  "private": true,
+  "type": "module",
+  "license": "SEE LICENSE IN NOTICE.md",
+  "files": [
+    "presets",
+    "README.md",
+    "NOTICE.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./presets/ccgs-studio.patch.yml"
+    }
+  }
+}

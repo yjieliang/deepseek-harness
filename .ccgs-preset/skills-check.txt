@@ -1,0 +1,13 @@
+技能目录解析成功: 74 / 失败: 0
+
+frontmatter name 去重（括号内为所在目录数）: 74
+
+description 最短 5 条（目录 / 字符数 / user-invocable / 不可模型调用）:
+  help  67  true  false
+  content-audit  71  true  false
+  start  82  true  false
+  code-review  87  true  false
+  art-bible  88  true  false
+user-invocable=false 的:
+disable-model-invocation=true 的: day-one-patch, hotfix, story-done, dev-story
+description 总字符: 9094
