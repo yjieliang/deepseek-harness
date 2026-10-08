@@ -5,6 +5,8 @@
 
 - 侧边栏「需求看板」入口 + 主面板（列表、筛选、统计、流程图、节点详情、流转历史、队列、角色、执行单元）
 - 三个 Agent 工具：`requirement_board` / `flow_template` / `requirement_role`
+- **随包携带 skill `requirement-board-tasks`**：建、接、派看板任务的规范（查重、角色路由、一条任务一个交付物、
+  先注册再跑、排队、派给子会话、跨角色门禁、要人拍板）随插件一起发布，装到哪台机器都在会话目录里
 - 每个模型步骤自动注入当前看板摘要（角色行 + 指派 / 可接 / 我的队列 / 执行中 / 本会话 / 其他会话 / 待人类决策）
 - **角色化分发**：按角色路由任务、执行锁、执行队列（软预留）、把同角色的活派给子会话、待人类决策的需求、跨需求门禁与优先级继承、执行状态自动同步
 - **图片粘贴**：新建需求时可直接粘贴截图或选文件（PNG/JPEG/WebP/GIF，单张 ≤20 MiB，最多 20 张）；字节存在 `imageDir` 目录、记录里只留引用，agent 通过工具拿到引用与文件绝对路径
@@ -30,7 +32,9 @@ plugin_manager { action: "install_bundle", target: "<仓库绝对路径>\\bundle
 `restart-required` 表示重启后才生效。装好后刷新 `http://127.0.0.1:3080`，侧边栏出现「需求看板」。
 
 依赖（`@deepseek-ai/dsh-storage-domain`、`zod`）由 DSH 的运行时解析拦截按 `peerDependencies` 供给，
-包内不放 `node_modules`。安装、跨版本豁免、SQLite 路由与 preset 角色声明见 [INSTALL.md](./INSTALL.md)。
+包内不放 `node_modules`。`cordis.patch.yml` 另外插一条部署级 `skill-filesystem` 行，把本包的
+`skills/requirement-board-tasks/` 发布进 skill 注册表的全局层——任何 preset 的会话都读得到，无需改 preset。
+安装、跨版本豁免、skill 挂载、SQLite 路由与 preset 角色声明见 [INSTALL.md](./INSTALL.md)。
 
 ---
 

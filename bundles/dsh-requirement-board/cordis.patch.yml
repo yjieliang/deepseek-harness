@@ -29,3 +29,25 @@
         # turns it on for exactly one start. The document path is derived from
         # $DSH_PROFILE_DIR (or ~/.dsh) and never configured here.
         importLegacy: false
+
+# The board's own operating skill (skills/requirement-board-tasks) travels with
+# this package, so a deployment gets it without copying anything into a local
+# skill root. A deployment-level provider registers into the skill registry's
+# global layer and every agent reads that layer merged with its own preset's, so
+# one row here reaches every session whatever owns local discovery; the layering
+# is stated in the Web bundle (packages/bundle/web-app/cordis.patch.yml).
+- insert:
+    - id: skill-filesystem-requirement-board
+      name: '@deepseek-ai/dsh-skill-filesystem'
+      config:
+        providerName: requirement-board
+        # Only this package's own root: the project and user roots have their own
+        # owners already (in the Web profile, presets own local discovery), and
+        # repeating them here would offer every local skill twice.
+        includeDefaultRoots: false
+        # Resolved from the installed package rather than a literal path, so
+        # relinking or moving the bundle cannot break it; an unresolvable package
+        # fails this row loudly instead of presenting an empty catalog.
+        customSkillDirs:
+          - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('dsh-requirement-board/package.json')),
+            'skills')

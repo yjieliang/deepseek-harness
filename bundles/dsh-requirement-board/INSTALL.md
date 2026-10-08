@@ -1,8 +1,8 @@
 # 安装与部署
 
 本包是一个 profile 级 Cordis bundle：一个 Host 插件（`index.js` + `host/`）、一个浏览器半边（`client.js`）、
-一份行声明（`cordis.patch.yml`），以及显示元数据（`locale/*.json` 与 `icon.svg`）。包内是普通 ESM
-JavaScript，**没有构建步骤**、没有安装脚本。
+一份行声明（`cordis.patch.yml`）、显示元数据（`locale/*.json` 与 `icon.svg`），以及随包发布的 skill
+（`skills/requirement-board-tasks/`）。包内是普通 ESM JavaScript，**没有构建步骤**、没有安装脚本。
 
 ## 前置
 
@@ -37,6 +37,28 @@ DSH 的运行时解析拦截：linked 包的 bare 导入在该包自己的 `peer
   是否把该名列为 peer。
 - `zod` 能作为 installation 条目被应答，是因为 `@deepseek-ai/dsh-storage-domain` 自己声明了
   `zod@^4.4.3`，而 base 挂载了该服务；两者都在安装层的依赖图里。
+
+## 随包携带的 skill：`requirement-board-tasks`
+
+`skills/requirement-board-tasks/`（`SKILL.md` + `references/`）是看板的使用规范——建之前先查重与查角色职能、
+一条任务一个交付物、先注册再跑、排队、派给子会话、跨角色门禁、要人拍板。它由 `cordis.patch.yml` 里那条
+`skill-filesystem-requirement-board` 行发布：
+
+- 该行是**部署级** provider，注册进 skill 注册表的**全局层**；每个 agent 读到的是「自己 preset 的层 + 全局层」
+  合并后的目录。所以一行就能让所有会话看到本 skill，**不需要改任何 preset**（Web 线里 preset 拥有本地发现、
+  base 的 host 行被禁用，也不影响这条；分层依据见 `packages/bundle/web-app/cordis.patch.yml`）。
+- 它用 `!!js` 从**已安装包**解析自己的 `skills/` 目录
+  （`createRequire(baseUrl).resolve('dsh-requirement-board/package.json')` 后取同级的 `skills`），不写死绝对
+  路径，换目录或重新链接都不会失效；解析不到包会让该行**激活失败**，不会静默变成空目录。
+- `includeDefaultRoots: false` 让它只提供本包这一条：项目根与用户根各有其主（Web 线里由 preset 拥有），
+  在这里重复一遍会让本机每个 skill 都出现两次。
+- 因此**部署侧不需要**再把 skill 拷进 `~/.dsh/skills/` 或仓库的 `.agents/skills/`。已有同内容副本属于冗余；
+  注册表按 rank 合并同名候选，不会多出第二条目录项。
+- 例外是**在本仓库里开发**时用的那份 `.agents/skills/requirement-board-tasks/`（项目根发现，随 cwd 生效）：
+  它与包内这份必须**逐字节相同**，改规范时两处一起改。
+
+验证：装好后在新会话里用 `skill` 加载 `requirement-board-tasks` 应能命中；`plugin_manager { action:
+"list_plugins" }` 里应能看到 `skill-filesystem-requirement-board` 这一行。
 
 ## 可选：把看板数据放到 SQLite
 
@@ -77,6 +99,8 @@ value`）。路由键必须是下划线的 `requirement_board`——连字符键
 2. 改浏览器半边（`client.js`）→ 刷新页面即可，模块注册表按文件时间戳生成 `rev`。
 3. 改了 `package.json` 的显示元数据或 `cordis.patch.yml` → 重启后再看插件清单。
 4. 换了目录 → 重新 `install_bundle`。
+5. 改 `skills/**` → 落盘即生效：该 provider 监视自己的根目录，条目新增/改名/删除与条目内容变更会即时进入
+   会话目录，不必重启或刷新。
 
 ## 验证
 
@@ -101,4 +125,8 @@ value`）。路由键必须是下划线的 `requirement_board`——连字符键
   存在的相对文件；
 - 运行时文件与清单中不存在本机绝对路径（无 `C:\`、无 `Users\...`、无 `.artifacts/`）；
 - `exports` 覆盖 `./locale/en.json` 与 `./locale/zh.json`（`package-meta.ts` 要求英文存在、其余同目录文件
-  按语言 id 命名并逐个经 exports 解析）。
+  按语言 id 命名并逐个经 exports 解析）；
+- skill 根满足 provider 的发现规则：`skills/` 的**直接**子目录 `requirement-board-tasks/` 下有 `SKILL.md`
+  （不递归发现 `**/SKILL.md`），frontmatter 的 `name` 是 kebab-case 且与目录同名、`description` 非空；
+- 那条 `!!js` 表达式在 profile 的实际安装位置（`createRequire(<profile>/package.json)`）求值，结果等于本包的
+  `skills/` 目录。
