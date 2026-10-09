@@ -245,7 +245,7 @@ export async function openBoard({ backend = 'json', dir, importLegacy = false, l
     await opened.close()
     throw error
   }
-  const service = new RequirementService({ domain: opened.domain, config: config ?? resolveConfig({}), ports: ports ?? {} })
+  const service = new RequirementService({ domain: opened.domain, config: config ?? resolveConfig({}), ports: ports ?? {}, logger: recorded })
   return { ...opened, service, revision, logger: recorded }
 }
 

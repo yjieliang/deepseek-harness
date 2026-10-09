@@ -7,6 +7,7 @@
  */
 
 import { ENDPOINTS, imageUrl } from './http.js'
+import { templateView } from './templates.js'
 
 /** Requirement priorities, as the tool enum spells them. */
 const PRIORITY_ENUM = ['low', 'normal', 'high', 'urgent']
@@ -104,16 +105,21 @@ const BOARD_PARAMETERS = {
 const TEMPLATE_PARAMETERS = {
   type: 'object',
   properties: {
-    action: { type: 'string', enum: ['list', 'get', 'create', 'delete'], description: 'Operation to perform.' },
-    id: { type: 'string', description: 'Template id. Required for `get` and `delete`; optional for `create`, which mints one.' },
-    name: { type: 'string', description: 'Template name. Required for `create`.' },
-    description: { type: 'string', description: 'Template summary. Used by `create`.' },
+    action: { type: 'string', enum: ['list', 'get', 'create', 'revise', 'migrate', 'archive', 'clone', 'delete'], description: 'Operation to perform.' },
+    id: { type: 'string', description: 'Template id. Required for `get`, `revise`, `migrate`, `archive`, `clone`, and `delete`; optional for `create`, which mints one.' },
+    name: { type: 'string', description: 'Template name. Required for `create` and `clone`; used by `revise` to rename within the new version.' },
+    description: { type: 'string', description: 'Template summary. Used by `create` and `revise`.' },
     nodes: {
       type: 'array',
-      description: 'Template nodes in flow order, each `{ name, id?, assignee?, description?, dependsOn?, completion? }`. `completion` is `{ type: "manual" | "checklist", checklist?: string[], requireNote?: boolean }`. `dependsOn` names other node ids in this template.',
+      description: 'Template nodes in flow order, each `{ name, id?, assignee?, description?, dependsOn?, completion? }`. `completion` is `{ type: "manual" | "checklist", checklist?: string[], requireNote?: boolean }`. `dependsOn` names other node ids in this template. Used by `create` and `revise`, and for `revise` it is the complete target list: a node id absent from it is removed, and a node without an id gets one derived from its name.',
       items: { type: 'object' },
     },
-    force: { type: 'boolean', description: 'Set `true` on `delete` to rebind requirements still using the template onto the default one.' },
+    expectedRevision: { type: 'integer', description: 'Template `revision` you last read. `revise` fails with `conflict` (carrying `{ expected, current }`) when the stored revision differs, instead of appending onto another editor\'s version.' },
+    revision: { type: 'integer', description: 'Target revision for `migrate`; defaults to the template\'s current revision. A revision the template does not store is refused with `invalid-transition`.' },
+    requirementIds: { type: 'array', items: { type: 'string' }, description: '`migrate` only: the requirements to move. Omit it to mean "every requirement still on an older revision", which requires `force`.' },
+    force: { type: 'boolean', description: 'Set `true` on `delete` to rebind requirements still using the template onto the default one, and on a bulk `migrate` (one with no `requirementIds`) to confirm moving every requirement still on an older revision. A `migrate` that names `requirementIds` needs no `force`.' },
+    archived: { type: 'boolean', description: '`archive` only: `true` (the default when omitted) shelves the template, `false` restores it. An archived template stays readable but is not offered to a new requirement.' },
+    includeArchived: { type: 'boolean', description: '`list` only: include archived templates. Defaults to `false`.' },
   },
   required: ['action'],
   additionalProperties: false,
@@ -332,9 +338,13 @@ export function registerTools(ctx, service) {
   const template = ctx.tools.register({
     name: 'flow_template',
     description: [
-      'Define and inspect the flow templates a requirement moves through.',
-      'A template is an ordered list of nodes, each with a name, optional prerequisites, an assignee, and a completion condition.',
-      'Use action "list" before binding a requirement to a template so you can name real node ids.',
+      'Define, inspect, and version the flow templates a requirement moves through.',
+      'A template is an ordered list of nodes, each with a name, optional prerequisites, an assignee, and a completion condition; a requirement runs the revision it was pinned to, which may be older than the template\'s current one.',
+      'Use action "list" before binding a requirement to a template so you can name real node ids; it reports each template\'s current `revision`, and `includeArchived` adds shelved ones.',
+      '"revise" appends a version and changes the template only: it never touches a requirement, so requirements pinned to an older revision keep their node, states, ticks, and history exactly as they were.',
+      '"migrate" is the only action here that changes requirements. It moves the ones you name onto a revision; omitting `requirementIds` means every requirement still on an older revision and requires `force`. A refused bulk migrate reports `in-use` with the affected requirements and what each would become, so you can judge the cost before confirming.',
+      '"clone" copies a template\'s current version into an editable custom template, which is the supported way to change a built-in one; "archive" shelves or restores one; "delete" removes it and rebinds its requirements onto the default template, so it needs `force` and reports the impact.',
+      'Pruning a historical version and editing a template\'s name in place are panel-only and have no action here.',
     ].join(' '),
     parameters: TEMPLATE_PARAMETERS,
     output: {
@@ -351,13 +361,29 @@ export function registerTools(ctx, service) {
       const parsed = args === null || typeof args !== 'object' ? {} : args
       switch (parsed.action) {
         case 'list':
-          return service.listTemplates()
+          return service.listTemplates({ includeArchived: parsed.includeArchived })
         case 'get':
-          return service.getTemplate(parsed.id)
+          // The raw record carries the whole version history and audit tail, which
+          // would run into the result cap; the model reads the current version and
+          // the counts, and the panel is where the history is read (§11.7).
+          return templateView(service.getTemplate(parsed.id))
         case 'create':
           return await service.createTemplate({ id: parsed.id, name: parsed.name, description: parsed.description, nodes: parsed.nodes }, actorOf(exec))
+        case 'revise':
+          return await service.reviseTemplate(parsed.id, {
+            name: parsed.name,
+            description: parsed.description,
+            nodes: parsed.nodes,
+            expectedRevision: parsed.expectedRevision,
+          }, actorOf(exec))
+        case 'migrate':
+          return await service.migrateRequirementsToRevision(parsed.id, parsed.revision, { requirementIds: parsed.requirementIds }, actorOf(exec), parsed.force)
+        case 'archive':
+          return await service.archiveTemplate(parsed.id, { archived: parsed.archived }, actorOf(exec))
+        case 'clone':
+          return await service.cloneTemplate(parsed.id, { name: parsed.name }, actorOf(exec))
         case 'delete':
-          return await service.deleteTemplate(parsed.id, { force: parsed.force })
+          return await service.deleteTemplate(parsed.id, { force: parsed.force }, actorOf(exec))
         default:
           return { error: `unknown action "${String(parsed.action)}"`, endpoints: ENDPOINTS }
       }
@@ -369,6 +395,7 @@ export function registerTools(ctx, service) {
     description: [
       'List the roles this board knows, with the duties each one covers, so a requirement can be routed to a role by function.',
       'Roles come from agent presets and from edits in the board panel; this tool only reads them.',
+      'An id under `unregistered` is in use but has no record of its own, so its duties may be unknown; treat `dutiesMissing` there as "cannot be routed by function".',
       'Read it before naming a role on a requirement, and leave the role empty when the work fits any role.',
     ].join(' '),
     parameters: ROLE_PARAMETERS,

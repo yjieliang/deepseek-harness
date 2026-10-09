@@ -145,6 +145,7 @@ window.__ModuleLoader__.load({
         errCompletionNotMet: 'The current node is not finished yet.',
         errDependencyNotMet: 'A prerequisite node is not finished yet.',
         errConflict: 'Another session changed this requirement first. Refresh and retry.',
+        errTemplateConflict: 'Another session changed this template first. Your draft is kept below.',
         errNotFound: 'That requirement no longer exists.',
         errInvalidTransition: 'That transition is not allowed from the current state.',
         errInUse: 'The template is still used by requirements.',
@@ -179,6 +180,21 @@ window.__ModuleLoader__.load({
         roleNoHolders: 'no one present',
         roleHoldersUnknown: 'Presence unavailable',
         roleOpen: '{count} open',
+        roleSourcePreset: 'from a preset declaration',
+        roleSourceManual: 'registered in the panel',
+        roleSourceObserved: 'preset id fallback',
+        roleSourceDelegated: 'minted by delegation',
+        rolePresets: 'Preset modes',
+        presetsReading: 'Reading the preset registry…',
+        presetsEmpty: 'The preset registry lists no preset.',
+        presetsUnavailableAbsent: 'The preset registry is not mounted here, so preset associations are unavailable.',
+        presetsUnavailableFailed: 'Reading the preset registry failed, so preset associations are unavailable.',
+        presetUnregistered: 'no role record for this preset',
+        presetRoleInvalid: 'preset id is not a usable role id',
+        presetBroken: 'preset unavailable',
+        presetRegister: 'Register role',
+        presetSessions: '{count} on this preset',
+        presetInferred: 'role inferred from the preset id; no session observed yet',
         edit: 'Edit',
         save: 'Save',
         removeRole: 'Delete role',
@@ -297,6 +313,7 @@ window.__ModuleLoader__.load({
         editRequirement: 'Edit',
         updateApplied: 'Requirement updated.',
         errDelegated: 'Another session handed this requirement on already.',
+        errDelegatedRole: 'A delegated requirement keeps its temporary role until the delegation ends.',
         errPanelOnly: 'Only a person may clear another session reservation.',
         errSessionRequired: 'A session must be named.',
         errDelegateToSelf: 'A session cannot delegate to itself; it claims the work instead.',
@@ -316,6 +333,112 @@ window.__ModuleLoader__.load({
         imageLimitReached: 'At most {max} images per requirement.',
         removeImage: 'Remove image',
         pastedImageName: 'pasted image',
+
+        templates: 'Flow templates',
+        templateList: 'Templates',
+        templateBuiltin: 'Built-in',
+        templateArchived: 'Archived',
+        includeArchived: 'Include archived',
+        templateEmpty: 'No flow template is stored yet.',
+        templateDetailEmpty: 'Select a template to see its flow and its version history.',
+        templateInUse: 'Bound requirements',
+        templatePinnedOld: 'Still on an older version',
+        templateCurrentRevision: 'Current version {revision}',
+        templateRevisionLine: 'Version {revision}',
+        templateVersions: 'Version history',
+        templateVersionsEmpty: 'This template has a single version so far.',
+        templateVersionAuthor: 'By',
+        templateVersionSummary: 'Summary',
+        templateNoSummary: 'No summary recorded.',
+        templatePinnedCount: 'Pinned by {count}',
+        templatePinsUnknown: 'The Host did not report the pin counts.',
+        templatePinsTruncated: 'Only the first {count} requirements were read; the counts are a lower bound.',
+        templatePreview: 'Flow preview (read-only)',
+        templateEditStructure: 'Edit the flow (appends a version)',
+        templateEditMetadata: 'Template name and description',
+        templateMetadataHint: 'Editing these does not append a version; it changes no requirement either.',
+        templateRevisionUnchanged: 'The version stays {revision}; nothing is appended to the version history.',
+        templateReviseHint: 'Saving appends one version. It changes no requirement: every requirement keeps running the version it is pinned to until you migrate it.',
+        templateNodeId: 'Node id',
+        templateNodeName: 'Node name',
+        templateNodeDescription: 'Node description',
+        templateNodeDepends: 'Depends on',
+        templateNodeCompletion: 'Completion',
+        templateNodeChecklist: 'Checklist entries',
+        templateAddNode: 'Add node',
+        templateMoveUp: 'Move up',
+        templateMoveDown: 'Move down',
+        templateRemoveNode: 'Remove',
+        templateAddCheck: 'Add entry',
+        templateRemoveCheck: 'Remove entry',
+        templateNeedName: 'Every node needs a name.',
+        templateNeedNodes: 'A template needs at least one node.',
+        templateSaved: 'Version {revision} appended.',
+        templateMetadataSaved: 'The template name and description were updated.',
+        templateMigration: 'Migrate requirements',
+        templateMigrationHint: "The board's own answer is the authority here: the first call is refused unless every still-pinned requirement moves at once, and the refusal carries the list below.",
+        templateMigrationStep: 'Step {step}/{total}',
+        templateMigrationRead: 'Read the affected requirements',
+        templateMigrationNone: 'No requirement is still on an older version.',
+        templateMigrationRow: '{title} ({id})',
+        templateMigrationFrom: 'Current node',
+        templateMigrationTo: 'After migration',
+        templateMigrationCleared: 'The ticks of this node will be cleared (the checklist length changed).',
+        templateMigrationKept: 'The ticks of this node are kept.',
+        templateMigrationBulk: 'Migrate every listed requirement',
+        templateMigrationBulkWarn: 'This is the unconfirmed bulk form: it changes every requirement above at once. Confirm to send it with force.',
+        templateMigrationPicked: 'Migrate the selected {count}',
+        templateMigrationDone: 'Migrated {count} requirement(s).',
+        templateMigratedBy: 'Still pinned',
+        templateArchiveAction: 'Archive',
+        templateRestoreAction: 'Restore',
+        templateArchivedNotice: 'This template is archived: it is no longer offered to new requirements, but the requirements already running it keep their flow.',
+        templateClone: 'Duplicate',
+        templateCloneHint: 'The supported way to change a built-in flow: the copy is an ordinary template you may edit.',
+        templateDelete: 'Delete template',
+        templateDeleteBound: 'These requirements are bound to this template and will be moved to {fallback}:',
+        templateDeleteClear: 'This template is bound by no requirement and can be deleted.',
+        templateDeleteConfirm: 'Delete this template and its whole version history? The requirements above are rebound and cannot be undone.',
+        templateDeleteArmed: 'Confirm the deletion and the rebind',
+        templatePrune: 'Drop this version',
+        templatePruneDisabled: 'This version is pinned by {count} requirement(s) ({ids}), so dropping it would leave them without a flow.',
+        templatePruneConfirm: 'Drop revision {revision} of this template?',
+        templateMutated: 'The template was updated.',
+        templateCloned: 'Template duplicated as {name}.',
+        templateDeleted: 'Template deleted; its requirements were rebound.',
+        templateArchived: 'Template archived.',
+        templateRestored: 'Template restored.',
+        templatePruned: 'Revision {revision} was dropped.',
+        errTemplateBuiltin: 'A built-in template cannot be edited, archived, or deleted; duplicate it first.',
+        errTemplateDefault: 'That template is this deployment default and cannot be archived or deleted.',
+        errTemplateEmptyNodes: 'A template needs at least one node.',
+        errTemplateCycle: 'That dependency would close a cycle.',
+        errTemplateUnknownDep: 'A node depends on a node that is not in the list.',
+        errTemplateDuplicateId: 'Two nodes carry the same id.',
+        errTemplateInUse: 'The template is still used by requirements.',
+        errTemplateInvalidConfig: 'The default template this deployment would rebind to is not stored, so nothing was changed.',
+        clearFilters: 'Clear all',
+        statsAlertHint: 'needs attention',
+        // The concept sheet prints a small English identifier inside each
+        // section heading. It identifies the section rather than describing it,
+        // so both dictionaries carry the same word.
+        secBody: 'BODY',
+        secImages: 'IMAGES',
+        secEligibility: 'ELIGIBILITY',
+        secGates: 'GATES',
+        secExecutions: 'EXECUTIONS',
+        secLock: 'LOCK',
+        secHandoff: 'HANDOFF',
+        secFlow: 'FLOW',
+        secNode: 'NODE',
+        secHistory: 'HISTORY',
+        secChecks: 'CHECKS',
+        secDurations: 'DURATIONS',
+        secBlocked: 'BLOCKED',
+        secStalled: 'STALLED',
+        secStructure: 'STRUCTURE',
+        secPreview: 'PREVIEW',
+        secVersions: 'VERSIONS',
       },
       zh: {
         panel: '需求看板',
@@ -405,6 +528,7 @@ window.__ModuleLoader__.load({
         errCompletionNotMet: '当前节点尚未满足完成条件。',
         errDependencyNotMet: '前置节点尚未完成。',
         errConflict: '其他会话已先修改该需求，请刷新后重试。',
+        errTemplateConflict: '其他会话已先改了这个模板；你的草稿保留在下面。',
         errNotFound: '该需求已不存在。',
         errInvalidTransition: '当前状态下不允许该流转。',
         errInUse: '模板仍被需求使用。',
@@ -439,6 +563,21 @@ window.__ModuleLoader__.load({
         roleNoHolders: '暂无人在线',
         roleHoldersUnknown: '无法统计在线状态',
         roleOpen: '{count} 个未完成',
+        roleSourcePreset: '来自预设声明',
+        roleSourceManual: '面板登记',
+        roleSourceObserved: '预设 id 兜底',
+        roleSourceDelegated: '派发铸造',
+        rolePresets: '预设模式',
+        presetsReading: '正在读取预设名册…',
+        presetsEmpty: '预设名册里没有任何预设。',
+        presetsUnavailableAbsent: '这个组合里没有挂载预设注册表，无法显示预设关联。',
+        presetsUnavailableFailed: '读取预设名册失败，无法显示预设关联。',
+        presetUnregistered: '该预设的角色没有登记',
+        presetRoleInvalid: '预设 id 不是合法角色 id',
+        presetBroken: '预设不可用',
+        presetRegister: '登记角色',
+        presetSessions: '{count} 个会话在此预设',
+        presetInferred: '按预设 id 推定，尚无会话确认',
         edit: '编辑',
         save: '保存',
         removeRole: '删除角色',
@@ -557,6 +696,7 @@ window.__ModuleLoader__.load({
         editRequirement: '编辑',
         updateApplied: '已更新需求。',
         errDelegated: '该需求已被派发给其他会话。',
+        errDelegatedRole: '派发期间该需求用临时角色路由，结束派发后才能改。',
         errPanelOnly: '只有人可以通过面板清除其他会话的预留。',
         errSessionRequired: '需要指定会话。',
         errDelegateToSelf: '不能派发给自己，自己要做就直接认领。',
@@ -576,6 +716,110 @@ window.__ModuleLoader__.load({
         imageLimitReached: '每条需求最多 {max} 张图片。',
         removeImage: '移除图片',
         pastedImageName: '粘贴的图片',
+
+        templates: '流程模板管理',
+        templateList: '模板列表',
+        templateBuiltin: '内置',
+        templateArchived: '已归档',
+        includeArchived: '含已归档',
+        templateEmpty: '还没有任何流程模板。',
+        templateDetailEmpty: '选择一个模板，查看它的流程图与版本历史。',
+        templateInUse: '在用需求',
+        templatePinnedOld: '仍钉旧版',
+        templateCurrentRevision: '当前第 {revision} 版',
+        templateRevisionLine: '第 {revision} 版',
+        templateVersions: '版本历史',
+        templateVersionsEmpty: '该模板目前只有一版。',
+        templateVersionAuthor: '作者',
+        templateVersionSummary: '摘要',
+        templateNoSummary: '没有记录摘要。',
+        templatePinnedCount: '被 {count} 条需求钉住',
+        templatePinsUnknown: '宿主没有报告钉住条数。',
+        templatePinsTruncated: '只读到前 {count} 条需求，条数是下界。',
+        templatePreview: '流程预览（只读）',
+        templateEditStructure: '编辑流程（保存＝追加一个版本）',
+        templateEditMetadata: '模板名称与说明',
+        templateMetadataHint: '改这两项不追加版本，也不改任何需求。',
+        templateRevisionUnchanged: '版本仍是第 {revision} 版，不会进入版本历史。',
+        templateReviseHint: '保存即追加一个版本，一行需求都不动：每条需求仍按自己钉住的那一版跑，直到你把它迁移过去。',
+        templateNodeId: '节点 id',
+        templateNodeName: '节点名称',
+        templateNodeDescription: '节点说明',
+        templateNodeDepends: '前置节点',
+        templateNodeCompletion: '完成条件',
+        templateNodeChecklist: '检查项',
+        templateAddNode: '添加节点',
+        templateMoveUp: '上移',
+        templateMoveDown: '下移',
+        templateRemoveNode: '移除',
+        templateAddCheck: '添加检查项',
+        templateRemoveCheck: '删除检查项',
+        templateNeedName: '每个节点都要有名称。',
+        templateNeedNodes: '模板至少需要一个节点。',
+        templateSaved: '已追加第 {revision} 版。',
+        templateMetadataSaved: '模板名称与说明已更新。',
+        templateMigration: '迁移需求',
+        templateMigrationHint: '这里以宿主自己的答复为准：不指名需求时会先被拒，被拒的答复里带着下面这份清单。',
+        templateMigrationStep: '第 {step}/{total} 步',
+        templateMigrationRead: '读取受影响的需求',
+        templateMigrationNone: '没有需求还钉在旧版上。',
+        templateMigrationRow: '{title}（{id}）',
+        templateMigrationFrom: '当前节点',
+        templateMigrationTo: '迁移后节点',
+        templateMigrationCleared: '该节点的勾选会被清空（检查项数量变了）。',
+        templateMigrationKept: '该节点的勾选会保留。',
+        templateMigrationBulk: '全部迁移',
+        templateMigrationBulkWarn: '这是未指名需求的批量形式：会一次改掉上面每一条需求。确认后带 force 发出。',
+        templateMigrationPicked: '迁移选中的 {count} 条',
+        templateMigrationDone: '已迁移 {count} 条需求。',
+        templateMigratedBy: '仍钉住',
+        templateArchiveAction: '归档',
+        templateRestoreAction: '恢复',
+        templateArchivedNotice: '该模板已归档：不再出现在新建需求的选择器里，但已在跑的需求照旧按各自钉住的版本跑。',
+        templateClone: '复制',
+        templateCloneHint: '改内置流程的正路：复制出来的是一份可正常编辑的普通模板。',
+        templateDelete: '删除模板',
+        templateDeleteBound: '以下需求绑在该模板上，删除后会被改绑到 {fallback}：',
+        templateDeleteClear: '没有任何需求绑定该模板，可以直接删除。',
+        templateDeleteConfirm: '删除该模板及其全部版本历史？上面列出的需求会被改绑，此操作不可撤销。',
+        templateDeleteArmed: '确认删除并改绑',
+        templatePrune: '裁剪该版本',
+        templatePruneDisabled: '该版本被 {count} 条需求钉住（{ids}），裁掉它们就没有流程可解析了。',
+        templatePruneConfirm: '裁剪该模板的第 {revision} 版？',
+        templateMutated: '模板已更新。',
+        templateCloned: '已复制为 {name}。',
+        templateDeleted: '模板已删除，其需求已改绑。',
+        templateArchived: '模板已归档。',
+        templateRestored: '模板已恢复。',
+        templatePruned: '第 {revision} 版已裁剪。',
+        errTemplateBuiltin: '内置模板不可编辑、不可归档、不可删除；请先复制一份。',
+        errTemplateDefault: '该模板是本部署的默认模板，不可归档、不可删除。',
+        errTemplateEmptyNodes: '模板至少需要一个节点。',
+        errTemplateCycle: '该前置关系会成环。',
+        errTemplateUnknownDep: '某个节点的前置节点不在列表里。',
+        errTemplateDuplicateId: '有两个节点用了同一个 id。',
+        errTemplateInUse: '模板仍被需求使用。',
+        errTemplateInvalidConfig: '本部署用来改绑的默认模板不存在，因此一个需求也没有改动。',
+        clearFilters: '清除全部',
+        statsAlertHint: '需要处理',
+        // 分节小字是分节的英文标识（概念稿的视觉语言），两种语言用同一个词。
+        secBody: 'BODY',
+        secImages: 'IMAGES',
+        secEligibility: 'ELIGIBILITY',
+        secGates: 'GATES',
+        secExecutions: 'EXECUTIONS',
+        secLock: 'LOCK',
+        secHandoff: 'HANDOFF',
+        secFlow: 'FLOW',
+        secNode: 'NODE',
+        secHistory: 'HISTORY',
+        secChecks: 'CHECKS',
+        secDurations: 'DURATIONS',
+        secBlocked: 'BLOCKED',
+        secStalled: 'STALLED',
+        secStructure: 'STRUCTURE',
+        secPreview: 'PREVIEW',
+        secVersions: 'VERSIONS',
       },
     }
 
@@ -605,6 +849,7 @@ window.__ModuleLoader__.load({
       reserved: 'errReserved',
       'session-busy': 'errSessionBusy',
       delegated: 'errDelegated',
+      'delegated-role': 'errDelegatedRole',
     }
     const FORBIDDEN_REASONS = {
       'lock-required': 'errLockRequired',
@@ -654,6 +899,56 @@ window.__ModuleLoader__.load({
     const HOST_FILTER_KEYS = ['session', 'owner', 'status', 'priority', 'kind', 'role', 'templateId', 'query', 'claimable', 'me']
 
     /** Role select value standing for "the requirement names no role". */
+    /**
+     * The small English identifier the concept sheet prints inside a section
+     * heading. Only the detail column's sections carry one; a section with no
+     * entry here renders its title alone.
+     */
+    const SECTION_EN = {
+      description: 'secBody',
+      images: 'secImages',
+      eligibility: 'secEligibility',
+      gates: 'secGates',
+      executions: 'secExecutions',
+      lock: 'secLock',
+      delegation: 'secHandoff',
+      flow: 'secFlow',
+      nodeDetail: 'secNode',
+      history: 'secHistory',
+      checks: 'secChecks',
+      nodeDurations: 'secDurations',
+      blockedTitle: 'secBlocked',
+      stalledTitle: 'secStalled',
+      templateEditStructure: 'secStructure',
+      templatePreview: 'secPreview',
+      templateVersions: 'secVersions',
+    }
+
+    /**
+     * One section heading: the concept's orange bar and the section's English
+     * identifier.
+     * @param labelKey - Dictionary key naming the section.
+     * @param t - The panel's translator.
+     */
+    const sectionHead = (labelKey, t) => h('div', { className: 'rb-section-title' },
+      h('span', null, t(labelKey)),
+      SECTION_EN[labelKey] === undefined ? null : h('span', { className: 'rb-en' }, t(SECTION_EN[labelKey])))
+
+    /**
+     * One foldable section of the detail column.
+     *
+     * It opens by default: folding is available, but no reading is hidden from a
+     * reader who has not folded it.
+     * @param labelKey - Dictionary key naming the section.
+     * @param t - The panel's translator.
+     * @param children - The section body, in order.
+     */
+    const foldSection = (labelKey, t, ...children) => h('details', { className: 'rb-fold', open: true },
+      h('summary', { className: 'rb-fold-summary' },
+        h('span', null, t(labelKey)),
+        SECTION_EN[labelKey] === undefined ? null : h('span', { className: 'rb-en' }, t(SECTION_EN[labelKey])),
+        h('span', { className: 'rb-caret', 'aria-hidden': 'true' }, '▶')),
+      h('div', { className: 'rb-fold-body' }, children))
     const ROLE_NONE = '\u0000none'
 
     /** Milliseconds in one display unit, largest first. */
@@ -824,6 +1119,33 @@ window.__ModuleLoader__.load({
         } catch (error) {
           // A badge's absence is the honest reading of a failed side read; the
           // board itself still renders from the answered snapshot.
+          void error
+          return null
+        }
+      }
+
+      /**
+       * Every requirement the board holds, unfiltered, for pin counting.
+       *
+       * A template's "still pinned to an old revision" count is the Host's own
+       * judgment over the same set `deleteTemplate`/`pruneTemplateVersion` use
+       * (every bound requirement, done and archived included), so the drawer asks
+       * the requirement route for that whole set rather than re-deriving it from
+       * the filtered page the reader happens to be looking at. Runs and images are
+       * not needed, and the page cap is the route's own maximum.
+       * @param signal - aborts this side read together with the read it serves.
+       * @returns `{ items, total }`, or `null` when the Host did not answer.
+       */
+      const fetchPinList = async signal => {
+        try {
+          const response = await fetch(`${API}/snapshot?limit=200`, { headers: { accept: 'application/json' }, signal })
+          const payload = await response.json().catch(() => null)
+          if (refused(response, payload)) return null
+          if (payload?.ok !== true) return null
+          return { items: payload.data.requirements, total: payload.data.total }
+        } catch (error) {
+          // A missing pin count is the honest reading of a failed side read; the
+          // drawer renders the template without one instead of guessing zero.
           void error
           return null
         }
@@ -1064,6 +1386,7 @@ window.__ModuleLoader__.load({
             return refresh()
           },
           setFilter,
+          fetchPinList,
           command: async (action, payload) => {
             const data = await command(action, payload)
             await refresh()
@@ -1095,28 +1418,153 @@ window.__ModuleLoader__.load({
 
     /** Shared stylesheet rendered as a React element so unmounting removes it. */
     const CSS = `
-.rb-root { display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden;
-  color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-base); font-size:13px; line-height:1.5; }
-.rb-header { display:flex; align-items:center; gap:8px; padding:12px 16px; flex:none;
+/* Requirement board panel stylesheet.
+ *
+ * Visual language: the kanban-redesign concept sheet, mapped onto platform
+ * tokens. Every colour resolves through a --dsw-* alias or through one of the
+ * local variables registered below; see UI-REDESIGN.md §2 for the mapping and
+ * §5 for the recorded deviations. The two local families exist because the
+ * platform has no orange accent (--dsw-alias-brand-primary is monochrome) and
+ * no violet, and the concept's identity is exactly those two hues.
+ */
+.rb-root {
+  --rb-accent:#f06423; --rb-accent-strong:#ff7733;
+  --rb-accent-soft:rgba(240,100,35,.12); --rb-accent-line:rgba(240,100,35,.35);
+  --rb-accent-fill:#f06423;
+  --rb-on-accent:#fff;
+  --rb-violet:#9b8cf2; --rb-violet-soft:rgba(155,140,242,.12);
+  --rb-tint-success:color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent);
+  --rb-tint-warn:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent);
+  --rb-tint-error:color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
+  --rb-tint-info:color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent);
+  --rb-num:var(--dsw-font-family-brand); --rb-mono:var(--ds-font-family-code);
+  display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden;
+  color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-base);
+  font-size:13px; line-height:1.55;
+}
+/* The concept sheet defines one dark theme. The platform requires both, so the
+ * two accent families get a light arm with contrast that survives on white:
+ * #f06423 measures 3.20:1 against white, #c2410c measures 5.18:1. */
+body:not([data-ds-dark-theme]) .rb-root {
+  --rb-accent:#c2410c; --rb-accent-strong:#9a3412;
+  --rb-accent-soft:rgba(194,65,12,.10); --rb-accent-line:rgba(194,65,12,.35);
+  --rb-accent-fill:#c2410c;
+  --rb-on-accent:#fff;
+  --rb-violet:#6d5bd0; --rb-violet-soft:rgba(109,91,208,.12);
+}
+
+/* ---------- Top bar ---------- */
+.rb-header { display:flex; align-items:center; gap:12px; height:64px; padding:0 18px; flex:none;
   border-bottom:1px solid var(--dsw-alias-border-l1); }
-.rb-heading { display:flex; flex-direction:column; min-width:0; }
-.rb-title { font-size:15px; font-weight:500; }
-.rb-sub { font-size:11px; color:var(--dsw-alias-label-secondary); }
+.rb-logo { flex:none; width:30px; height:30px; border-radius:var(--dsw-radius-sm);
+  display:grid; place-items:center; color:var(--rb-on-accent);
+  background:linear-gradient(150deg, var(--rb-accent), var(--rb-accent-strong));
+  box-shadow:0 2px 10px -2px var(--rb-accent-line); }
+.rb-heading { display:flex; flex-direction:column; min-width:0; gap:1px; }
+.rb-title { font-size:16px; font-weight:600; letter-spacing:.01em; }
+.rb-sub { display:flex; align-items:center; gap:6px; font-size:12px;
+  color:var(--dsw-alias-label-tertiary); }
+.rb-live { flex:none; width:6px; height:6px; border-radius:50%; background:var(--dsw-alias-state-success-primary);
+  box-shadow:0 0 6px var(--dsw-alias-state-success-primary); animation:rb-pulse 2.4s infinite; }
+@keyframes rb-pulse { 50% { opacity:.4; } }
 .rb-grow { flex:1 1 auto; }
-/* Two classes so the override wins on specificity, not stylesheet order; no ancestor selector, so it also holds inside the Modal's body portal. */
+/* The top bar is the panel's identity surface, so its buttons take the concept
+ * frame instead of the platform ghost skin. Two classes win on specificity, not
+ * on stylesheet order, matching the existing danger-button override. */
+.rb-header .rb-btn.rb-btn { height:32px; padding:0 13px; font-size:13px; font-weight:500;
+  border-radius:var(--dsw-radius-sm); border:1px solid var(--dsw-alias-border-l2);
+  background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); }
+.rb-header .rb-btn.rb-btn:hover { color:var(--dsw-alias-label-primary);
+  background:var(--dsw-alias-bg-layer-3); border-color:var(--dsw-alias-border-l3); }
+.rb-btn-primary.rb-btn-primary { height:32px; padding:0 13px; font-size:13px; font-weight:600;
+  border-radius:var(--dsw-radius-sm); border-color:transparent; color:var(--rb-on-accent);
+  background:var(--rb-accent-fill); box-shadow:0 2px 10px -2px var(--rb-accent-line); }
+.rb-btn-primary.rb-btn-primary:hover { background:var(--rb-accent-strong); color:var(--rb-on-accent); }
 .rb-btn-danger.rb-btn-danger { border-color:var(--dsw-alias-state-error-primary); color:var(--dsw-alias-state-error-primary); }
-.rb-scroll { overflow:auto; min-height:0; }
-.rb-stats { display:flex; flex-wrap:wrap; gap:8px; padding:10px 16px; flex:none;
-  border-bottom:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1); }
-.rb-stat { min-width:96px; padding:6px 10px; border-radius:8px;
-  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-base); }
-.rb-stat-label { font-size:11px; color:var(--dsw-alias-label-secondary); }
-.rb-stat-value { font-size:16px; font-weight:500; }
+
+/* ---------- View switcher ---------- */
+.rb-views { display:flex; align-items:center; gap:12px; padding:14px 18px 0; flex:none; flex-wrap:wrap; }
+.rb-segmented { display:inline-flex; align-items:center; gap:2px; padding:3px;
+  border-radius:var(--dsw-radius-sm); border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-views .rb-seg.rb-seg { height:28px; padding:0 16px; border:0; border-radius:var(--dsw-radius-sm);
+  background:transparent; color:var(--dsw-alias-label-tertiary); font-size:13px; font-weight:500; }
+.rb-views .rb-seg.rb-seg:hover { color:var(--dsw-alias-label-secondary); background:transparent; }
+.rb-views .rb-seg.rb-seg-on { color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-layer-3);
+  box-shadow:var(--dsw-shadow-lv1), inset 0 0 0 1px var(--dsw-alias-border-l2); }
+.rb-view-hint { font-size:12px; color:var(--dsw-alias-label-tertiary); }
+
+/* ---------- KPI band ---------- */
+/* The concept's band, as its own seven columns: hero, five readings, alert.
+ * Below the panel's own breakpoint the same cells wrap instead of overflowing,
+ * because the shell can narrow this column at any time. */
+.rb-stats { display:grid; grid-template-columns:300px repeat(5, minmax(0,1fr)) 220px; gap:10px;
+  padding:16px 18px 0; flex:none; }
+.rb-stat { box-sizing:border-box; min-width:0; padding:12px 14px; border-radius:var(--dsw-radius-md);
+  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1);
+  transition:border-color .18s var(--ds-ease-out); }
+.rb-stat:hover { border-color:var(--dsw-alias-border-l2); }
+.rb-stat-label { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:500;
+  color:var(--dsw-alias-label-tertiary); }
+.rb-stat-value { font-family:var(--rb-num); font-size:26px; font-weight:500; line-height:1.2;
+  margin-top:4px; font-variant-numeric:tabular-nums; }
+.rb-stat-value-dim { color:var(--dsw-alias-label-tertiary); }
+.rb-stat-hero { flex:0 0 300px; display:flex; align-items:center; gap:14px; }
+.rb-ring { position:relative; flex:none; width:56px; height:56px; }
+.rb-ring svg { display:block; transform:rotate(-90deg); }
+.rb-ring-track { fill:none; stroke:var(--dsw-alias-border-l2); stroke-width:4; }
+.rb-ring-fill { fill:none; stroke:var(--rb-accent); stroke-width:4; stroke-linecap:round;
+  transition:stroke-dasharray .3s var(--ds-ease-out); }
+.rb-ring-pct { position:absolute; inset:0; display:grid; place-items:center;
+  font-family:var(--rb-num); font-size:14px; font-weight:500; color:var(--rb-accent);
+  font-variant-numeric:tabular-nums; }
+.rb-hero-frac { font-size:12px; color:var(--dsw-alias-label-tertiary); margin-top:2px; }
+.rb-hero-frac b { font-family:var(--rb-num); font-weight:500; color:var(--dsw-alias-label-secondary);
+  font-variant-numeric:tabular-nums; }
+.rb-stat-alert { flex:0 1 200px; cursor:default; text-align:left; font:inherit;
+  border-color:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 30%, transparent);
+  background:linear-gradient(180deg, var(--rb-tint-warn), var(--dsw-alias-bg-layer-1)); }
+.rb-stat-alert .rb-stat-label, .rb-stat-alert .rb-stat-value { color:var(--dsw-alias-state-warn-primary); }
+.rb-stat-alert .rb-go { font-size:11px; color:var(--dsw-alias-label-tertiary); margin-top:2px; }
+.rb-submetrics { display:flex; flex-wrap:wrap; gap:6px 20px; padding:10px 22px 14px; flex:none;
+  font-size:12px; color:var(--dsw-alias-label-tertiary); }
+/* One reading of the strip: its label and its value, kept as two nodes. */
+.rb-submetric { display:inline-flex; align-items:baseline; gap:6px; }
+.rb-kpi { flex:none; }
+.rb-stat-alert-clear { border-color:var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-stat-alert-clear .rb-stat-label, .rb-stat-alert-clear .rb-stat-value {
+  color:var(--dsw-alias-label-tertiary); }
+.rb-hero-text { min-width:0; }
+.rb-submetrics .rb-role-tally { flex:1 1 100%; }
+.rb-submetrics b { font-family:var(--rb-num); font-weight:500; color:var(--dsw-alias-label-secondary);
+  margin-left:4px; font-variant-numeric:tabular-nums; }
 .rb-bar { height:6px; border-radius:3px; background:var(--dsw-alias-bg-layer-2); overflow:hidden; margin-top:6px; }
-.rb-bar-fill { height:100%; background:var(--dsw-alias-brand-primary); }
-.rb-filters { display:flex; flex-wrap:wrap; gap:10px; padding:8px 16px; flex:none;
-  border-bottom:1px solid var(--dsw-alias-border-l1); align-items:center; }
+.rb-bar-fill { height:100%; background:var(--rb-accent); }
+
+/* ---------- Filters ---------- */
+.rb-filters { display:flex; flex-wrap:wrap; gap:8px; padding:12px 18px; flex:none; align-items:center;
+  border-top:1px solid var(--dsw-alias-border-l1); }
+.rb-flabel { font-size:12px; color:var(--dsw-alias-label-tertiary); margin-right:4px; }
 .rb-filter { display:inline-flex; align-items:center; gap:4px; }
+.rb-filters .rb-chip.rb-chip { height:26px; padding:0 11px; border-radius:999px; font-size:12px;
+  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-secondary); }
+.rb-filters .rb-chip.rb-chip:hover { border-color:var(--dsw-alias-border-l3); color:var(--dsw-alias-label-primary);
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-filters .rb-chip.rb-chip-on { border-color:var(--rb-accent-line); background:var(--rb-accent-soft);
+  color:var(--rb-accent); box-shadow:none; }
+.rb-chip-n { font-family:var(--rb-num); font-size:11px; color:var(--dsw-alias-label-tertiary);
+  font-variant-numeric:tabular-nums; }
+.rb-filters .rb-chip.rb-chip-on .rb-chip-n { color:var(--rb-accent); opacity:.8; }
+.rb-clear { margin-left:auto; border:0; background:none; font-size:12px; cursor:pointer;
+  color:var(--dsw-alias-label-tertiary); padding:0 4px; }
+.rb-clear:hover { color:var(--rb-accent); }
+.rb-chips { flex:1 1 100%; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.rb-chip-label { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rb-live-off { background:var(--dsw-alias-label-tertiary); box-shadow:none; animation:none; }
+.rb-count-chip { font-family:var(--rb-num); font-size:11px; font-variant-numeric:tabular-nums;
+  color:var(--dsw-alias-label-tertiary); }
 /* Native select and textarea keep their own element, aligned to the Input
  * primitive's frame so a field looks the same whichever element draws it. */
 .rb-select, .rb-textarea { font:inherit; font-size:14px; line-height:22px; color:var(--dsw-alias-label-primary);
@@ -1125,131 +1573,347 @@ window.__ModuleLoader__.load({
 .rb-select:focus, .rb-textarea:focus { border-color:var(--dsw-alias-state-business-primary); outline:none; }
 .rb-select::placeholder, .rb-textarea::placeholder { color:var(--dsw-alias-label-dimmed); }
 .rb-textarea { width:100%; min-height:64px; height:auto; padding:6px 8px; resize:vertical; box-sizing:border-box; }
-/* Semantic ink for a value that reads as an answer rather than as a badge. */
-.rb-ink-success { color:var(--dsw-alias-state-success-primary); }
-.rb-ink-info { color:var(--dsw-alias-brand-primary); }
-.rb-body { display:flex; flex:1 1 auto; min-height:0; }
-.rb-list { width:308px; flex:none; overflow:auto; border-right:1px solid var(--dsw-alias-border-l1); }
-.rb-detail { flex:1 1 auto; overflow:auto; min-width:0; padding:16px; }
+
+/* ---------- Two-column body ---------- */
+.rb-body { display:flex; gap:16px; flex:1 1 auto; min-height:0; padding:14px 18px 18px; }
+.rb-list { width:330px; flex:none; overflow:auto; min-height:0; display:flex; flex-direction:column; gap:8px; }
+.rb-detail { flex:1 1 auto; overflow:auto; min-width:0; padding:22px 26px 26px; }
+.rb-detail-top { display:flex; align-items:flex-start; gap:12px; margin-bottom:6px; }
+.rb-detail-head { display:flex; align-items:center; gap:10px 12px; flex-wrap:wrap; min-width:0; }
+.rb-detail-actions { margin-left:auto; display:flex; gap:6px; flex:none; flex-wrap:wrap; justify-content:flex-end; }
+.rb-detail-actions button { height:28px; padding:0 11px; font-size:12px; border-radius:var(--dsw-radius-sm);
+  border:1px solid var(--dsw-alias-border-l2); background:transparent; color:var(--dsw-alias-label-secondary); }
+.rb-detail-actions button:hover { color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-layer-2);
+  border-color:var(--dsw-alias-border-l3); }
+.rb-detail-actions .rb-btn-danger { color:var(--dsw-alias-state-error-primary);
+  border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent); }
+.rb-detail .rb-title { font-size:19px; font-weight:600; line-height:1.45; letter-spacing:.01em; }
+.rb-badge-group { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; flex:none; padding-top:3px; }
+
+/* ---------- Requirement cards ---------- */
 .rb-card { display:block; width:100%; text-align:left; appearance:none; font:inherit; cursor:pointer;
-  padding:10px 12px; border:0; border-bottom:1px solid var(--dsw-alias-border-l1);
-  background:transparent; color:inherit; }
-.rb-card:hover { background:var(--dsw-alias-bg-layer-1); }
-.rb-card-selected { background:var(--dsw-alias-bg-layer-2); }
-.rb-card-title { font-weight:500; margin-bottom:2px; overflow-wrap:anywhere; }
-.rb-card-meta { font-size:11px; color:var(--dsw-alias-label-secondary); display:flex; gap:6px; flex-wrap:wrap; }
+  padding:12px; border-radius:var(--dsw-radius-md); border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); color:inherit; transition:border-color .16s var(--ds-ease-out); }
+.rb-card:hover { border-color:var(--dsw-alias-border-l2); }
+.rb-card-selected { border-color:var(--rb-accent-line); background:var(--dsw-alias-bg-layer-2);
+  box-shadow:inset 2px 0 0 var(--rb-accent); }
+.rb-card-title { font-weight:500; margin-bottom:6px; overflow-wrap:anywhere; }
+.rb-card-meta { font-size:11px; color:var(--dsw-alias-label-tertiary); display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.rb-card-facts { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; font-size:11px;
+  color:var(--dsw-alias-label-tertiary); }
+.rb-card-facts b { font-family:var(--rb-num); font-weight:500; color:var(--dsw-alias-label-secondary);
+  font-variant-numeric:tabular-nums; }
+
+/* ---------- Queue panel ---------- */
+.rb-panel { border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-md);
+  padding:14px 16px; background:var(--dsw-alias-bg-layer-1); }
+.rb-panel-head { display:flex; align-items:center; gap:8px; padding:14px 16px 12px;
+  border-bottom:1px solid var(--dsw-alias-border-l1); }
+.rb-panel-head h2 { font-size:13px; font-weight:600; }
+.rb-count { font-family:var(--rb-num); font-size:11px; font-weight:500; font-variant-numeric:tabular-nums;
+  color:var(--rb-violet); background:var(--rb-violet-soft); border-radius:999px; padding:1px 8px; }
+.rb-queue { display:flex; flex-direction:column; gap:8px; overflow:auto; min-height:0; }
+.rb-queue-note { font-size:12px; line-height:1.7; padding:10px 12px; border-radius:var(--dsw-radius-sm);
+  background:var(--dsw-alias-bg-layer-2); border-left:2px solid var(--rb-violet);
+  color:var(--dsw-alias-label-tertiary); }
+.rb-session-id { display:flex; align-items:center; gap:8px; font-family:var(--rb-mono); font-size:11px;
+  color:var(--dsw-alias-label-secondary); background:var(--dsw-alias-bg-layer-2);
+  border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-sm);
+  padding:8px 10px; word-break:break-all; }
+.rb-queue-group { display:flex; flex-direction:column; gap:6px; padding:12px;
+  border-radius:var(--dsw-radius-md); border:1px solid var(--dsw-alias-border-l2);
+  background:var(--dsw-alias-bg-layer-2); }
+.rb-queue-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
+.rb-queue-session { font-size:13px; font-weight:500; }
+.rb-queue-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:var(--dsw-radius-sm);
+  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1); }
+.rb-queue-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rb-tag { display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:5px;
+  font-family:var(--rb-num); font-size:11px; font-weight:500; font-variant-numeric:tabular-nums;
+  color:var(--rb-violet); background:var(--rb-violet-soft); }
+.rb-mini { font-size:11px; color:var(--dsw-alias-label-tertiary); background:var(--dsw-alias-bg-layer-1);
+  border:1px solid var(--dsw-alias-border-l1); border-radius:4px; padding:1px 7px; }
+.rb-mini-on { color:var(--dsw-alias-state-success-primary);
+  border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 30%, transparent); }
+.rb-side-group { margin-top:18px; }
+.rb-side-group h3 { font-size:11px; font-weight:600; color:var(--dsw-alias-label-tertiary);
+  text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; padding:0 2px; }
+.rb-side-group .rb-section-title { text-transform:uppercase; }
+.rb-def-row { display:flex; gap:10px; padding:7px 2px; font-size:12.5px;
+  border-bottom:1px dashed var(--dsw-alias-border-l1); }
+.rb-def-row:last-child { border-bottom:0; }
+.rb-def-row dt { flex:none; width:76px; color:var(--dsw-alias-label-tertiary); }
+.rb-def-row dd { margin:0; color:var(--dsw-alias-label-secondary); }
+.rb-role-tally { display:flex; align-items:center; gap:6px; flex-wrap:wrap; width:100%; }
+
+/* ---------- Section headers, folding, prose ---------- */
+.rb-section { margin-bottom:20px; }
+.rb-section-title { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600;
+  color:var(--dsw-alias-label-primary); margin-bottom:10px; text-transform:none; letter-spacing:0; }
+.rb-section-title::before { content:""; flex:none; width:3px; height:13px; border-radius:2px;
+  background:var(--rb-accent); }
+.rb-en { font-family:var(--rb-num); font-size:10px; font-weight:500; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--dsw-alias-label-tertiary); }
+.rb-section-body { font-size:13px; color:var(--dsw-alias-label-secondary); line-height:1.85; }
+.rb-prose { font-size:13px; color:var(--dsw-alias-label-secondary); line-height:1.85;
+  margin:0 0 4px; overflow-wrap:anywhere; }
+.rb-code { font-family:var(--rb-mono); font-size:11.5px; background:var(--dsw-alias-bg-layer-2);
+  border:1px solid var(--dsw-alias-border-l1); border-radius:4px; padding:1px 5px;
+  color:var(--dsw-alias-label-secondary); }
+.rb-numlist { counter-reset:rb-it; display:grid; gap:8px; margin:0; padding:0; }
+.rb-numlist li { counter-increment:rb-it; list-style:none; position:relative; padding-left:30px; }
+.rb-numlist li::before { content:counter(rb-it); position:absolute; left:0; top:2px; width:20px; height:20px;
+  display:grid; place-items:center; font-family:var(--rb-num); font-size:11px; font-weight:500;
+  font-variant-numeric:tabular-nums; color:var(--rb-accent); background:var(--rb-accent-soft); border-radius:6px; }
+details.rb-fold { border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-md);
+  background:var(--dsw-alias-bg-layer-1); margin-bottom:16px; overflow:hidden; }
+details.rb-fold > summary.rb-fold-summary { cursor:pointer; list-style:none; display:flex; align-items:center;
+  gap:8px; padding:10px 14px; font-size:13px; font-weight:500; transition:background .15s var(--ds-ease-out); }
+details.rb-fold > summary.rb-fold-summary::-webkit-details-marker { display:none; }
+details.rb-fold > summary.rb-fold-summary:hover { background:var(--dsw-alias-bg-layer-2); }
+details.rb-fold > summary.rb-fold-summary::before { content:""; flex:none; width:3px; height:13px;
+  border-radius:2px; background:var(--rb-accent); }
+.rb-caret { margin-left:auto; color:var(--dsw-alias-label-tertiary); font-size:11px;
+  transition:transform .2s var(--ds-ease-out); }
+details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90deg); }
+.rb-fold-body { padding:4px 16px 14px 16px; }
+/* ---------- Meta grid ---------- */
+.rb-meta-grid { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:1px;
+  background:var(--dsw-alias-border-l1); border:1px solid var(--dsw-alias-border-l1);
+  border-radius:var(--dsw-radius-md); overflow:hidden; margin-bottom:22px; }
+.rb-meta-cell { background:var(--dsw-alias-bg-layer-1); padding:10px 14px; min-width:0; }
+.rb-meta-k { font-size:11px; color:var(--dsw-alias-label-tertiary); margin-bottom:2px; }
+.rb-meta-v { font-size:12.5px; color:var(--dsw-alias-label-primary); font-weight:500;
+  overflow-wrap:anywhere; }
+.rb-meta-v-mono { font-family:var(--rb-mono); font-size:11px; font-weight:400;
+  color:var(--dsw-alias-label-secondary); }
+.rb-meta-v-hi { color:var(--dsw-alias-state-warn-primary); }
+.rb-meta-v-num { font-family:var(--rb-num); font-variant-numeric:tabular-nums; }
+
+/* ---------- State chips, reserve banner ---------- */
+.rb-state-chips { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0 16px; }
+.rb-stag { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 10px;
+  border-radius:6px; font-size:11.5px; font-weight:500; border:1px solid var(--dsw-alias-border-l2);
+  color:var(--dsw-alias-label-secondary); background:var(--dsw-alias-bg-layer-2); }
+.rb-stag-ok { color:var(--dsw-alias-state-success-primary); background:var(--rb-tint-success);
+  border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 30%, transparent); }
+.rb-stag-warn { color:var(--dsw-alias-state-warn-primary); background:var(--rb-tint-warn);
+  border-color:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 30%, transparent); }
+.rb-stag-danger { color:var(--dsw-alias-state-error-primary); background:var(--rb-tint-error);
+  border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent); }
+.rb-stag-vio { color:var(--rb-violet); background:var(--rb-violet-soft);
+  border-color:color-mix(in srgb, var(--rb-violet) 30%, transparent); }
+.rb-stag-mut { color:var(--dsw-alias-label-tertiary); }
+.rb-stag-num { font-family:var(--rb-num); font-variant-numeric:tabular-nums; }
+.rb-reserve { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px;
+  border-radius:var(--dsw-radius-md); background:var(--rb-violet-soft);
+  border:1px solid color-mix(in srgb, var(--rb-violet) 25%, transparent);
+  font-size:12px; color:var(--rb-violet); margin-bottom:18px; }
+.rb-reserve .rb-mono { font-family:var(--rb-mono); font-size:11px; opacity:.85; }
+
+/* ---------- Gate rows and key/value grids ---------- */
+.rb-gate { display:grid; gap:8px; }
+.rb-gate-row { display:flex; align-items:baseline; gap:14px; padding:10px 14px;
+  background:var(--dsw-alias-bg-layer-2); border:1px solid var(--dsw-alias-border-l1);
+  border-radius:var(--dsw-radius-md); font-size:12.5px; }
+.rb-gk { flex:none; width:110px; color:var(--dsw-alias-label-tertiary); font-size:12px; }
+.rb-gv { min-width:0; color:var(--dsw-alias-label-secondary); overflow-wrap:anywhere; }
+.rb-gate-blocking { border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
+  background:linear-gradient(180deg, var(--rb-tint-error), var(--dsw-alias-bg-layer-2)); }
+.rb-gate-blocking .rb-gk { color:var(--dsw-alias-state-error-primary); }
+.rb-req-link { display:inline-block; font-family:var(--rb-mono); font-size:11px; color:var(--dsw-alias-state-business-primary);
+  background:var(--rb-tint-info); padding:1px 7px; border-radius:4px; border:1px solid transparent;
+  margin:0 4px 2px 0; }
+.rb-kv { display:grid; grid-template-columns:110px minmax(0,1fr); gap:8px 14px; font-size:12.5px; }
+.rb-kv-key { color:var(--dsw-alias-label-tertiary); font-size:12px; }
+.rb-kv-val { color:var(--dsw-alias-label-secondary); min-width:0; overflow-wrap:anywhere; }
+
+/* ---------- Flow chart ---------- */
 .rb-flow { overflow-x:auto; overflow-y:hidden; padding:6px 2px 14px; }
 .rb-flow-canvas { position:relative; }
 .rb-flow-edges { position:absolute; left:0; top:0; overflow:visible; pointer-events:none; }
-.rb-edge-path { fill:none; stroke:var(--dsw-alias-state-idle-primary); stroke-width:1.5; }
-.rb-edge-head { fill:var(--dsw-alias-state-idle-primary); }
-.rb-edge-done .rb-edge-path { stroke:var(--dsw-alias-state-success-primary); }
-.rb-edge-done .rb-edge-head { fill:var(--dsw-alias-state-success-primary); }
-.rb-node { position:absolute; box-sizing:border-box; overflow:hidden; padding:7px 9px; border-radius:8px;
-  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
-  color:var(--dsw-alias-label-secondary); cursor:pointer; text-align:left; font:inherit; appearance:none; }
-.rb-node:hover { border-color:var(--dsw-alias-label-secondary); }
+.rb-edge-path { fill:none; stroke:var(--dsw-alias-border-l3); stroke-width:1.5; }
+.rb-edge-head { fill:var(--dsw-alias-border-l3); }
+.rb-edge-done .rb-edge-path { stroke:var(--rb-accent-line); }
+.rb-edge-done .rb-edge-head { fill:var(--rb-accent-line); }
+.rb-node { position:absolute; box-sizing:border-box; overflow:hidden; padding:7px 9px;
+  border-radius:var(--dsw-radius-sm); border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); color:var(--dsw-alias-label-secondary);
+  cursor:pointer; text-align:left; font:inherit; appearance:none; }
+.rb-node:hover { border-color:var(--dsw-alias-border-l3); }
 .rb-node-name { font-weight:500; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .rb-node-meta { font-size:10px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.rb-node-done { border-color:var(--dsw-alias-state-success-primary); background:var(--dsw-alias-bg-base); color:var(--dsw-alias-label-primary); }
+.rb-node-done { border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 35%, transparent);
+  background:var(--rb-tint-success); color:var(--dsw-alias-label-primary); }
 .rb-node-done .rb-node-mark { color:var(--dsw-alias-state-success-primary); }
-.rb-node-active { border-color:var(--dsw-alias-brand-primary); box-shadow:0 0 0 1px var(--dsw-alias-brand-primary); color:var(--dsw-alias-label-primary); }
-.rb-node-active .rb-node-mark { color:var(--dsw-alias-brand-primary); }
-.rb-node-pending .rb-node-mark { color:var(--dsw-alias-state-idle-primary); }
-.rb-node-picked { outline:1px dashed var(--dsw-alias-label-secondary); outline-offset:2px; }
+.rb-node-active { border-color:var(--rb-accent-line); background:var(--rb-accent-soft);
+  color:var(--dsw-alias-label-primary); box-shadow:0 0 0 1px var(--rb-accent-line); }
+.rb-node-active .rb-node-mark { color:var(--rb-accent); }
+.rb-node-pending .rb-node-mark { color:var(--dsw-alias-label-tertiary); }
+.rb-node-picked { outline:1px dashed var(--dsw-alias-label-tertiary); outline-offset:2px; }
 .rb-node-mark { font-size:11px; }
-.rb-section { margin-top:18px; }
-.rb-section-title { font-size:12px; font-weight:500; color:var(--dsw-alias-label-secondary);
-  text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
-.rb-panel { border:1px solid var(--dsw-alias-border-l1); border-radius:8px; padding:10px 12px;
-  background:var(--dsw-alias-bg-layer-1); }
-.rb-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.rb-kv { display:grid; grid-template-columns:auto 1fr; gap:2px 10px; font-size:12px; }
-.rb-kv-key { color:var(--dsw-alias-label-secondary); }
+
+/* ---------- Checks, history, execution units ---------- */
 .rb-check { display:flex; gap:8px; align-items:flex-start; padding:3px 0; cursor:pointer; }
 .rb-check-done { color:var(--dsw-alias-state-success-primary); }
-.rb-history { display:flex; flex-direction:column; gap:6px; max-height:280px; overflow:auto; }
-.rb-history-row { display:flex; gap:8px; font-size:12px; align-items:baseline; }
-.rb-history-time { color:var(--dsw-alias-label-secondary); font-size:11px; white-space:nowrap; }
+.rb-checks { display:flex; flex-direction:column; gap:4px; }
+.rb-check-row { display:flex; align-items:center; gap:6px; }
+.rb-history { display:flex; flex-direction:column; gap:0; max-height:280px; overflow:auto; }
+.rb-history-row { display:flex; gap:10px; font-size:12px; align-items:baseline; padding:8px 2px;
+  border-bottom:1px dashed var(--dsw-alias-border-l1); }
+.rb-history-row:last-child { border-bottom:0; }
+.rb-history-time { font-family:var(--rb-num); color:var(--dsw-alias-label-tertiary); font-size:11px;
+  white-space:nowrap; font-variant-numeric:tabular-nums; }
+.rb-exec-list { display:flex; flex-direction:column; gap:6px; margin:4px 0; }
+.rb-exec-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px;
+  padding:8px 12px; border-radius:var(--dsw-radius-sm); border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-depends { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+
+/* ---------- Empty, loading, error ---------- */
+.rb-empty { display:flex; flex-direction:column; align-items:center; gap:6px; padding:30px 20px;
+  border:1px dashed var(--dsw-alias-border-l2); border-radius:var(--dsw-radius-md);
+  color:var(--dsw-alias-label-tertiary); text-align:center; }
+.rb-empty-ico { width:34px; height:34px; border-radius:9px; background:var(--dsw-alias-bg-layer-2);
+  border:1px solid var(--dsw-alias-border-l1); display:grid; place-items:center; font-size:15px;
+  margin-bottom:2px; }
+.rb-empty-t { font-size:13px; font-weight:500; color:var(--dsw-alias-label-secondary); }
+.rb-empty-d { font-size:12px; }
+.rb-skeleton { display:flex; flex-direction:column; gap:8px; padding:10px 12px; }
+.rb-skeleton-row { height:14px; border-radius:4px;
+  background:linear-gradient(90deg, var(--dsw-alias-bg-layer-1), var(--dsw-alias-bg-layer-2), var(--dsw-alias-bg-layer-1));
+  animation:rb-shimmer 1.4s infinite linear; }
+@keyframes rb-shimmer { 0% { opacity:.55; } 50% { opacity:1; } 100% { opacity:.55; } }
+/* A reading kept for assistive technology while the visible form is a skeleton. */
+.rb-sr { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden;
+  clip-path:inset(50%); white-space:nowrap; border:0; }
 .rb-error { color:var(--dsw-alias-state-error-primary); }
 .rb-warn { color:var(--dsw-alias-state-warn-primary); }
-.rb-muted { color:var(--dsw-alias-label-secondary); }
-.rb-notice { margin:8px 16px 0; padding:6px 10px; border-radius:6px; font-size:12px;
-  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1); }
-.rb-notice-error { border-color:var(--dsw-alias-state-error-primary); color:var(--dsw-alias-state-error-primary); }
-/* The platform Modal supplies the mask, surface, elevation, header, footer,
-   and frame insets; the board only widens the card its tables need. The card is
-   body-portaled, so it re-establishes the panel's own typographic context. */
-.rb-dialog, .rb-dialog-wide { max-height:100%; font-size:13px; line-height:1.5;
+.rb-muted { color:var(--dsw-alias-label-tertiary); }
+.rb-ink-success { color:var(--dsw-alias-state-success-primary); }
+.rb-ink-info { color:var(--dsw-alias-state-business-primary); }
+.rb-ink-accent { color:var(--rb-accent); }
+.rb-icon { display:block; }
+
+/* ---------- Notices ---------- */
+.rb-notice { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:12px 18px 0;
+  padding:10px 14px; border-radius:var(--dsw-radius-md); font-size:12px;
+  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-secondary); }
+.rb-notice-error, .rb-notice-auth { border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
+  background:var(--rb-tint-error); color:var(--dsw-alias-state-error-primary); }
+.rb-notice-stale { border-color:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 35%, transparent);
+  background:var(--rb-tint-warn); color:var(--dsw-alias-state-warn-primary); }
+.rb-notice-hint { border-left:3px solid var(--rb-accent); }
+.rb-notice-sync { background:var(--rb-tint-warn); }
+.rb-notice-force { border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
+  background:var(--rb-tint-error); }
+
+/* ---------- Dialog chrome, fields, images ---------- */
+.rb-dialog, .rb-dialog-wide, .rb-dialog-drawer { max-height:100%; font-size:13px; line-height:1.55;
   color:var(--dsw-alias-label-primary); }
 .rb-dialog { width:min(560px, 100%); }
 .rb-dialog-wide { width:min(680px, 100%); }
+.rb-dialog-drawer { width:min(960px, 100%); }
 .rb-field { display:flex; flex-direction:column; gap:3px; }
-.rb-field-label { font-size:11px; color:var(--dsw-alias-label-secondary); }
-.rb-icon { display:block; }
-.rb-table { width:100%; border-collapse:collapse; font-size:12px; }
-.rb-table td, .rb-table th { text-align:left; padding:3px 6px; border-bottom:1px solid var(--dsw-alias-border-l1); }
-.rb-table th { color:var(--dsw-alias-label-secondary); font-weight:500; }
-.rb-notice-stale { display:flex; align-items:center; gap:8px;
-  border-color:var(--dsw-alias-state-warn-primary); }
-.rb-notice-hint { display:flex; align-items:center; gap:8px;
-  border-left:3px solid var(--dsw-alias-brand-primary); }
-.rb-role-list { display:flex; flex-direction:column; border:1px solid var(--dsw-alias-border-l1);
-  border-radius:8px; overflow:hidden; max-height:40vh; overflow-y:auto; }
-.rb-role-row { display:flex; flex-direction:column; gap:3px; padding:8px 10px;
-  border-bottom:1px solid var(--dsw-alias-border-l1); }
-.rb-role-row:last-child { border-bottom:0; }
-.rb-role-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-.rb-role-name { font-weight:500; }
-.rb-duties { display:flex; flex-wrap:wrap; gap:4px; }
-.rb-skeleton { display:flex; flex-direction:column; gap:8px; padding:10px 12px; }
-.rb-skeleton-row { height:14px; border-radius:4px; background:var(--dsw-alias-bg-layer-2); }
-.rb-views { display:flex; align-items:center; gap:4px; padding:8px 16px 0; flex:none; }
-.rb-badge-group { display:inline-flex; align-items:center; gap:3px; }
-.rb-notice-force { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-  border-color:var(--dsw-alias-state-error-primary); }
-.rb-role-tally { display:flex; align-items:center; gap:6px; flex-wrap:wrap; width:100%; }
-.rb-queue { display:flex; flex-direction:column; gap:6px; padding:10px 12px; overflow:auto; }
-.rb-queue-group { display:flex; flex-direction:column; gap:4px; padding:8px 10px; border-radius:8px;
-  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1); }
-.rb-queue-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.rb-queue-session { font-weight:500; }
-.rb-queue-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:6px;
-  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-2); }
-.rb-queue-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.rb-exec-list { display:flex; flex-direction:column; gap:4px; margin:4px 0; }
-.rb-exec-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
-.rb-notice-sync { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.rb-notice-auth { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-  border-color:var(--dsw-alias-state-error-primary); }
-/* Stored images: the description's screenshots, both while a create is being
-   filled in and when a saved requirement is read back. */
+.rb-field-label { font-size:11px; color:var(--dsw-alias-label-tertiary); }
 .rb-images { display:flex; flex-wrap:wrap; gap:8px; }
 .rb-image-row { display:flex; align-items:center; gap:6px; }
-.rb-image-thumb { max-width:160px; max-height:120px; border-radius:6px;
+.rb-image-thumb { max-width:160px; max-height:120px; border-radius:var(--dsw-radius-sm);
   border:1px solid var(--dsw-alias-border-l2); object-fit:cover; }
-/* The create dialog offers each picture as a square tile whose remove control
-   rides its corner, so a picture and the control that drops it read as one
-   object; the tile keeps one size through uploading, stored and failed, so a
-   settle never reflows the grid. */
+/* The helper tier is the smaller 11px size, but it keeps the secondary label
+ * colour the picker's own gate reads: a hint a person must act on is not the
+ * tertiary tier reserved for metadata. */
 .rb-image-hint { flex:1; min-width:0; font-size:11px; color:var(--dsw-alias-label-secondary); }
 .rb-image-tile { position:relative; width:96px; height:96px; }
 .rb-image-tile-thumb { display:block; width:100%; height:100%; box-sizing:border-box;
-  border-radius:6px; border:1px solid var(--dsw-alias-border-l2); object-fit:cover; }
+  border-radius:var(--dsw-radius-sm); border:1px solid var(--dsw-alias-border-l2); object-fit:cover; }
 .rb-image-tile-state { display:flex; align-items:center; justify-content:center; width:100%;
   height:100%; padding:6px; box-sizing:border-box; overflow:hidden; text-align:center;
-  word-break:break-all; font-size:11px; border-radius:6px;
+  word-break:break-all; font-size:11px; border-radius:var(--dsw-radius-sm);
   border:1px dashed var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-2); }
-.rb-image-tile .rb-image-remove { position:absolute; top:4px; right:4px; width:20px;
-  height:20px; min-width:20px; padding:0; border-radius:50%; font-size:12px; line-height:1;
+.rb-image-tile .rb-image-remove { position:absolute; top:4px; right:4px; width:20px; height:20px;
+  min-width:20px; padding:0; border-radius:50%; font-size:12px; line-height:1;
   border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
   color:var(--dsw-alias-label-secondary); }
 .rb-image-tile .rb-image-remove:hover { color:var(--dsw-alias-state-error-primary);
   border-color:var(--dsw-alias-state-error-primary); }
 /* The picker is driven by its own button, so the native control stays out of
-   the layout but remains reachable for the keyboard and assistive technology. */
+ * the layout but remains reachable for the keyboard and assistive technology. */
 .rb-file-input { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+
+/* ---------- Template drawer and management surfaces ---------- */
+.rb-drawer { display:flex; gap:14px; align-items:flex-start; min-height:320px; }
+.rb-drawer-list { width:264px; flex:none; display:flex; flex-direction:column; gap:6px; }
+.rb-drawer-body { flex:1 1 auto; min-width:0; }
+.rb-drawer-filter { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.rb-template-rows { display:flex; flex-direction:column; gap:6px; max-height:52vh; overflow:auto; }
+.rb-template-row { display:flex; flex-direction:column; gap:4px; width:100%; text-align:left; font:inherit;
+  appearance:none; cursor:pointer; padding:10px 12px; border-radius:var(--dsw-radius-md);
+  border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1); color:inherit; }
+.rb-template-row:hover { border-color:var(--dsw-alias-border-l2); }
+.rb-template-row-picked { border-color:var(--rb-accent-line); background:var(--dsw-alias-bg-layer-2);
+  box-shadow:inset 2px 0 0 var(--rb-accent); }
+.rb-template-row-title { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-weight:500; }
+.rb-version-list { display:flex; flex-direction:column; gap:6px; }
+.rb-version-row { display:flex; flex-direction:column; gap:4px; padding:10px 12px;
+  border-radius:var(--dsw-radius-md); border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-node-card { display:flex; flex-direction:column; gap:8px; padding:10px 12px;
+  border-radius:var(--dsw-radius-md); border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-node-card-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.rb-node-heading { font-weight:500; }
+.rb-node-fields { display:flex; gap:8px; flex-wrap:wrap; }
+.rb-node-fields > .rb-field { flex:1 1 180px; min-width:0; }
+.rb-impact-row { display:flex; flex-direction:column; gap:4px; padding:10px 12px;
+  border-radius:var(--dsw-radius-md); border:1px solid var(--dsw-alias-border-l1);
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-impact-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.rb-impact-move { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; }
+.rb-role-list { display:flex; flex-direction:column; border:1px solid var(--dsw-alias-border-l1);
+  border-radius:var(--dsw-radius-md); overflow:hidden; max-height:40vh; overflow-y:auto;
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-role-row { display:flex; flex-direction:column; gap:3px; padding:10px 12px;
+  border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-md);
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-role-row:last-child { border-bottom:1px solid var(--dsw-alias-border-l1); }
+.rb-role-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.rb-role-name { font-weight:500; }
+.rb-duties { display:flex; flex-wrap:wrap; gap:4px; }
+.rb-preset-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 12px;
+  border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-md);
+  background:var(--dsw-alias-bg-layer-1); }
+.rb-table { width:100%; border-collapse:collapse; font-size:12px; }
+.rb-table td, .rb-table th { text-align:left; padding:6px; border-bottom:1px solid var(--dsw-alias-border-l1); }
+.rb-table th { color:var(--dsw-alias-label-tertiary); font-weight:500; }
+.rb-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.rb-scroll { overflow:auto; min-height:0; }
+.rb-foot { margin-top:32px; padding-top:14px; border-top:1px solid var(--dsw-alias-border-l1);
+  display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  font-family:var(--rb-num); font-size:11px; color:var(--dsw-alias-label-tertiary); }
+
+/* ---------- Adaptation ---------- */
+@media (max-width:1240px) {
+  .rb-body { flex-direction:column; }
+  .rb-list { width:auto; }
+  .rb-meta-grid { grid-template-columns:repeat(2, minmax(0,1fr)); }
+  /* Too narrow for seven columns: the band's cells wrap, keeping their order. */
+  .rb-stats { display:flex; flex-wrap:wrap; align-items:stretch; }
+  .rb-stat { flex:1 1 104px; }
+  .rb-stat-hero, .rb-stat-alert { flex:1 1 100%; }
+}
+@media (max-width:900px) {
+  .rb-detail, .rb-body, .rb-stats, .rb-filters, .rb-views { padding-left:12px; padding-right:12px; }
+  .rb-detail { padding-top:16px; }
+  .rb-stat-hero, .rb-stat-alert { flex:1 1 100%; }
+  .rb-meta-grid { grid-template-columns:minmax(0,1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rb-live, .rb-skeleton-row { animation:none; }
+  .rb-stat, .rb-card, .rb-node, .rb-caret, .rb-ring-fill { transition:none; }
+}
 `
 
     /** One labelled form field. */
@@ -1264,13 +1928,13 @@ window.__ModuleLoader__.load({
      * the Tab trap, entry and return focus, and the frame's overlay inset; this
      * wrapper only supplies localized copy and the dialog's width.
      */
-    function Dialog({ title, closeLabel, onClose, children, footer, wide }) {
+    function Dialog({ title, closeLabel, onClose, children, footer, wide, drawer }) {
       return h(Modal, {
         open: true,
         onClose,
         title,
         closeLabel,
-        className: wide === true ? 'rb-dialog-wide' : 'rb-dialog',
+        className: drawer === true ? 'rb-dialog-drawer' : wide === true ? 'rb-dialog-wide' : 'rb-dialog',
         footer,
       }, children)
     }
@@ -1333,20 +1997,73 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Role management: the recorded roles, the ids in use but unrecorded, and
-     * the panel's only write path into the roles table (`put`/`delete`).
+     * The panel line each stored role `source` renders as.
+     *
+     * The source is what ties a role row back to the preset it came from: a
+     * declaration shipped with a preset, the preset id itself, a human's edit, or
+     * a delegation's temporary role.
+     */
+    const ROLE_SOURCE_KEYS = {
+      preset: 'roleSourcePreset',
+      manual: 'roleSourceManual',
+      observed: 'roleSourceObserved',
+      delegated: 'roleSourceDelegated',
+    }
+
+    /**
+     * Role management: the recorded roles, the ids in use but unrecorded, the
+     * presets that resolve to them, and the panel's only write path into the
+     * roles table (`put`/`delete`).
      *
      * A temporary role is shown with what delegation bound it to, and typed in,
      * because the task that minted it owns its lifetime; an unrecorded row can
      * be registered here, which is the only way a requirement's dangling role id
      * stops reading as unregistered.
+     *
+     * The preset section is the association itself: each declared preset with the
+     * role its sessions resolve to, and every preset whose role has no record
+     * offering to register one, prefilled from the preset's own id and name. The
+     * roster is read when the dialog opens and again after a `put` or `delete`,
+     * so a registration this panel just made stops reading as one still to make.
      */
     function RolesDialog({ roles, status, busy, run, onClose, t }) {
       const [draft, setDraft] = useState(null)
       const [confirmId, setConfirmId] = useState(null)
+      // `null` is "still reading": the preset roster is read when the dialog
+      // opens, because the registry audits every preset as it lists them and the
+      // board's own read path must not wait on that.
+      const [presets, setPresets] = useState(null)
+      const live = useRef(true)
       const items = roles?.items ?? []
       const unregistered = roles?.unregistered ?? []
       const set = patch => setDraft(current => ({ ...current, ...patch }))
+      /**
+       * Read the preset roster: when the dialog opens, and again after a write
+       * that changes which presets have a role record — otherwise the section
+       * keeps offering a registration the Host has already recorded, or hides
+       * one it no longer has.
+       */
+      const loadPresets = async () => {
+        const result = await run('role.list')
+        if (!live.current) return
+        const roster = result.ok && result.data !== null && typeof result.data === 'object'
+          ? result.data.presets
+          : null
+        // A roster the Host did not answer with is a degraded section, not an
+        // empty one: "no presets declared" and "cannot read them" are different
+        // facts and the panel states which one it has.
+        setPresets(roster ?? { items: [], unavailable: { code: 'read-failed' } })
+      }
+      useEffect(() => {
+        // One read per dialog open. The dialog is mounted per open, so the first
+        // render's `run` is the one to use; depending on it would re-read without
+        // a new open whenever the locale changed its identity. The liveness flag
+        // is re-armed on every mount because a ref outlives one in the test
+        // renderer's slot reuse.
+        live.current = true
+        void loadPresets()
+        return () => { live.current = false }
+      }, [])
       /** Open the form for a new role, or for one existing record. */
       const startEdit = record => setDraft({
         roleId: record.id,
@@ -1362,7 +2079,10 @@ window.__ModuleLoader__.load({
             duties: draft.duties.split(',').map(entry => entry.trim()).filter(Boolean),
           },
         })
-        if (result.ok) setDraft(null)
+        if (result.ok) {
+          setDraft(null)
+          void loadPresets()
+        }
       }
 
       const presence = record => {
@@ -1381,6 +2101,9 @@ window.__ModuleLoader__.load({
           h('span', { className: 'rb-role-name' }, record.name ?? record.id),
           h(Tag, { tone: 'outline' }, record.id),
           record.ephemeral === true ? h(Tag, { tone: 'warning' }, t('roleEphemeral')) : null,
+          record.ephemeral !== true && typeof ROLE_SOURCE_KEYS[record.source] === 'string'
+            ? h(Tag, { tone: 'neutral' }, t(ROLE_SOURCE_KEYS[record.source]))
+            : null,
           unrecorded || record.dutiesMissing === true
             ? h(Tag, { tone: unrecorded ? 'danger' : 'warning' },
               unrecorded ? t('roleUnregistered') : t('roleDutiesMissing'))
@@ -1417,6 +2140,71 @@ name: `role.remove.${record.id}`,
           : null)
 
       const loaded = items.length > 0 || unregistered.length > 0
+
+      /** Open the role form prefilled from one preset: its id and display name. */
+      const registerPreset = preset => setDraft({
+        roleId: preset.roleId,
+        roleName: preset.name === '' ? preset.id : preset.name,
+        duties: '',
+        existing: false,
+      })
+
+      /** One declared preset and the role its sessions resolve to. */
+      const presetRow = preset => h('div', { key: `preset.${preset.id}`, className: 'rb-role-row rb-preset-row' },
+        h('div', { className: 'rb-role-head' },
+          h('span', { className: 'rb-role-name' }, preset.name === '' ? preset.id : preset.name),
+          h(Tag, { tone: 'outline' }, preset.id),
+          preset.broken !== '' ? h('span', { title: preset.broken }, h(Tag, { tone: 'danger' }, t('presetBroken'))) : null,
+          // One state tag: a preset id that cannot be a role id has nothing to
+          // register, an unrecorded role is what the register button addresses,
+          // and a recorded role missing its duties is the same degradation the
+          // role rows report.
+          preset.roleId === ''
+            ? h(Tag, { tone: 'danger' }, t('presetRoleInvalid'))
+            : preset.recorded === false
+              ? h(Tag, { tone: 'warning' }, t('presetUnregistered'))
+              : preset.dutiesMissing === true
+                ? h(Tag, { tone: 'warning' }, t('roleDutiesMissing'))
+                : null,
+          h('span', { className: 'rb-grow' }),
+          preset.roleId !== '' && preset.recorded === false
+            ? h(Button, {
+              variant: 'primary',
+              size: 'sm',
+              name: `preset.register.${preset.id}`,
+              disabled: busy,
+              onClick: () => registerPreset(preset),
+            }, t('presetRegister'))
+            : null),
+        h('div', { className: 'rb-card-meta' },
+          h('span', null, `${t('filterRole')}: ${preset.roleId === '' ? '—' : roleName(preset.roleId, roles)}`),
+          h('span', null, interpolate(t('presetSessions'), { count: preset.online ?? 0 })),
+          h('span', null, interpolate(t('roleOpen'), { count: preset.open ?? 0 })),
+          preset.confirmed === false && preset.roleId !== ''
+            ? h('span', null, t('presetInferred'))
+            : null))
+
+      /**
+       * The preset half of role management.
+       *
+       * Three states stay apart: still reading, unreadable (with the Host's own
+       * reason), and read. An empty roster is a fact about the deployment — no
+       * preset is declared — and is stated as one rather than shown as nothing.
+       */
+      const rosterSection = () => h('div', null,
+        h('div', { className: 'rb-section-title', style: { padding: '8px 10px 0' } }, t('rolePresets')),
+        presets === null
+          ? h('div', { className: 'rb-muted', style: { padding: '4px 10px 8px' } }, t('presetsReading'))
+          : presets.unavailable !== null && presets.unavailable !== undefined
+            ? h('div', { className: 'rb-muted', style: { padding: '4px 10px 8px' } },
+              h('div', null, t(presets.unavailable.code === 'service-absent' ? 'presetsUnavailableAbsent' : 'presetsUnavailableFailed')),
+              typeof presets.unavailable.detail === 'string' && presets.unavailable.detail !== ''
+                ? h('div', null, presets.unavailable.detail)
+                : null)
+            : presets.items.length === 0
+              ? h('div', { className: 'rb-muted', style: { padding: '4px 10px 8px' } }, t('presetsEmpty'))
+              : h('div', { className: 'rb-role-list' }, presets.items.map(presetRow)))
+
       return h(Dialog, {
         title: t('roles'),
         wide: true,
@@ -1469,6 +2257,7 @@ name: 'role.save',
               : null,
             unregistered.map(record => row(record, true)))
           : null,
+        rosterSection(),
         confirmId !== null ? h('div', { className: 'rb-panel' },
           h('div', null, t('removeRoleConfirm')),
           h('div', { className: 'rb-row' },
@@ -1477,7 +2266,10 @@ name: 'role.save',
               className: 'rb-btn-danger',
 disabled: busy,
               onClick: async () => {
-                if ((await run('role.delete', { id: confirmId })).ok) setConfirmId(null)
+                if ((await run('role.delete', { id: confirmId })).ok) {
+                  setConfirmId(null)
+                  void loadPresets()
+                }
               },
             }, t('confirm')),
             h(Button, { variant: 'ghost', onClick: () => setConfirmId(null)}, t('cancel')))) : null)
@@ -1523,10 +2315,17 @@ disabled: busy,
       return h(Tag, { tone: PRIORITY_TONES[priority] ?? 'outline' }, t(key))
     }
 
-    /** The role a requirement is routed to; a requirement open to all shows none. */
-    function RoleBadge({ role, roles }) {
+    /**
+     * The role a requirement is routed to; a requirement open to all shows none.
+     *
+     * `unregistered` marks a routing the board has no role record for: the
+     * requirement is really routed to that id, so the badge warns instead of
+     * showing a bare id that reads like a registered role (§3.4).
+     */
+    function RoleBadge({ role, roles, unregistered, t }) {
       if (role === undefined || role === '') return null
-      return h('span', { title: role }, h(Tag, { tone: 'info' }, roleName(role, roles)))
+      const title = unregistered === true ? `${role} · ${t('roleUnregistered')}` : role
+      return h('span', { title }, h(Tag, { tone: unregistered === true ? 'warning' : 'info' }, roleName(role, roles)))
     }
 
     /** A decision requirement: the person decides it, no session may. */
@@ -1741,61 +2540,92 @@ disabled: busy,
      * build without `byKind` or `reserved` renders the cells it does carry
      * rather than a fabricated zero.
      */
+    /**
+     * The KPI band: a completion ring, the five readings that decide what to do
+     * next, one alert tile, and a secondary strip for the rest. Only the
+     * arrangement is new — every reading still comes from the same `stats`
+     * payload, and none of the Host's counters changed.
+     */
     function StatsStrip({ stats, roles, t }) {
       if (stats === null) return null
       const rate = Math.round(stats.completionRate * 100)
-      const cells = [
+      const circumference = 2 * Math.PI * 24
+      const done = stats.byStatus.done ?? 0
+      const tiles = [
         { label: t('total'), value: String(stats.total) },
         { label: t('statusActive'), value: String(stats.byStatus.active ?? 0) },
         { label: t('statusBlocked'), value: String(stats.byStatus.blocked ?? 0) },
-        { label: t('statusDone'), value: String(stats.byStatus.done ?? 0) },
+        { label: t('statusDone'), value: String(done) },
         { label: t('blockedTitle'), value: String(stats.blocked.length), warn: stats.blocked.length > 0 },
-        { label: t('stalledTitle'), value: String(stats.stalled.length), warn: stats.stalled.length > 0 },
       ]
+      const sub = []
       if (stats.byKind !== undefined) {
-        cells.push(
-          { label: t('statsUnfinished'), value: String(stats.total - (stats.byStatus.done ?? 0)) },
+        sub.push(
+          { label: t('statsUnfinished'), value: String(stats.total - done) },
           { label: t('kindTask'), value: String(stats.byKind.task ?? 0) },
           { label: t('kindDecision'), value: String(stats.byKind.decision ?? 0), warn: (stats.byKind.decision ?? 0) > 0 },
         )
       }
-      if (typeof stats.queued === 'number') cells.push({ label: t('statsQueued'), value: String(stats.queued) })
+      if (typeof stats.queued === 'number') sub.push({ label: t('statsQueued'), value: String(stats.queued) })
       // The critical path is the requirements whose level the work they hold up
       // raised — the same set each `escalated` row marks, counted by the Host.
       if (typeof stats.criticalPath === 'number') {
-        cells.push({ label: t('criticalPath'), value: String(stats.criticalPath), warn: stats.criticalPath > 0 })
+        sub.push({ label: t('criticalPath'), value: String(stats.criticalPath), warn: stats.criticalPath > 0 })
       }
-      if (typeof stats.reserved === 'number') cells.push({ label: t('statsReserved'), value: String(stats.reserved), warn: stats.reserved > 0 })
+      if (typeof stats.reserved === 'number') sub.push({ label: t('statsReserved'), value: String(stats.reserved), warn: stats.reserved > 0 })
       if (typeof stats.pendingDelegations === 'number') {
-        cells.push({ label: t('statsPendingDelegations'), value: String(stats.pendingDelegations), warn: stats.pendingDelegations > 0 })
+        sub.push({ label: t('statsPendingDelegations'), value: String(stats.pendingDelegations), warn: stats.pendingDelegations > 0 })
       }
       if (typeof stats.orphanedLocks === 'number') {
-        cells.push({ label: t('statsOrphanedLocks'), value: String(stats.orphanedLocks), warn: stats.orphanedLocks > 0 })
+        sub.push({ label: t('statsOrphanedLocks'), value: String(stats.orphanedLocks), warn: stats.orphanedLocks > 0 })
       }
       // §5.6's execution readings. Both count what was observed rather than what
       // a document says, so they are read straight off the host's counters.
       if (typeof stats.running === 'number') {
-        cells.push({ label: t('statsRunning'), value: String(stats.running) })
+        sub.push({ label: t('statsRunning'), value: String(stats.running) })
       }
       if (stats.execSync !== undefined && stats.execSync !== null) {
         const gaps = stats.execSync.gaps ?? 0
         const ignored = stats.execSync.ignored ?? 0
-        cells.push({ label: t('statsExecGaps'), value: String(gaps), warn: gaps > 0 })
-        if (ignored > 0) cells.push({ label: t('statsExecIgnored'), value: String(ignored) })
+        sub.push({ label: t('statsExecGaps'), value: String(gaps), warn: gaps > 0 })
+        if (ignored > 0) sub.push({ label: t('statsExecIgnored'), value: String(ignored) })
       }
+      const stalled = stats.stalled.length
       const tally = Array.isArray(stats.byRole) ? stats.byRole.filter(row => (row.total ?? 0) > 0).slice(0, 6) : []
-      return h('div', { className: 'rb-stats' },
-        h('div', { className: 'rb-stat' },
-          h('div', { className: 'rb-stat-label' }, t('completionRate')),
-          h('div', { className: 'rb-stat-value' }, `${rate}%`),
-          h('div', { className: 'rb-bar' }, h('div', { className: 'rb-bar-fill', style: { width: `${Math.max(2, rate)}%` } }))),
-        cells.map(cell => h('div', { key: cell.label, className: 'rb-stat' },
-          h('div', { className: 'rb-stat-label' }, cell.label),
-          h('div', { className: `rb-stat-value${cell.warn ? ' rb-warn' : ''}` }, cell.value))),
-        tally.length === 0 ? null : h('div', { className: 'rb-role-tally' },
-          h('span', { className: 'rb-field-label' }, t('statsByRole')),
-          tally.map(row => h(Tag, { key: row.role === '' ? '(none)' : row.role, tone: 'outline' },
-            `${row.role === '' ? t('roleNone') : roleName(row.role, roles)} ${row.total}`))))
+      return h('div', { className: 'rb-kpi' },
+        h('div', { className: 'rb-stats' },
+          h('div', { className: 'rb-stat rb-stat-hero' },
+            h('div', { className: 'rb-ring' },
+              h('svg', { width: 56, height: 56, viewBox: '0 0 56 56', 'aria-hidden': 'true' },
+                h('circle', { className: 'rb-ring-track', cx: 28, cy: 28, r: 24 }),
+                h('circle', {
+                  className: 'rb-ring-fill', cx: 28, cy: 28, r: 24,
+                  style: { strokeDasharray: `${(circumference * rate / 100).toFixed(2)} ${circumference.toFixed(2)}` },
+                })),
+              h('div', { className: 'rb-ring-pct' }, `${rate}%`)),
+            h('div', { className: 'rb-hero-text' },
+              h('div', { className: 'rb-stat-label' }, t('completionRate')),
+              h('div', { className: 'rb-hero-frac' },
+                `${t('statusDone')} `, h('b', null, String(done)), ' / ', h('b', null, String(stats.total))))),
+          tiles.map(tile => h('div', { key: tile.label, className: 'rb-stat' },
+            h('div', { className: 'rb-stat-label' }, tile.label),
+            h('div', { className: `rb-stat-value${tile.warn ? ' rb-warn' : ''}` }, tile.value))),
+          // The alert tile is a reading, not a control: it carries no click
+          // target because the panel has no "stalled only" filter to open.
+          h('div', { className: `rb-stat rb-stat-alert${stalled > 0 ? '' : ' rb-stat-alert-clear'}` },
+            h('div', { className: 'rb-stat-label' }, t('stalledTitle')),
+            h('div', { className: 'rb-stat-value' }, String(stalled)),
+            stalled > 0 ? h('div', { className: 'rb-go' }, t('statsAlertHint')) : null)),
+        sub.length === 0 && tally.length === 0 ? null : h('div', { className: 'rb-submetrics' },
+          // Each reading keeps a label node beside its value node: the strip is
+          // the same reading as a tile, only placed second.
+          sub.map(cell => h('span', { key: cell.label, className: 'rb-submetric' },
+            h('span', { className: 'rb-stat-label' }, cell.label),
+            h('b', { className: cell.warn === true ? 'rb-warn' : undefined }, cell.value))),
+          tally.length === 0 ? null : h('span', { className: 'rb-role-tally' },
+            h('span', { className: 'rb-field-label' }, t('statsByRole')),
+            tally.map(row => h(Tag, { key: row.role === '' ? '(none)' : row.role, tone: 'outline' },
+              `${row.role === '' ? t('roleNone') : roleName(row.role, roles)} ${row.total}`)))))
     }
 
     /** One node's detail: condition, checklist, timings, and the actions it allows. */
@@ -1838,7 +2668,7 @@ disabled: busy,
             ? new Date(node.completedAt).getTime() - new Date(node.enteredAt).getTime()
             : node.status === 'active' && node.enteredAt !== null ? Date.now() - new Date(node.enteredAt).getTime() : null))),
         node.completion?.type === 'checklist' ? h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('checks')),
+          sectionHead('checks', t),
           node.completion.checklist.map((label, position) => h('label', {
             key: label,
             className: `rb-check${node.checks[position] ? ' rb-check-done' : ''}`,
@@ -1918,7 +2748,7 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
       const tables = stats.nodeDurations.slice(0, 12)
       return h('div', null,
         h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('nodeDurations')),
+          sectionHead('nodeDurations', t),
           tables.length === 0 ? h('div', { className: 'rb-muted' }, '—') : h('table', { className: 'rb-table' },
             h('thead', null, h('tr', null,
               h('th', null, t('nodesLabel')),
@@ -1933,7 +2763,7 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
               h('td', null, formatDuration(row.minMs)),
               h('td', null, formatDuration(row.maxMs))))))),
         h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('blockedTitle')),
+          sectionHead('blockedTitle', t),
           stats.blocked.length === 0 ? h('div', { className: 'rb-muted' }, t('noBlocked')) : h('div', null, stats.blocked.map(item => h('div', {
             key: item.id,
             className: 'rb-row',
@@ -1942,7 +2772,7 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
             h('span', { className: 'rb-muted' }, item.reason),
             h('span', { className: 'rb-muted' }, formatDuration(item.blockedMs)))))),
         h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('stalledTitle')),
+          sectionHead('stalledTitle', t),
           stats.stalled.length === 0 ? h('div', { className: 'rb-muted' }, t('noStalled')) : h('div', null, stats.stalled.map(item => h('div', {
             key: item.id,
             className: 'rb-row',
@@ -2155,58 +2985,991 @@ key: 'ok',
         })))
     }
 
-    /** The flow-template creation dialog. */
-    function CreateTemplateDialog({ onClose, onSubmit, busy, t }) {
-      const [form, setForm] = useState({ name: '', description: '', nodes: '' })
-      const set = patch => setForm(current => ({ ...current, ...patch }))
-      /** Parse `name | assignee | check;check` lines into node declarations. */
-      const parseNodes = () => form.nodes
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line !== '')
-        .map(line => {
-          const [name, assignee = '', checks = ''] = line.split('|').map(part => part.trim())
-          const checklist = checks.split(';').map(entry => entry.trim()).filter(Boolean)
+    /** A node declaration as the read-only chart consumes one. */
+    function templateFlowNode(node) {
+      return {
+        id: node.id,
+        name: node.name,
+        order: node.order ?? 0,
+        dependsOn: [...(node.dependsOn ?? [])],
+        assignee: node.assignee ?? '',
+        description: node.description ?? '',
+        completion: node.completion ?? { type: 'manual', checklist: [], requireNote: false },
+        status: 'pending',
+        enteredAt: null,
+        completedAt: null,
+        checks: (node.completion?.checklist ?? []).map(() => false),
+        note: '',
+      }
+    }
+
+    /**
+     * Group a template's bound requirements by the revision each is pinned to.
+     * @param pins - The bound requirements as the requirement route reports them.
+     * @returns a Map from revision number to the requirements pinned there.
+     */
+    function pinsByRevision(pins) {
+      const grouped = new Map()
+      for (const requirement of pins) {
+        const revision = requirement.templateRevision ?? 1
+        grouped.set(revision, [...(grouped.get(revision) ?? []), requirement])
+      }
+      return grouped
+    }
+
+    /**
+     * The flow-template drawer: the list, the read-only detail, the version
+     * editor, and the four management actions (migrate, prune, archive, delete).
+     *
+     * The drawer never derives a flow fact the Host owns. The pinned-revision
+     * counts come from the requirements route, the migration impact comes from
+     * `template.migrate`'s own refusal, and the prune gate reuses the same pin
+     * list, so a version the Host would refuse to drop is disabled here for the
+     * same reason rather than a re-implementation of it. Every draft lives in
+     * this component's state and reaches the board only through a command: a
+     * half-edited template is never stored, so a new requirement cannot be
+     * created against it (§11.7).
+     */
+    function TemplateDrawer({ templates, pins, pinsTruncated, busy, run, controller, revision, onClose, t }) {
+      const [list, setList] = useState(templates)
+      const [includeArchived, setIncludeArchived] = useState(false)
+      const [selectedId, setSelectedId] = useState(null)
+      const [record, setRecord] = useState(null)
+      const [detailError, setDetailError] = useState(null)
+      const [editing, setEditing] = useState(false)
+      const [draft, setDraft] = useState(null)
+      const [conflict, setConflict] = useState(null)
+      const [notice, setNotice] = useState(null)
+      const [migrating, setMigrating] = useState(null)
+      // Bumped on every opening, so the migration dialog can tell one opening
+      // from the next and never inherit the impact list of a run that finished.
+      const [migrateOpens, setMigrateOpens] = useState(0)
+      const [cloning, setCloning] = useState(false)
+      const [cloneName, setCloneName] = useState('')
+      const [deleting, setDeleting] = useState(false)
+      const [deleteArmed, setDeleteArmed] = useState(false)
+      const [pruneTarget, setPruneTarget] = useState(null)
+      const [adding, setAdding] = useState(false)
+      const [newForm, setNewForm] = useState({ name: '', description: '', nodes: '' })
+      const editingRef = useRef(false)
+      editingRef.current = editing
+      /** Whether the Host has answered the list read of this drawer at least once. */
+      const listLoadedRef = useRef(false)
+
+      /**
+       * Run one command behind an inline notice instead of only the app toast.
+       *
+       * A dialog that keeps unsaved input (the version editor and the migration
+       * impact list) has to say what went wrong exactly where the work is, because
+       * a toast fades while the draft stays on screen.
+       */
+      const invoke = useCallback(async (action, payload) => {
+        const result = await run(action, payload)
+        setNotice(result.ok ? null : result.error)
+        return result
+      }, [run])
+
+      /** Read the bounded list; archived templates are included on request only. */
+      const loadList = useCallback(async include => {
+        const result = await run('template.list', { includeArchived: include })
+        if (!result.ok) return
+        listLoadedRef.current = true
+        setList(result.data?.items ?? [])
+      }, [run])
+
+      /** Read one template's full record (versions, changes, archived flag). */
+      const loadDetail = useCallback(async id => {
+        const result = await run('template.get', { id })
+        if (!result.ok) {
+          setDetailError(result.error)
+          setRecord(null)
+          return
+        }
+        setDetailError(null)
+        setRecord(result.data)
+      }, [run])
+
+      useEffect(() => {
+        void loadList(includeArchived)
+      }, [loadList, includeArchived])
+
+      // The board is shared: a committed template write by any session arrives as
+      // a revision move. The list follows it; an open editor does not, because
+      // reloading the record under a draft would discard the draft, and the draft
+      // is the thing the reader would have to retype (§11.7).
+      useEffect(() => {
+        if (revision === 0) return
+        void loadList(includeArchived)
+        if (selectedId !== null && !editingRef.current) void loadDetail(selectedId)
+      }, [revision, includeArchived, selectedId, loadList, loadDetail])
+
+      const visible = useMemo(() => list
+        .filter(template => includeArchived || template.archived !== true)
+        .sort((left, right) => (Number(right.builtin === true) - Number(left.builtin === true))
+          || String(left.createdAt ?? '').localeCompare(String(right.createdAt ?? ''))), [list, includeArchived])
+
+      // The drawer opens on a template rather than on an empty detail pane: the
+      // first row is selected once the list has landed, and a pick the reader
+      // made is never replaced. The empty state stays for a genuinely empty list.
+      useEffect(() => {
+        if (selectedId !== null || !listLoadedRef.current || visible.length === 0) return
+        setSelectedId(visible[0].id)
+      }, [selectedId, visible])
+
+      const row = visible.find(template => template.id === selectedId)
+        ?? visible.find(template => template.id === record?.id)
+        ?? null
+      const detail = record !== null && record.id === row?.id ? record : null
+      const versions = detail?.versions ?? []
+      const currentRevision = detail?.revision ?? row?.revision ?? 1
+      const bound = useMemo(() => (pins ?? []).filter(requirement => requirement.templateId === row?.id), [pins, row?.id])
+      const pinned = useMemo(() => pinsByRevision(bound), [bound])
+      const pinnedToOld = bound.filter(requirement => (requirement.templateRevision ?? 1) !== currentRevision).length
+      /**
+       * Where a bound requirement lands once this template is deleted.
+       *
+       * The board rebinds to the deployment's default template, which is the same
+       * record this panel offers a new requirement by default: the first template
+       * the Host lists. It is named rather than assumed, so a deployment whose
+       * default is an archived or later template shows a name the reader can
+       * recognise as wrong instead of a silent wrong destination.
+       */
+      const fallback = visible.find(template => template.id !== row?.id) ?? null
+      const landingOf = requirement => {
+        if (fallback === null) return '—'
+        const nodes = fallback.nodes ?? []
+        const keeps = nodes.some(node => node.id === requirement.nodeId)
+        const node = keeps ? requirement.nodeId : (nodes[0]?.id ?? '—')
+        return `${fallback.name} · ${(nodes.find(candidate => candidate.id === node)?.name) ?? node}`
+      }
+
+      useEffect(() => {
+        if (row === null) {
+          if (selectedId !== null) {
+            setSelectedId(null)
+            setRecord(null)
+            setEditing(false)
+            setDraft(null)
+          }
+          return
+        }
+        if (detail !== null) return
+        void loadDetail(row.id)
+      }, [row, detail, selectedId, loadDetail])
+
+      const startEdit = () => {
+        setConflict(null)
+        setNotice(null)
+        setMigrating(null)
+        setEditing(true)
+      }
+      /** Open the migration dialog for one target revision, as a fresh reading. */
+      const openMigration = (target, from) => {
+        setMigrateOpens(current => current + 1)
+        setMigrating({ target, from })
+      }
+      // The draft holds only unsaved input and must not be seeded while rendering:
+      // it is built once when the editor opens and again whenever the record it
+      // edits moves underneath it.
+      useEffect(() => {
+        if (!editing) {
+          setDraft(null)
+          return
+        }
+        setDraft({
+          name: detail?.name ?? row?.name ?? '',
+          description: detail?.description ?? row?.description ?? '',
+          nodes: (detail?.nodes ?? row?.nodes ?? []).map(node => ({
+            id: node.id,
+            name: node.name,
+            description: node.description ?? '',
+            dependsOn: [...(node.dependsOn ?? [])],
+            type: node.completion?.type === 'checklist' ? 'checklist' : 'manual',
+            checklist: [...(node.completion?.checklist ?? [])],
+          })),
+        })
+      }, [editing, detail?.id, detail?.revision, row?.id])
+      const patchDraft = patch => setDraft(current => ({ ...current, ...patch }))
+      const ownIds = draft === null ? [] : draft.nodes.map(node => node.id)
+      const reviseSaved = async result => {
+        setEditing(false)
+        setDraft(null)
+        setConflict(null)
+        controller.notify('info', interpolate(t('templateSaved'), { revision: result.data?.revision ?? '' }))
+        await loadList(includeArchived)
+        if (selectedId !== null) await loadDetail(selectedId)
+      }
+
+      /** Add a node whose derived id cannot collide with the current list. */
+      const addNode = () => {
+        const taken = new Set(draft.nodes.map(node => node.id))
+        let index = draft.nodes.length + 1
+        while (taken.has(`node-${index}`)) index += 1
+        patchDraft({
+          nodes: [...draft.nodes, {
+            id: `node-${index}`,
+            name: '',
+            description: '',
+            dependsOn: [],
+            type: 'manual',
+            checklist: [],
+          }],
+        })
+      }
+
+      /** Remove one node and every reference the other nodes held to it. */
+      const removeNode = id => patchDraft({
+        nodes: draft.nodes
+          .filter(node => node.id !== id)
+          .map(node => ({ ...node, dependsOn: node.dependsOn.filter(parent => parent !== id) })),
+      })
+
+      /** Swap one node with its neighbour, so the declared order can move. */
+      const moveNode = (index, delta) => {
+        const target = index + delta
+        if (target < 0 || target >= draft.nodes.length) return
+        const nodes = [...draft.nodes]
+        const [moved] = nodes.splice(index, 1)
+        nodes.splice(target, 0, moved)
+        patchDraft({ nodes })
+      }
+      const patchNode = (index, patch) => patchDraft({
+        nodes: draft.nodes.map((node, position) => (position === index ? { ...node, ...patch } : node)),
+      })
+      const toggleDepends = (index, parentId, next) => {
+        const node = draft.nodes[index]
+        patchNode(index, {
+          dependsOn: next
+            ? [...node.dependsOn, parentId]
+            : node.dependsOn.filter(id => id !== parentId),
+        })
+      }
+      const checkLine = (onChange, value, name) => h(Input, { name, value, onChange })
+
+      const structureReady = draft !== null && draft.name.trim() !== '' && draft.nodes.length > 0
+        && draft.nodes.every(node => node.name.trim() !== '')
+
+      /**
+       * Save the template's own name and description without moving a version.
+       *
+       * This is the panel's metadata path (§11.5): it appends nothing to the
+       * version history and changes no requirement, and the form says so.
+       */
+      const saveMetadata = async () => {
+        const result = await invoke('template.metadata', {
+          id: row.id,
+          patch: { name: draft.name.trim(), description: draft.description.trim() },
+        })
+        if (!result.ok) {
+          if (result.error?.code === 'conflict') {
+            setConflict(result.error)
+            await loadDetail(row.id)
+          }
+          return
+        }
+        setConflict(null)
+        controller.notify('info', t('templateMetadataSaved'))
+        await loadList(includeArchived)
+        await loadDetail(row.id)
+      }
+
+      /**
+       * Append a version with the whole target node list.
+       *
+       * `expectedRevision` is the record's own revision, so two editors appending
+       * at once cannot both win: the loser's editing content is kept on screen and
+       * the conflict names the revision that is now current (§11.5).
+       */
+      const saveStructure = async () => {
+        const nodes = draft.nodes.map(node => ({
+          id: node.id,
+          name: node.name.trim(),
+          description: node.description.trim(),
+          dependsOn: node.dependsOn,
+          assignee: '',
+          completion: node.type === 'checklist'
+            ? { type: 'checklist', checklist: node.checklist.map(line => line.trim()).filter(line => line !== '') }
+            : { type: 'manual', checklist: [], requireNote: false },
+        }))
+        const result = await invoke('template.revise', {
+          id: row.id,
+          patch: {
+            name: draft.name.trim(),
+            description: draft.description.trim(),
+            nodes,
+            expectedRevision: currentRevision,
+          },
+        })
+        if (!result.ok) {
+          if (result.error?.code === 'conflict') {
+            setConflict(result.error)
+            await loadList(includeArchived)
+            await loadDetail(row.id)
+          }
+          return
+        }
+        await reviseSaved(result)
+      }
+
+      /** Archive the template, or restore it when it is already archived. */
+      const archive = async archived => {
+        const result = await invoke('template.archive', { id: row.id, archived })
+        if (!result.ok) return
+        controller.notify('info', t(archived ? 'templateArchived' : 'templateRestored'))
+        await loadList(includeArchived)
+        await loadDetail(row.id)
+      }
+
+      const prune = async revisionToDrop => {
+        const result = await invoke('template.prune', { id: row.id, revision: revisionToDrop })
+        setPruneTarget(null)
+        if (!result.ok) return
+        controller.notify('info', interpolate(t('templatePruned'), { revision: revisionToDrop }))
+        await loadList(includeArchived)
+        await loadDetail(row.id)
+      }
+
+      /** Copy the current version into a fresh, editable template. */
+      const cloneTemplate = async () => {
+        const result = await invoke('template.clone', { id: row.id, name: cloneName.trim() })
+        if (!result.ok) return
+        controller.notify('info', interpolate(t('templateCloned'), { name: cloneName.trim() }))
+        setCloning(false)
+        await loadList(includeArchived)
+      }
+
+      /**
+       * Create one custom template from the panel's node-per-line form.
+       *
+       * The line syntax is the one the create dialog has always used
+       * (`name | assignee | check;check`), parsed here and sent as declarations
+       * the service normalizes and validates.
+       */
+      const createNew = async () => {
+        const nodes = newForm.nodes.split('\n').map(line => line.trim()).filter(line => line !== '').map(line => {
+          const [head, ...rest] = line.split('|').map(part => part.trim())
+          const checks = (rest[1] ?? '').split(';').map(entry => entry.trim()).filter(entry => entry !== '')
           return {
-            name,
-            assignee,
-            completion: checklist.length > 0 ? { type: 'checklist', checklist } : { type: 'manual', checklist: [], requireNote: false },
+            name: head,
+            assignee: rest[0] ?? '',
+            completion: checks.length === 0
+              ? { type: 'manual', checklist: [], requireNote: false }
+              : { type: 'checklist', checklist: checks },
           }
         })
-      const nodes = parseNodes()
+        const result = await invoke('template.create', {
+          template: { name: newForm.name.trim(), description: newForm.description.trim(), nodes },
+        })
+        if (!result.ok) return
+        controller.notify('info', t('templateMutated'))
+        setAdding(false)
+        setNewForm({ name: '', description: '', nodes: '' })
+        await loadList(includeArchived)
+        if (result.data?.id !== undefined) setSelectedId(result.data.id)
+      }
+
+      /**
+       * Delete the template, rebinding every bound requirement.
+       *
+       * The board refuses a template a requirement is bound to unless the caller
+       * passes `force`, because the rebind rewrites those requirements. The panel
+       * therefore lists them first and arms a second, explicit confirmation: the
+       * destinations shown come from the same first-listed template this panel
+       * offers a new requirement as its default, and each is the node that
+       * requirement keeps or the fallback's first node when its own is gone.
+       */
+      const deleteTemplate = async () => {
+        const result = await invoke('template.delete', { id: row.id, force: bound.length > 0 })
+        if (!result.ok) return
+        controller.notify('info', t('templateDeleted'))
+        setDeleting(false)
+        setDeleteArmed(false)
+        setSelectedId(null)
+        setRecord(null)
+        setEditing(false)
+        await loadList(includeArchived)
+      }
+
+      /**
+       * One version's row: its own facts and the two acts that address it.
+       *
+       * Dropping a version is disabled exactly when a requirement is pinned to
+       * it, and the reason names those requirements. The gate is the same set the
+       * Host refuses on, read from the requirement route rather than re-derived.
+       */
+      const versionRow = version => {
+        const heldBy = pinned.get(version.revision) ?? []
+        const blocked = heldBy.length > 0
+        return h('div', { key: `v${version.revision}`, className: 'rb-version-row' },
+          h('div', { className: 'rb-node-card-head' },
+            h(Tag, { tone: version.revision === currentRevision ? 'info' : 'outline' },
+              interpolate(t('templateRevisionLine'), { revision: version.revision })),
+            blocked
+              ? h(Tag, { tone: 'warning' }, interpolate(t('templatePinnedCount'), { count: heldBy.length }))
+              : null,
+            h('span', { className: 'rb-grow' }),
+            h(Button, {
+              variant: 'ghost',
+              size: 'sm',
+              name: `template.prune.${version.revision}`,
+              disabled: busy || blocked,
+              title: blocked
+                ? interpolate(t('templatePruneDisabled'), {
+                  count: heldBy.length,
+                  ids: heldBy.map(requirement => requirement.id).join(', '),
+                })
+                : t('templatePruneConfirm', { revision: version.revision }),
+              onClick: () => setPruneTarget(version.revision),
+            }, t('templatePrune')),
+            h(Button, {
+              variant: 'ghost',
+              size: 'sm',
+              name: `template.migrate.${version.revision}`,
+              disabled: busy,
+              onClick: () => openMigration(currentRevision, version.revision),
+            }, t('templateMigration'))),
+          h('div', { className: 'rb-card-meta' },
+            h('span', null, `${t('updated')}: ${formatInstant(version.at)}`),
+            h('span', null, `${t('templateVersionAuthor')}: ${version.by === '' ? '—' : version.by}`),
+            h('span', null, `${t('nodesLabel')}: ${(version.nodes ?? []).length}`)),
+          h('div', { className: 'rb-muted' }, version.summary === '' ? t('templateNoSummary') : version.summary),
+          blocked
+            ? h('div', { className: 'rb-warn' }, interpolate(t('templatePruneDisabled'), {
+              count: heldBy.length,
+              ids: heldBy.map(requirement => requirement.id).join(', '),
+            }))
+            : null)
+      }
+
+      const editBody = () => [
+        h('div', { className: 'rb-panel' },
+          h('div', { className: 'rb-field-label' }, t('templateEditMetadata')),
+          h('div', { className: 'rb-node-fields' },
+            h(Field, { label: t('templateName') }, h(Input, {
+              name: 'template.edit.name',
+              value: draft.name,
+              onChange: event => patchDraft({ name: event.target.value }),
+            })),
+            h(Field, { label: t('templateDescription') }, h(Input, {
+              name: 'template.edit.description',
+              value: draft.description,
+              onChange: event => patchDraft({ description: event.target.value }),
+            }))),
+          h('div', { className: 'rb-muted', style: { marginTop: 6 } }, t('templateMetadataHint')),
+          h('div', { className: 'rb-muted' }, interpolate(t('templateRevisionUnchanged'), { revision: currentRevision })),
+          h('div', { className: 'rb-row', style: { marginTop: 6 } },
+            h(Button, {
+              variant: 'outline',
+              size: 'sm',
+              name: 'template.metadata.save',
+              disabled: busy || draft.name.trim() === '',
+              onClick: () => void saveMetadata(),
+            }, t('save')))),
+        h('div', { className: 'rb-section' },
+          sectionHead('templateEditStructure', t),
+          h('div', { className: 'rb-muted' }, t('templateReviseHint'))),
+        conflict === null ? null : h('div', { className: 'rb-notice rb-notice-error', role: 'alert' },
+          h('span', null, t('errTemplateConflict')),
+          h('span', { className: 'rb-muted' }, interpolate(t('templateCurrentRevision'), { revision: currentRevision }))),
+        draft.nodes.length === 0
+          ? h('div', { className: 'rb-notice rb-notice-error' }, t('templateNeedNodes'))
+          : null,
+        draft.nodes.some(node => node.name.trim() === '')
+          ? h('div', { className: 'rb-notice' }, t('templateNeedName'))
+          : null,
+        draft.nodes.map((node, index) => h('div', { key: `${node.id}#${index}`, className: 'rb-node-card' },
+          h('div', { className: 'rb-node-card-head' },
+            h('span', { className: 'rb-node-heading' }, `${index + 1}. ${node.name === '' ? t('templateNodeName') : node.name}`),
+            h(Tag, { tone: 'outline' }, node.id),
+            h('span', { className: 'rb-grow' }),
+            h(Button, {
+              variant: 'ghost',
+              size: 'sm',
+              name: `template.node.up.${index}`,
+              disabled: busy || index === 0,
+              onClick: () => moveNode(index, -1),
+            }, t('templateMoveUp')),
+            h(Button, {
+              variant: 'ghost',
+              size: 'sm',
+              name: `template.node.down.${index}`,
+              disabled: busy || index === draft.nodes.length - 1,
+              onClick: () => moveNode(index, 1),
+            }, t('templateMoveDown')),
+            h(Button, {
+              variant: 'ghost',
+              size: 'sm',
+              className: 'rb-btn-danger',
+              name: `template.node.remove.${index}`,
+              disabled: busy,
+              onClick: () => removeNode(node.id),
+            }, t('templateRemoveNode'))),
+          h('div', { className: 'rb-node-fields' },
+            h(Field, { label: t('templateNodeId') }, h(Input, {
+              name: `template.node.id.${index}`,
+              value: node.id,
+              onChange: event => {
+                const next = event.target.value
+                patchDraft({
+                  nodes: draft.nodes.map((candidate, position) => (position === index
+                    ? { ...candidate, id: next }
+                    : { ...candidate, dependsOn: candidate.dependsOn.map(id => (id === node.id ? next : id)) })),
+                })
+              },
+            })),
+            h(Field, { label: t('templateNodeName') }, h(Input, {
+              name: `template.node.name.${index}`,
+              value: node.name,
+              onChange: event => patchNode(index, { name: event.target.value }),
+            }))),
+          h(Field, { label: t('templateNodeDescription') }, h(Input, {
+            name: `template.node.description.${index}`,
+            value: node.description,
+            onChange: event => patchNode(index, { description: event.target.value }),
+          })),
+          h('div', { className: 'rb-depends' },
+            h('span', { className: 'rb-field-label' }, t('templateNodeDepends')),
+            ownIds.filter(id => id !== node.id).map(id => h(Checkbox, {
+              key: id,
+              checked: node.dependsOn.includes(id),
+              label: id,
+              disabled: busy,
+              onChange: next => toggleDepends(index, id, next),
+            }))),
+          h('div', { className: 'rb-node-fields' },
+            h(Field, { label: t('templateNodeCompletion') }, h('select', {
+              className: 'rb-select',
+              name: `template.node.completion.${index}`,
+              value: node.type,
+              onChange: event => patchNode(index, { type: event.target.value }),
+            },
+              h('option', { value: 'manual' }, t('completionManual')),
+              h('option', { value: 'checklist' }, t('completionChecklist'))))),
+          node.type !== 'checklist' ? null : h('div', null,
+            h('div', { className: 'rb-field-label' }, t('templateNodeChecklist')),
+            h('div', { className: 'rb-checks' }, node.checklist.map((line, position) => h('div', {
+              key: `check-${position}`,
+              className: 'rb-check-row',
+            },
+              checkLine(
+                event => patchNode(index, { checklist: node.checklist.map((entry, at) => (at === position ? event.target.value : entry)) }),
+                line,
+                `template.node.check.${index}.${position}`,
+              ),
+              h(Button, {
+                variant: 'ghost',
+                size: 'sm',
+                name: `template.node.check.remove.${index}.${position}`,
+                disabled: busy,
+                onClick: () => patchNode(index, { checklist: node.checklist.filter((entry, at) => at !== position) }),
+              }, t('templateRemoveCheck'))))),
+            h(Button, {
+              variant: 'ghost',
+              size: 'sm',
+              name: `template.node.check.add.${index}`,
+              disabled: busy,
+              onClick: () => patchNode(index, { checklist: [...node.checklist, ''] }),
+            }, t('templateAddCheck'))))),
+        h('div', { className: 'rb-row', style: { marginTop: 8 } },
+          h(Button, {
+            variant: 'ghost',
+            size: 'sm',
+            name: 'template.node.add',
+            disabled: busy,
+            onClick: addNode,
+          }, t('templateAddNode')),
+          h('span', { className: 'rb-grow' }),
+          h(Button, {
+            variant: 'ghost',
+            size: 'sm',
+            name: 'template.edit.cancel',
+            disabled: busy,
+            onClick: () => {
+              setEditing(false)
+              setConflict(null)
+              setNotice(null)
+            },
+          }, t('cancel')),
+          h(Button, {
+            variant: 'primary',
+            size: 'sm',
+            name: 'template.revise.save',
+            disabled: busy || !structureReady,
+            onClick: () => void saveStructure(),
+          }, t('save'))),
+      ]
+
+      const detailBody = () => detail === null
+        ? h('div', { className: 'rb-muted' }, t('templateDetailEmpty'))
+        : [
+          h('div', { className: 'rb-panel' },
+            h('div', { className: 'rb-node-card-head' },
+              h('strong', null, detail.name),
+              detail.builtin === true ? h(Tag, { tone: 'outline' }, t('templateBuiltin')) : null,
+              detail.archived === true ? h(Tag, { tone: 'warning' }, t('templateArchived')) : null,
+              h(Tag, { tone: 'info' }, interpolate(t('templateCurrentRevision'), { revision: currentRevision }))),
+            detail.description === '' ? null : h('div', { className: 'rb-muted', style: { marginTop: 4 } }, detail.description),
+            h('div', { className: 'rb-kv', style: { marginTop: 6 } },
+              h('span', { className: 'rb-kv-key' }, t('templateInUse')),
+              h('span', null, String(bound.length)),
+              h('span', { className: 'rb-kv-key' }, t('templatePinnedOld')),
+              h('span', { className: pinnedToOld > 0 ? 'rb-warn' : '' }, String(pinnedToOld)),
+              h('span', { className: 'rb-kv-key' }, t('updated')),
+              h('span', null, formatInstant(detail.updatedAt)),
+              h('span', { className: 'rb-kv-key' }, t('nodesLabel')),
+              h('span', null, String((detail.nodes ?? []).length))),
+            pinsTruncated && bound.length > 0
+              ? h('div', { className: 'rb-warn', style: { marginTop: 6 } }, interpolate(t('templatePinsTruncated'), { count: bound.length }))
+              : null,
+            pins === null
+              ? h('div', { className: 'rb-warn', style: { marginTop: 6 } }, t('templatePinsUnknown'))
+              : null,
+            detail.archived === true
+              ? h('div', { className: 'rb-notice rb-notice-hint', style: { margin: '8px 0 0' } }, t('templateArchivedNotice'))
+              : null),
+          h('div', { className: 'rb-section' },
+            sectionHead('templatePreview', t),
+            h(FlowChart, {
+              requirement: { id: detail.id, flow: (detail.nodes ?? []).map(templateFlowNode) },
+              selectedNodeId: null,
+              onSelect: () => {},
+              t,
+            })),
+          h('div', { className: 'rb-row', style: { marginTop: 10 } },
+            h(Button, { variant: 'ghost', size: 'sm', name: 'template.edit', disabled: busy, onClick: startEdit }, t('edit')),
+            h(Button, { variant: 'ghost', size: 'sm', name: 'template.migrate', disabled: busy, onClick: () => openMigration(currentRevision, undefined) }, t('templateMigration')),
+            h(Button, { variant: 'ghost', size: 'sm', name: 'template.clone', disabled: busy, onClick: () => setCloning(true) }, t('templateClone')),
+            h(Button, {
+              variant: 'ghost',
+              size: 'sm',
+              name: 'template.archive',
+              disabled: busy,
+              onClick: () => void archive(detail.archived !== true),
+            }, t(detail.archived === true ? 'templateRestoreAction' : 'templateArchiveAction')),
+            h(Button, {
+              variant: 'outline',
+              size: 'sm',
+              className: 'rb-btn-danger',
+              name: 'template.delete',
+              disabled: busy,
+              onClick: () => setDeleting(true),
+            }, t('templateDelete'))),
+          h('div', { className: 'rb-section' },
+            sectionHead('templateVersions', t),
+            versions.length === 0
+              ? h('div', { className: 'rb-muted' }, t('templateVersionsEmpty'))
+              : h('div', { className: 'rb-version-list' }, versions.map(versionRow))),
+          h('div', { className: 'rb-section' },
+            sectionHead('templateEditStructure', t),
+            h('div', { className: 'rb-muted' }, t('templateReviseHint'))),
+        ]
+
       return h(Dialog, {
-        title: t('newTemplate'),
+        title: t('templates'),
+        wide: true,
+        drawer: true,
+        closeLabel: t('close'),
+        onClose,
+        footer: [h(Button, { variant: 'ghost', key: 'close', onClick: onClose }, t('close'))],
+      },
+        h('div', { className: 'rb-drawer' },
+          h('div', { className: 'rb-drawer-list' },
+            h('div', { className: 'rb-drawer-filter' },
+              h('span', { className: 'rb-section-title' }, t('templateList')),
+              h(Checkbox, {
+                checked: includeArchived,
+                label: t('includeArchived'),
+                onChange: next => setIncludeArchived(next),
+              })),
+            h(Button, {
+              variant: 'ghost',
+              size: 'sm',
+              name: 'template.new',
+              disabled: busy,
+              onClick: () => setAdding(current => !current),
+            }, t('newTemplate')),
+            adding ? h('div', { className: 'rb-panel' },
+              h(Field, { label: t('templateName') }, h(Input, {
+                name: 'template.new.name',
+                value: newForm.name,
+                onChange: event => setNewForm(current => ({ ...current, name: event.target.value })),
+              })),
+              h(Field, { label: t('templateDescription') }, h(Input, {
+                name: 'template.new.description',
+                value: newForm.description,
+                onChange: event => setNewForm(current => ({ ...current, description: event.target.value })),
+              })),
+              h(Field, { label: `${t('templateNodes')} — ${t('templateNodesHint')}` }, h('textarea', {
+                className: 'rb-textarea',
+                name: 'template.new.nodes',
+                style: { minHeight: 90 },
+                value: newForm.nodes,
+                placeholder: t('templateNodesExample'),
+                onChange: event => setNewForm(current => ({ ...current, nodes: event.target.value })),
+              })),
+              h('div', { className: 'rb-row' },
+                h(Button, {
+                  variant: 'primary',
+                  size: 'sm',
+                  name: 'template.create',
+                  disabled: busy || newForm.name.trim() === '' || newForm.nodes.trim() === '',
+                  onClick: () => void createNew(),
+                }, t('create')),
+                h(Button, { variant: 'ghost', size: 'sm', onClick: () => setAdding(false) }, t('cancel'))))
+              : null,
+            listLoadedRef.current && visible.length === 0
+              ? h('div', { className: 'rb-muted' }, t('templateEmpty'))
+              : null,
+            h('div', { className: 'rb-template-rows', role: 'list' }, visible.map(template => h('button', {
+              key: template.id,
+              type: 'button',
+              role: 'listitem',
+              className: `rb-template-row${template.id === row?.id ? ' rb-template-row-picked' : ''}`,
+              onClick: () => setSelectedId(template.id),
+            },
+              h('div', { className: 'rb-template-row-title' },
+                h('span', null, template.name),
+                template.builtin === true ? h(Tag, { tone: 'outline' }, t('templateBuiltin')) : null,
+                template.archived === true ? h(Tag, { tone: 'warning' }, t('templateArchived')) : null),
+              h('div', { className: 'rb-card-meta' },
+                h('span', null, interpolate(t('templateCurrentRevision'), { revision: template.revision ?? 1 })),
+                h('span', null, `${(template.nodes ?? []).length} ${t('nodeCount')}`),
+                h('span', null, `${t('templateInUse')} ${
+                  pins === null ? '—' : String((pins ?? []).filter(requirement => requirement.templateId === template.id).length)
+                }`),
+                pins === null ? null : h('span', {
+                  className: (pins ?? []).some(requirement => requirement.templateId === template.id
+                    && (requirement.templateRevision ?? 1) !== (template.revision ?? 1)) ? 'rb-warn' : '',
+                }, `${t('templatePinnedOld')} ${
+                  (pins ?? []).filter(requirement => requirement.templateId === template.id
+                    && (requirement.templateRevision ?? 1) !== (template.revision ?? 1)).length
+                }`)),
+              h('div', { className: 'rb-card-meta' }, h('span', null, `${t('updated')}: ${formatInstant(template.updatedAt)}`)))))),
+          h('div', { className: 'rb-drawer-body' },
+            detailError === null ? null : h('div', { className: 'rb-notice rb-notice-error', role: 'alert' },
+              controller.errorText(detailError, t)),
+            notice === null ? null : h('div', { className: 'rb-notice rb-notice-error', role: 'alert' },
+              controller.errorText(notice, t)),
+            pruneTarget === null ? null : h('div', { className: 'rb-notice rb-notice-force', role: 'alert' },
+              h('span', null, interpolate(t('templatePruneConfirm'), { revision: pruneTarget })),
+              h('span', { className: 'rb-grow' }),
+              h(Button, {
+                variant: 'outline',
+                size: 'sm',
+                className: 'rb-btn-danger',
+                disabled: busy,
+                onClick: () => void prune(pruneTarget),
+              }, t('confirm')),
+              h(Button, { variant: 'ghost', size: 'sm', onClick: () => setPruneTarget(null) }, t('cancel'))),
+            row === null
+              ? h('div', { className: 'rb-muted' }, t('templateDetailEmpty'))
+              : editing && draft !== null ? editBody() : detailBody())),
+        migrating === null || row === null ? null : h(MigrateTemplateDialog, {
+          template: { id: row.id, name: detail?.name ?? row.name, nodes: detail?.nodes ?? row.nodes ?? [] },
+          openedAt: migrateOpens,
+          bound,
+          busy,
+          invoke,
+          controller,
+          t,
+          onClose: () => setMigrating(null),
+          onDone: async () => {
+            setMigrating(null)
+            await loadList(includeArchived)
+            if (selectedId !== null) await loadDetail(selectedId)
+          },
+        }),
+        cloning ? h('div', { className: 'rb-panel', style: { marginTop: 12 } },
+          h('div', { className: 'rb-field-label' }, t('templateCloneHint')),
+          h('div', { className: 'rb-row', style: { marginTop: 6 } },
+            h(Field, { label: t('templateName') }, h(Input, {
+              name: 'template.clone.name',
+              value: cloneName,
+              onChange: event => setCloneName(event.target.value),
+            })),
+            h(Button, {
+              variant: 'primary',
+              size: 'sm',
+              name: 'template.clone.confirm',
+              disabled: busy || cloneName.trim() === '',
+              onClick: () => void cloneTemplate(),
+            }, t('templateClone')),
+            h(Button, { variant: 'ghost', size: 'sm', onClick: () => setCloning(false) }, t('cancel'))))
+          : null,
+        deleting ? h('div', { className: 'rb-panel', style: { marginTop: 12 } },
+          h('div', null, t('templateDeleteConfirm')),
+          bound.length === 0
+            ? h('div', { className: 'rb-muted' }, t('templateDeleteClear'))
+            : h('div', null,
+              h('div', { className: 'rb-muted' }, interpolate(t('templateDeleteBound'), {
+                fallback: fallback === null ? '—' : `${fallback.name} (${fallback.id})`,
+              })),
+              h('div', { className: 'rb-version-list' }, bound.map(requirement => h('div', {
+                key: requirement.id,
+                className: 'rb-impact-row',
+              },
+                h('span', null, interpolate(t('templateMigrationRow'), { title: requirement.title, id: requirement.id })),
+                h('span', { className: 'rb-muted' }, interpolate(t('templateRevisionLine'), { revision: requirement.templateRevision ?? 1 })),
+                h('div', { className: 'rb-impact-move' },
+                  h('span', { className: 'rb-muted' }, `${t('templateMigrationFrom')}: ${requirement.nodeId}`),
+                  h('span', { 'aria-hidden': true }, '→'),
+                  h('span', null, landingOf(requirement)))))),
+          h('div', { className: 'rb-row', style: { marginTop: 8 } },
+            h(Button, {
+              variant: 'outline',
+              size: 'sm',
+              className: 'rb-btn-danger',
+              name: 'template.delete.confirm',
+              disabled: busy,
+              onClick: () => {
+                if (bound.length > 0 && !deleteArmed) {
+                  setDeleteArmed(true)
+                  return
+                }
+                void deleteTemplate()
+              },
+            }, bound.length > 0 && !deleteArmed ? t('templateDeleteArmed') : t('confirm')),
+            h(Button, { variant: 'ghost', size: 'sm', onClick: () => { setDeleting(false); setDeleteArmed(false) } }, t('cancel')))))
+          : null)
+    }
+
+    /**
+     * Move the requirements pinned to an older revision onto the current one.
+     *
+     * The impact list is not computed here: the first call omits `requirementIds`,
+     * which the Host refuses with `in-use` *before* it changes anything, and that
+     * refusal's `details.affected` is rendered row by row. Confirming then sends
+     * the named ids (or the bulk form with `force`), so the cost is visible before
+     * the act rather than reported after it (§11.5, I4).
+     *
+     * `openedAt` names the opening this mount belongs to: the drawer hands a new
+     * one every time the dialog is opened, so a migration that already ran cannot
+     * leave its impact list behind for the next reader to confirm by accident.
+     */
+    function MigrateTemplateDialog({ template, openedAt, bound, busy, invoke, controller, t, onClose, onDone }) {
+      const [affected, setAffected] = useState(null)
+      const [selected, setSelected] = useState([])
+      const [notice, setNotice] = useState('')
+      const [bulk, setBulk] = useState(false)
+      const [reading, setReading] = useState(false)
+      useEffect(() => {
+        setAffected(null)
+        setSelected([])
+        setBulk(false)
+        setNotice('')
+      }, [openedAt])
+      const ids = affected === null ? [] : affected.map(entry => entry.id)
+      const checked = id => selected.includes(id)
+      const picked = ids.filter(id => checked(id)).length
+
+      /**
+       * Ask the Host for the impact, using its own refusal as the answer.
+       *
+       * This read calls the Host directly rather than through the drawer's
+       * `invoke`: a refusal here is the step's expected outcome — `in-use` is how
+       * the impact list arrives — so it is neither a toast nor an error notice,
+       * and only a different failure is reported as one.
+       */
+      const read = async () => {
+        setNotice('')
+        setReading(true)
+        try {
+          const data = await controller.command('template.migrate', { id: template.id })
+          const rows = data?.affected ?? []
+          setAffected(rows)
+          setSelected(rows.map(entry => entry.id))
+          setNotice(t('templateMigrationNone'))
+        } catch (error) {
+          if (error?.code !== 'in-use') {
+            controller.notify('error', controller.errorText(error, t))
+            return
+          }
+          const rows = error?.details?.affected ?? []
+          setAffected(rows)
+          setSelected(rows.map(entry => entry.id))
+        } finally {
+          setReading(false)
+        }
+      }
+
+      /** Send one confirmed migration: named ids, or the bulk form with force. */
+      const confirm = async () => {
+        const body = bulk
+          ? { id: template.id, force: true }
+          : { id: template.id, requirementIds: ids.filter(id => checked(id)) }
+        const result = await invoke('template.migrate', body)
+        if (!result.ok) return
+        controller.notify('info', interpolate(t('templateMigrationDone'), { count: (result.data?.migrated ?? []).length }))
+        setNotice('')
+        await onDone()
+      }
+
+      const nameOf = id => {
+        const found = bound.find(requirement => requirement.id === id)
+        return found === undefined ? id : interpolate(t('templateMigrationRow'), { title: found.title, id })
+      }
+      const declared = template.nodes ?? []
+      const nodeNameOf = id => declared.find(node => node.id === id)?.name ?? id
+
+      const row = entry => h('label', { key: entry.id, className: 'rb-impact-row' },
+        h('div', { className: 'rb-impact-head' },
+          h(Checkbox, {
+            checked: checked(entry.id),
+            label: nameOf(entry.id),
+            disabled: busy,
+            onChange: next => setSelected(current => (next
+              ? [...new Set([...current, entry.id])]
+              : current.filter(id => id !== entry.id))),
+          }),
+          h(Tag, { tone: 'outline' }, interpolate(t('templateRevisionLine'), { revision: entry.revision }))),
+        h('div', { className: 'rb-impact-move' },
+          h('span', { className: 'rb-muted' }, `${t('templateMigrationFrom')}: ${nodeNameOf(entry.nodeId)}`),
+          h('span', { 'aria-hidden': true }, '→'),
+          h('span', null, `${t('templateMigrationTo')}: ${nodeNameOf(entry.next)}`)),
+        h('div', { className: entry.clearedChecks ? 'rb-warn' : 'rb-muted' },
+          entry.clearedChecks ? t('templateMigrationCleared') : t('templateMigrationKept')))
+
+      const step = affected === null ? 1 : bulk ? 3 : 2
+      return h(Dialog, {
+        title: `${t('templateMigration')} — ${template.name}`,
+        wide: true,
         closeLabel: t('close'),
         onClose,
         footer: [
-          h(Button, { variant: 'ghost', key: 'cancel', onClick: onClose}, t('cancel')),
-          h(Button, {
-            variant: 'primary',
-key: 'ok',
-            disabled: busy || form.name.trim() === '' || nodes.length === 0,
-            onClick: () => onSubmit({ name: form.name.trim(), description: form.description.trim(), nodes }),
-          }, t('create')),
+          h(Button, { variant: 'ghost', key: 'cancel', onClick: onClose }, t('cancel')),
+          affected === null
+            ? h(Button, { variant: 'primary', key: 'read', disabled: busy || reading, onClick: () => void read() }, t('templateMigrationRead'))
+            : h(Button, {
+              variant: 'primary',
+              key: 'confirm',
+              disabled: busy || (!bulk && picked === 0),
+              onClick: () => void confirm(),
+            }, bulk ? t('templateMigrationBulk') : interpolate(t('templateMigrationPicked'), { count: picked })),
         ],
       },
-        h(Field, { label: t('templateName') }, h(Input, {
-          name: 'template.name',
-          value: form.name,
-          onChange: event => set({ name: event.target.value }),
-        })),
-        h(Field, { label: t('templateDescription') }, h(Input, {
-          name: 'template.description',
-          value: form.description,
-          onChange: event => set({ description: event.target.value }),
-        })),
-        h(Field, { label: `${t('templateNodes')} — ${t('templateNodesHint')}` }, h('textarea', {
-          className: 'rb-textarea',
-          name: 'template.nodes',
-          style: { minHeight: 120 },
-          value: form.nodes,
-          placeholder: t('templateNodesExample'),
-          onChange: event => set({ nodes: event.target.value }),
-        })),
-        nodes.length > 0 ? h('div', { className: 'rb-muted' }, `${nodes.length} ${t('nodeCount')}: ${nodes.map(node => node.name).join(' → ')}`) : null)
+        h('div', { className: 'rb-muted' }, interpolate(t('templateMigrationStep'), { step, total: 3 })),
+        h('div', { className: 'rb-notice rb-notice-hint' }, t('templateMigrationHint')),
+        notice === '' ? null : h('div', { className: 'rb-notice' }, notice),
+        affected === null
+          ? h('div', { className: 'rb-muted' }, interpolate(t('templateCurrentRevision'), { revision: template.revision ?? 1 }))
+          : affected.length === 0
+            ? h('div', { className: 'rb-muted' }, t('templateMigrationNone'))
+            : h('div', { className: 'rb-version-list' }, affected.map(row)),
+        affected === null || affected.length === 0 ? null : h('div', { className: 'rb-row', style: { marginTop: 8 } },
+          h(Button, {
+            variant: 'ghost',
+            size: 'sm',
+            name: 'template.migrate.all',
+            disabled: busy,
+            onClick: () => { setBulk(true); setNotice(t('templateMigrationBulkWarn')) },
+          }, t('templateMigrationBulk')),
+          h(Button, {
+            variant: 'ghost',
+            size: 'sm',
+            name: 'template.migrate.pick',
+            disabled: busy || bulk,
+            onClick: () => { setBulk(false); setSelected([]) },
+          }, interpolate(t('templateMigrationPicked'), { count: 0 }))))
     }
 
     /** The full requirement detail: header, flow chart, node detail, history. */
@@ -2351,6 +4114,14 @@ name: 'edit.save',
         const known = (requirements ?? []).find(item => item.id === id)
         return known === undefined ? id : `${known.title} (${id})`
       }
+      /** One cell of the detail's meta grid: a dim label above its value. */
+      const metaCell = (label, value, variant) => h('div', { className: 'rb-meta-cell', key: label },
+        h('div', { className: 'rb-meta-k' }, label),
+        h('div', { className: `rb-meta-v${variant === undefined ? '' : ` ${variant}`}` }, value))
+      /** Linked requirement ids as reference chips, or the "nothing linked" wording. */
+      const linkList = ids => (ids ?? []).length === 0
+        ? t('noneLinked')
+        : (ids ?? []).map((id, index) => h('span', { key: `${id}#${index}`, className: 'rb-req-link' }, reference(id)))
       // The reading the two eligibility answers were asked for. A read that named
       // a session reports both per row; without one, `claimable` falls back to the
       // separately read id set and `advanceable` stays unknown rather than guessed.
@@ -2389,8 +4160,7 @@ name: 'edit.save',
           ? requirement.running
           : units.filter(unit => unit.status === 'running' || unit.status === 'stopping').length
         const settled = sync === null || (sync.enabled === true && sync.gap !== true)
-        return h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('executions')),
+        return foldSection('executions', t,
           running > 0 ? h('div', null, h(Tag, { tone: 'success' }, t('runningBadge', { count: running }))) : null,
           sync !== null && sync.enabled === false
             ? h('div', { className: 'rb-notice rb-notice-sync rb-warn' }, t('executionSyncOff'))
@@ -2405,7 +4175,9 @@ name: 'edit.save',
                 ? h('span', { className: 'rb-muted' }, `${t('executionSyncAt')}: ${formatInstant(sync.syncedAt)}`)
                 : null)
             : null,
-          units.length === 0 && settled ? h('div', { className: 'rb-muted' }, t('executionsEmpty')) : null,
+          units.length === 0 && settled ? h('div', { className: 'rb-empty' },
+            h('span', { className: 'rb-empty-ico', 'aria-hidden': 'true' }, '◌'),
+            h('span', { className: 'rb-empty-t' }, t('executionsEmpty'))) : null,
           units.length === 0 ? null : h('div', { className: 'rb-exec-list', role: 'list' }, units.map((unit, index) => h('div', {
             key: `${typeof unit.ref === 'string' ? unit.ref : 'unit'}#${index}`,
             className: `rb-exec-row${unit.stale === true ? ' rb-warn' : ''}`,
@@ -2429,12 +4201,14 @@ name: 'edit.save',
           h('div', { className: 'rb-muted' }, t('execRevLine', { exec: requirement.execRev ?? 0, rev: requirement.rev })))
       }
       return h('div', null,
-        h('div', { className: 'rb-row' },
-          h('h2', { className: 'rb-title', style: { margin: 0 } }, requirement.title),
-          h(StatusBadge, { status: requirement.status, t }),
+        h('div', { className: 'rb-detail-top' },
+          h('div', { className: 'rb-detail-head' },
+            h('h2', { className: 'rb-title', style: { margin: 0 } }, requirement.title),
+          h('div', { className: 'rb-badge-group' },
+              h(StatusBadge, { status: requirement.status, t }),
           h(PriorityBadge, { priority: requirement.priority, t }),
           h(KindBadge, { kind: requirement.kind, t }),
-          h(RoleBadge, { role: requirement.role, roles }),
+          h(RoleBadge, { role: requirement.role, roles, unregistered: requirement.roleUnregistered === true, t }),
           h(EligibilityBadges, { item: requirement, me, claimableIds, t }),
           h(CriticalBadge, {
             escalated: requirement.escalated,
@@ -2445,8 +4219,9 @@ name: 'edit.save',
           h(GatedBadge, { gated: requirement.gated, blockedBy: requirement.blockedBy, t }),
           h(BlocksBadge, { blocksOn: requirement.blocksOn, t }),
           h(DelegatedBadge, { delegatedTo: delegation, t }),
-          h(ReservedBadge, { reservedBy: requirement.reservedBy, t }),
+          h(ReservedBadge, { reservedBy: requirement.reservedBy, t }))),
           h('span', { className: 'rb-grow' }),
+          h('div', { className: 'rb-detail-actions' },
           h(Button, {
             variant: 'ghost',
             size: 'sm',
@@ -2488,7 +4263,7 @@ disabled: busy,
             className: 'rb-btn-danger',
 disabled: busy,
             onClick: () => setConfirmDelete(true),
-          }, t('remove'))),
+            }, t('remove')))),
         editing
           ? h(EditFields, {
             requirement,
@@ -2505,27 +4280,27 @@ disabled: busy,
             },
           })
           : null,
-        h('div', { className: 'rb-card-meta', style: { marginTop: 4 } },
-          h('span', null, `${t('ownPriority')}: ${t(`priority${requirement.priority[0].toUpperCase()}${requirement.priority.slice(1)}`)}`),
+        h('div', { className: 'rb-meta-grid' },
+          metaCell(t('ownPriority'), t(`priority${requirement.priority[0].toUpperCase()}${requirement.priority.slice(1)}`)),
           requirement.escalated === true
-            ? h('span', { className: 'rb-warn' }, `${t('effectivePriority')}: ${requirement.effectivePriority}↑`)
+            ? metaCell(t('effectivePriority'), `${requirement.effectivePriority}↑`, 'rb-meta-v-hi')
             : null,
-          h('span', null, `${t('owner')}: ${requirement.owner === '' ? t('unassigned') : requirement.owner}`),
-          h('span', null, `${t('template')}: ${requirement.template.name}`),
-          h('span', null, `${t('filterKind')}: ${t(requirement.kind === 'decision' ? 'kindDecision' : 'kindTask')}`),
-          h('span', null, `${t('sessions')}: ${requirement.sessions.length === 0 ? '—' : requirement.sessions.join(', ')}`),
+          metaCell(t('owner'), requirement.owner === '' ? t('unassigned') : requirement.owner),
+          metaCell(t('template'), requirement.template.name),
+          metaCell(t('filterKind'), t(requirement.kind === 'decision' ? 'kindDecision' : 'kindTask')),
+          metaCell(t('sessions'), requirement.sessions.length === 0 ? '—' : requirement.sessions.join(', '), 'rb-meta-v-mono'),
           requirement.requestedBy === undefined || requirement.requestedBy === ''
             ? null
-            : h('span', null, `${t('requestedBy')}: ${requirement.requestedBy}`),
-          h('span', null, `${t('updated')}: ${formatInstant(requirement.updatedAt)}`),
-          h('span', null, `${t('revision')} ${requirement.rev}`)),
+            : metaCell(t('requestedBy'), requirement.requestedBy),
+          metaCell(t('updated'), formatInstant(requirement.updatedAt)),
+          metaCell(t('revision'), String(requirement.rev), 'rb-meta-v-num')),
         requirement.escalated === true
           ? h('div', { className: 'rb-muted', style: { marginTop: 4 } }, t('priorityLiftedHint'))
           : null,
         requirement.blockReason !== '' ? h('div', { className: 'rb-error', style: { marginTop: 4 } }, `${t('blockedBecause')}: ${requirement.blockReason}`) : null,
-        requirement.description !== '' ? h('p', { className: 'rb-muted', style: { marginTop: 8 } }, requirement.description) : null,
-        descriptionImages.length === 0 ? null : h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('images')),
+        requirement.description === '' ? null : foldSection('description', t,
+          h('p', { className: 'rb-prose' }, requirement.description)),
+        descriptionImages.length === 0 ? null : foldSection('images', t,
           h('div', { className: 'rb-images' }, descriptionImages.map((image, index) => h('a', {
             key: `${image.id}#${index}`,
             className: 'rb-image-row',
@@ -2538,8 +4313,7 @@ disabled: busy,
             src: imageURL(image.id),
             alt: image.name === '' ? image.id : image.name,
           }))))),
-        h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('eligibility')),
+        foldSection('eligibility', t,
           h('div', { className: 'rb-muted' }, t('eligibilityFor', { me: reading })),
           h('div', { className: 'rb-kv' },
             h('span', { className: 'rb-kv-key' }, t('claimableYes')),
@@ -2551,29 +4325,27 @@ disabled: busy,
               ? '—'
               : advanceableAnswer ? t('advanceableYes') : t('advanceableNo'))),
           h('div', { className: 'rb-muted' }, t('advanceableHint'))),
-        h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('gates')),
-          h('div', { className: 'rb-kv' },
-            h('span', { className: 'rb-kv-key' }, t('parentRequirement')),
-            h('span', null, requirement.parentId === undefined || requirement.parentId === null || requirement.parentId === ''
-              ? t('noneLinked')
-              : reference(requirement.parentId)),
-            h('span', { className: 'rb-kv-key' }, t('childrenTitle')),
-            h('span', null, (requirement.children ?? []).length === 0
-              ? t('noneLinked')
-              : requirement.children.map(child => reference(child)).join(', ')),
-            h('span', { className: 'rb-kv-key' }, t('blocksOnTitle')),
-            h('span', null, (requirement.blocksOn ?? []).length === 0
-              ? t('noneLinked')
-              : requirement.blocksOn.map(link => reference(link)).join(', ')),
-            h('span', { className: 'rb-kv-key' }, t('blockedByTitle')),
-            h('span', { className: requirement.gated === true ? 'rb-warn' : '' }, (requirement.blockedBy ?? []).length === 0
-              ? t('noneLinked')
-              : requirement.blockedBy.map(link => reference(link)).join(', '))),
+        foldSection('gates', t,
+          h('div', { className: 'rb-gate' },
+            h('div', { className: 'rb-gate-row' },
+              h('span', { className: 'rb-gk rb-kv-key' }, t('parentRequirement')),
+              h('span', { className: 'rb-gv' }, requirement.parentId === undefined || requirement.parentId === null || requirement.parentId === ''
+                ? t('noneLinked')
+                : reference(requirement.parentId))),
+            h('div', { className: 'rb-gate-row' },
+              h('span', { className: 'rb-gk rb-kv-key' }, t('childrenTitle')),
+              h('span', { className: 'rb-gv' }, linkList(requirement.children))),
+            h('div', { className: 'rb-gate-row' },
+              h('span', { className: 'rb-gk rb-kv-key' }, t('blocksOnTitle')),
+              h('span', { className: 'rb-gv' }, linkList(requirement.blocksOn))),
+            // The row the requirement is actually waiting on carries the red
+            // frame the concept gives the current blocker.
+            h('div', { className: `rb-gate-row${requirement.gated === true ? ' rb-gate-blocking' : ''}` },
+              h('span', { className: 'rb-gk rb-kv-key' }, t('blockedByTitle')),
+              h('span', { className: 'rb-gv' }, linkList(requirement.blockedBy)))),
           h('div', { className: 'rb-muted' }, t('gatesHint'))),
         executionsSection(),
-        h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('lock')),
+        foldSection('lock', t,
           lock === null
             ? h('div', { className: 'rb-muted' }, t('unlocked'))
             : h('div', { className: `rb-panel${lock.orphaned ? ' rb-error' : ''}` },
@@ -2594,8 +4366,7 @@ disabled: busy,
 disabled: busy,
                   onClick: () => void run('release', { id: requirement.id, expectedRev: requirement.rev }),
                 }, t('releaseLock'))))),
-        h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('delegation')),
+        foldSection('delegation', t,
           delegation === null
             ? h('div', null,
               h('div', { className: 'rb-muted' }, t('notDelegated')),
@@ -2625,11 +4396,9 @@ name: 'revoke.delegation',
                   disabled: busy,
                   onClick: () => onRevokeDelegation(requirement),
                 }, t('revokeDelegation'))))),
-        h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('flow')),
+        foldSection('flow', t,
           h(FlowChart, { requirement, selectedNodeId, onSelect: setSelectedNodeId, t })),
-        h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('nodeDetail')),
+        foldSection('nodeDetail', t,
           h(NodeDetail, {
             requirement,
             node,
@@ -2673,8 +4442,7 @@ name: 'force.request',
               size: 'sm',
 onClick: () => setForceOffer(null),
             }, t('cancel')))),
-        h('div', { className: 'rb-section' },
-          h('div', { className: 'rb-section-title' }, t('history')),
+        foldSection('history', t,
           last !== null ? h('div', { className: 'rb-muted', style: { marginBottom: 6 } },
             `${t('lastTransition')}: ${last.fromName || last.action} → ${last.toName} · ${formatInstant(last.at)}`) : null,
           h(History, { requirement, t })),
@@ -2731,10 +4499,21 @@ key: 'ok',
       const [selectedId, setSelectedId] = useState(null)
       const [busy, setBusy] = useState(false)
       const [view, setView] = useState('board')
+      /** Every requirement the board holds, unfiltered, for the drawer's pin counts. */
+      const [pins, setPins] = useState(null)
+      const [pinsTruncated, setPinsTruncated] = useState(false)
 
       const requirements = state.requirements
       const roles = state.roles
       const filter = state.filter
+      /**
+       * The summed template projection the snapshot carries.
+       *
+       * It is the list the drawer starts from; the drawer reads it again through
+       * `template.list` so an archived template can be asked for, and this copy is
+       * what a freshly opened drawer renders before that answer lands.
+       */
+      const templates = state.templates ?? []
       /**
        * The listed rows exactly as the Host answered them.
        *
@@ -2766,6 +4545,30 @@ key: 'ok',
           setBusy(false)
         }
       }, [controller, t])
+
+      /**
+       * Read the unfiltered requirement set the drawer counts pins from.
+       *
+       * The read runs only while the drawer is open: its whole purpose is the
+       * drawer's per-version "still pinned" counts, and the board page keeps its
+       * own filtered read. It repeats on every committed change so a template
+       * write by another session moves the counts the reader is looking at.
+       */
+      const readPins = useCallback(async () => {
+        const answer = await controller.fetchPinList()
+        if (answer === null) {
+          setPins(null)
+          setPinsTruncated(false)
+          return
+        }
+        setPins(answer.items)
+        setPinsTruncated(answer.total > answer.items.length)
+      }, [controller])
+
+      useEffect(() => {
+        if (dialog !== 'template') return
+        void readPins()
+      }, [dialog, state.revision, readPins])
 
       /**
        * Switch view, restating the filter each view reads with.
@@ -2882,6 +4685,33 @@ key: 'ok',
         }
         return options
       }, [roleOptions, t])
+      /** Unfinished requirements per role, as the Host already counts them. */
+      const roleTally = useMemo(() => {
+        const map = new Map()
+        for (const row of state.stats?.byRole ?? []) map.set(row.role, row.total ?? 0)
+        return map
+      }, [state.stats])
+      /**
+       * One capsule chip for one role filter value.
+       *
+       * Clicking the selected chip again clears it, which is the same
+       * `setFilter` call the select made — the affordance changed, not the
+       * filter. Counting unfinished work per role is what the Host's own
+       * `byRole` tally reports; the "all" chip counts what is on screen.
+       */
+      const roleChip = (value, label, title) => {
+        const on = filter.role === value
+        return h(Pill, {
+          key: `role.${value}`,
+          className: on ? 'rb-chip rb-chip-on' : 'rb-chip',
+          active: on,
+          'aria-pressed': on,
+          title,
+          name: `filter.role.${value === '' ? 'all' : value}`,
+          onClick: () => props.setFilter({ role: on ? '' : value }),
+        }, h('span', { className: 'rb-chip-label' }, label),
+        h('span', { className: 'rb-chip-n' }, String(value === '' ? visible.length : (roleTally.get(value) ?? 0))))
+      }
 
       /** One labelled filter control, so a select is never a bare value list. */
       const select = (key, values, emptyLabel = t('all')) => h('span', { key, className: 'rb-filter' },
@@ -2932,7 +4762,7 @@ key: 'ok',
 onClick: () => setSelectedId(entry.id),
           }, item === null ? entry.id : item.title),
           item === null ? null : h(StatusBadge, { status: item.status, t }),
-          item === null ? null : h(RoleBadge, { role: item.role, roles }),
+          item === null ? null : h(RoleBadge, { role: item.role, roles, unregistered: item.roleUnregistered === true, t }),
           h(Button, {
             variant: 'outline',
             size: 'sm',
@@ -2945,12 +4775,23 @@ name: `unqueue.${entry.id}`,
 
       /** The queue view: each session's own order and who is next. */
       const renderQueue = () => h('div', { className: 'rb-list', role: 'list' },
-        state.status === 'loading' ? h('div', { className: 'rb-panel rb-muted', style: { margin: 12 } }, t('loading')) : null,
+        h('div', { className: 'rb-panel-head' },
+          h('h2', null, t('viewQueue')),
+          h('span', { className: 'rb-count' }, String(queueRows.length))),
+        state.status === 'loading'
+          ? h('div', { className: 'rb-skeleton' }, [0, 1, 2].map(index => h('div', {
+            key: index,
+            className: 'rb-skeleton-row',
+            style: { height: 44 },
+          })))
+          : null,
         queueRows.length === 0 && state.status !== 'loading' && state.auth === ''
-          ? h('div', { className: 'rb-panel rb-muted', style: { margin: 12 } }, t('queueEmpty'))
+          ? h('div', { className: 'rb-empty' },
+            h('span', { className: 'rb-empty-ico', 'aria-hidden': 'true' }, '◌'),
+            h('span', { className: 'rb-empty-t' }, t('queueEmpty')))
           : null,
         h('div', { className: 'rb-queue' },
-          h('div', { className: 'rb-muted' }, t('queueSoftHint')),
+          h('div', { className: 'rb-queue-note' }, t('queueSoftHint')),
           h('div', { className: 'rb-muted' }, t('queueHint')),
           queueRows.map(row => h('div', { key: row.session, className: 'rb-queue-group' },
             h('div', { className: 'rb-queue-head' },
@@ -2961,30 +4802,49 @@ name: `unqueue.${entry.id}`,
       return h('div', { className: 'rb-root' },
         h('style', null, CSS),
         h('div', { className: 'rb-header' },
+          // A drawn mark rather than a letter: the panel's identity must not
+          // depend on any one locale's script or on a bundled font.
+          h('span', { className: 'rb-logo', 'aria-hidden': 'true' },
+            h('svg', { width: 16, height: 16, viewBox: '0 0 16 16' },
+              h('rect', { x: 1, y: 2, width: 4, height: 12, rx: 1.5, fill: 'currentColor' }),
+              h('rect', { x: 6, y: 2, width: 4, height: 8, rx: 1.5, fill: 'currentColor', opacity: 0.72 }),
+              h('rect', { x: 11, y: 2, width: 4, height: 10, rx: 1.5, fill: 'currentColor', opacity: 0.5 }))),
           h('div', { className: 'rb-heading' },
             h('span', { className: 'rb-title' }, t('title')),
-            h('span', { className: 'rb-sub' }, t('subtitle'))),
-          h('span', { title: t('live') }, h(StateDot, { state: state.connected ? 'done' : 'idle' })),
+            h('span', { className: 'rb-sub' },
+              h('span', {
+                className: `rb-live${state.connected ? '' : ' rb-live-off'}`,
+                title: t('live'),
+              }),
+              h('span', null, t('subtitle')))),
           h('span', { className: 'rb-grow' }),
           h(Button, {
             variant: 'ghost',
             size: 'sm',
+            className: 'rb-btn',
 name: 'refresh',
             disabled: state.auth !== '',
             onClick: () => void props.refresh(),
           }, t('refresh')),
-          h(Button, { variant: 'ghost', size: 'sm', onClick: () => setDialog('roles')}, t('roles')),
-          h(Button, { variant: 'ghost', size: 'sm', onClick: () => setDialog('template')}, t('newTemplate')),
-          h(Button, { variant: 'primary', size: 'sm', onClick: () => setDialog('requirement')}, t('newRequirement'))),
+          h(Button, { variant: 'ghost', size: 'sm', className: 'rb-btn', onClick: () => setDialog('roles')}, t('roles')),
+          h(Button, { variant: 'ghost', size: 'sm', className: 'rb-btn', onClick: () => setDialog('template')}, t('templates')),
+          h(Button, {
+            variant: 'primary',
+            size: 'sm',
+            className: 'rb-btn-primary',
+            onClick: () => setDialog('requirement'),
+          }, t('newRequirement'))),
         h('div', { className: 'rb-views', role: 'tablist', 'aria-label': t('view') },
-          views.map(entry => h(Pill, {
-            key: entry.key,
-            role: 'tab',
-            name: `view.${entry.key}`,
-            active: view === entry.key,
-            'aria-pressed': view === entry.key,
-            onClick: () => showView(entry.key),
-          }, entry.label))),
+          h('div', { className: 'rb-segmented' },
+            views.map(entry => h(Pill, {
+              key: entry.key,
+              role: 'tab',
+              name: `view.${entry.key}`,
+              className: view === entry.key ? 'rb-seg rb-seg-on' : 'rb-seg',
+              active: view === entry.key,
+              'aria-pressed': view === entry.key,
+              onClick: () => showView(entry.key),
+            }, entry.label)))),
         // The trust gate's refusal is not a transient failure and has no retry: the
         // page cannot reach the board again until it is opened afresh, so the
         // notice says which refusal it was and carries no button that would only
@@ -3036,7 +4896,6 @@ name: 'auth.recheck',
           }))),
           select('owner', owners.map(value => ({ value, label: value }))),
           select('session', sessions.map(value => ({ value, label: value }))),
-          select('role', roleFilterOptions, t('anyRole')),
           select('kind', [
             { value: 'task', label: t('kindTask') },
             { value: 'decision', label: t('kindDecision') },
@@ -3052,17 +4911,47 @@ name: 'auth.recheck',
               onChange: event => props.setFilter({ me: event.target.value }),
             })),
           h('span', { className: 'rb-grow' }),
-          h('span', { className: 'rb-muted' }, `${visible.length} / ${state.stats?.total ?? 0}`))
+          h('span', { className: 'rb-muted' }, `${visible.length} / ${state.stats?.total ?? 0}`),
+          // The role filter reads as a capsule row of its own, with the clearing
+          // affordance the concept sheet places at the row's end.
+          h('div', { className: 'rb-chips' },
+            h('span', { className: 'rb-flabel' }, t(FILTER_LABELS.role)),
+            roleChip('', t('all'), t('all')),
+            roleFilterOptions.map(option => roleChip(
+              option.value,
+              option.value === 'human' ? t('roleHuman') : roleName(option.value, roles),
+              option.label,
+            )),
+            h('button', {
+              type: 'button',
+              className: 'rb-clear',
+              name: 'filter.clear',
+              onClick: () => props.setFilter({
+                query: '', status: '', priority: '', owner: '', session: '', role: '', kind: '', claimable: false, me: '',
+              }),
+            }, t('clearFilters'))))
           : null,
         h('div', { className: 'rb-body' },
           view === 'queue'
             ? renderQueue()
             : h('div', { className: 'rb-list', role: 'list' },
-              state.status === 'loading' ? h('div', { className: 'rb-panel rb-muted', style: { margin: 12 } }, t('loading')) : null,
+              state.status === 'loading'
+                ? h('div', null,
+                  // The skeleton is the visual; the status line stays for a
+                  // reader that cannot see it.
+                  h('span', { className: 'rb-sr', role: 'status' }, t('loading')),
+                  h('div', { className: 'rb-skeleton' }, [0, 1, 2, 3].map(index => h('div', {
+                    key: index,
+                    className: 'rb-skeleton-row',
+                    style: { height: index === 0 ? 14 : 52 },
+                  }))))
+                : null,
               visible.length === 0 && state.status !== 'loading' && state.auth === ''
-                ? h('div', { className: 'rb-panel rb-muted', style: { margin: 12 } }, view === 'decisions'
-                  ? t('decisionsEmpty')
-                  : boardIsEmpty ? t('emptyBoard') : t('empty'))
+                ? h('div', { className: 'rb-empty' },
+                  h('span', { className: 'rb-empty-ico', 'aria-hidden': 'true' }, '◌'),
+                  h('span', { className: 'rb-empty-t' }, view === 'decisions'
+                    ? t('decisionsEmpty')
+                    : boardIsEmpty ? t('emptyBoard') : t('empty')))
                 : null,
               visible.map(item => {
                 const lock = lockFacts(item.lock)
@@ -3084,7 +4973,7 @@ name: 'auth.recheck',
                       t,
                     }),
                     h(KindBadge, { kind: item.kind, t }),
-                    h(RoleBadge, { role: item.role, roles }),
+                    h(RoleBadge, { role: item.role, roles, unregistered: item.roleUnregistered === true, t }),
                     h(EligibilityBadges, { item, me: filter.me, claimableIds: state.claimableIds, t }),
                     h(GatedBadge, { gated: item.gated, blockedBy: item.blockedBy, t }),
                     h(BlocksBadge, { blocksOn: item.blocksOn, t }),
@@ -3131,14 +5020,16 @@ name: 'auth.recheck',
             return created
           },
         }) : null,
-        dialog === 'template' ? h(CreateTemplateDialog, {
+        dialog === 'template' ? h(TemplateDrawer, {
+          templates,
+          pins,
+          pinsTruncated,
           busy,
-          t,
+          run,
+          controller,
+          revision: state.revision,
           onClose: () => setDialog(null),
-          onSubmit: async form => {
-            await run('template.create', { template: form })
-            setDialog(null)
-          },
+          t,
         }) : null,
         dialog === 'roles' ? h(RolesDialog, {
           roles,

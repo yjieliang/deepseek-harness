@@ -40,7 +40,7 @@ DSH 的运行时解析拦截：linked 包的 bare 导入在该包自己的 `peer
 
 ## 随包携带的 skill：`requirement-board-tasks`
 
-`skills/requirement-board-tasks/`（`SKILL.md` + `references/`）是看板的使用规范——建之前先查重与查角色职能、
+`skills/requirement-board-tasks/`（`SKILL.md` + `references/`）是看板的使用规范——建之前先查重、查角色职能与流程模板匹配（现有模板不符合就先建模板）、
 一条任务一个交付物、先注册再跑、排队、派给子会话、跨角色门禁、要人拍板。它由 `cordis.patch.yml` 里那条
 `skill-filesystem-requirement-board` 行发布：
 

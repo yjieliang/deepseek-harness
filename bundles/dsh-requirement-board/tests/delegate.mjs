@@ -338,6 +338,8 @@ async function caseRoleBeforeIsCurrent(backend, name) {
     const receipt = await service.delegate(created.id, { session: child.session }, parent)
     check('a caller whose role matches may delegate', receipt.delegatedTo?.session === 'ses_child')
     check('the binding records the current role, not the creation value', receipt.delegatedTo?.roleBefore === '')
+    check('the re-route is recorded in the flow history', board.domain.table('requirements').get(created.id).history
+      .some(entry => entry.action === 'update' && String(entry.note).includes('role "art-role" -> ""')), JSON.stringify(board.domain.table('requirements').get(created.id).history.map(entry => [entry.action, entry.note])))
 
     await service.claim(created.id, {}, child)
     const revoked = await service.delegate(created.id, { revoke: true, note: '换人' }, parent)
@@ -516,6 +518,76 @@ async function caseCompleteArchiveDelete(backend, name) {
   })
 }
 
+/**
+ * A delegation owns the routing id while it lasts (`ROLE-DISPATCH.md` §5.5).
+ *
+ * The binding wrote the temporary id and settles the requirement back to
+ * `roleBefore`, so a re-route written in between would be erased at settlement.
+ * It is refused rather than accepted-then-erased, while restating the stored id
+ * — which is what the panel sends when it saves any other field of a delegated
+ * requirement — stays the zero-change case.
+ */
+async function caseRerouteDuringDelegate(backend, name) {
+  await onBackend(backend, name, async dir => {
+    const board = await openDelegationBoard({
+      backend,
+      dir,
+      agents: fakeAgents([agentOf('ses_parent', 'art-role'), agentOf('ses_child', 'art-role')]),
+      owns: fakeOwnership([['ses_child', 'ses_parent']]),
+    })
+    const service = board.service
+    const parent = { session: 'ses_parent', name: '甲' }
+    const child = { session: 'ses_child', name: '乙' }
+    const created = await service.createRequirement({ title: '派发期间改角色', role: 'art-role' }, parent)
+    const delegated = await service.delegate(created.id, { session: child.session }, parent)
+    check('the requirement routes to the temporary role', delegated.role === `tmp-${created.id}`)
+    await service.claim(created.id, {}, child)
+
+    const refused = await reporter.rejects('a re-route during a delegation is refused', () => service.updateRequirement(created.id, { role: 'other-role' }, child), 'conflict')
+    check('the refusal names the binding and the requested role', refused.details?.reason === 'delegated-role' && refused.details?.delegatedTo?.session === child.session && refused.details?.role === 'other-role', JSON.stringify(refused.details))
+
+    const restated = await service.updateRequirement(created.id, { role: `tmp-${created.id}`, priority: 'high' }, child)
+    check('restating the stored role changes nothing but the other field', restated.role === `tmp-${created.id}` && restated.priority === 'high')
+
+    const revoked = await service.delegate(created.id, { revoke: true }, parent)
+    check('the settlement returns the role the binding recorded', revoked.role === 'art-role')
+    await board.close()
+  })
+}
+
+/**
+ * A refused requirement write takes its freshly minted temporary role back
+ * (`ROLE-DISPATCH.md` §5.5).
+ *
+ * The role is declared before the requirement names it, so every refusal inside
+ * that write leaves a row the requirement does not route to. A stale
+ * `expectedRev` is one such refusal and it reaches the write chain: the row must
+ * not survive as residue for the panel to show.
+ */
+async function caseRefusedWriteTakesRoleBack(backend, name) {
+  await onBackend(backend, name, async dir => {
+    const board = await openDelegationBoard({
+      backend,
+      dir,
+      agents: fakeAgents([agentOf('ses_parent', 'art-role'), agentOf('ses_child', 'art-role')]),
+      owns: fakeOwnership([['ses_child', 'ses_parent']]),
+    })
+    const service = board.service
+    const parent = { session: 'ses_parent', name: '甲' }
+    const created = await service.createRequirement({ title: '写失败的派发' }, parent)
+    await reporter.rejects('a stale revision refuses the delegation', () => service.delegate(created.id, { session: 'ses_child', expectedRev: (created.rev ?? 1) - 1 }, parent), 'conflict')
+    check('the refused delegation left no temporary role', board.domain.table('roles').size === 0)
+    check('no temporary role is listed either', service.listRoles().items.every(item => !item.id.startsWith('tmp-'))
+      && service.listRoles().unregistered.every(entry => !entry.id.startsWith('tmp-')))
+    const stored = board.domain.table('requirements').get(created.id)
+    check('the requirement was not bound', stored.delegatedTo === null && stored.role === '')
+
+    const landed = await service.delegate(created.id, { session: 'ses_child' }, parent)
+    check('the same delegation lands once the write is accepted', landed.delegatedTo?.session === 'ses_child' && board.domain.table('roles').size === 1)
+    await board.close()
+  })
+}
+
 /** The ownership check refuses another session's child, degrades once, and the
  * adapter hands the platform the Agent object its predicate compares. */
 async function caseOwnership(backend, name) {
@@ -586,11 +658,24 @@ async function caseOwnershipAdapter(backend, name) {
 
     check('the adapter resolves a real child through the platform predicate', port('ses_child', 'ses_parent') === true)
     check('the adapter refuses another session\'s child', port('ses_alien', 'ses_parent') === false)
-    check('the adapter refuses a target that is not live', port('ses_ghost', 'ses_parent') === false)
-    check('the platform predicate was asked once per target with the parent Agent object', registry.calls.length === 3
+    check('a target with no live Agent is undecidable, not a refusal', port('ses_ghost', 'ses_parent') === undefined)
+    check('the platform predicate is always asked first, with the parent Agent object', registry.calls.length === 3
       && registry.calls.every(call => typeof call.owner === 'object' && call.owner !== null && call.owner.id === 'ses_parent'),
     JSON.stringify(registry.calls.map(call => ({ id: call.id, owner: typeof call.owner === 'string' ? call.owner : call.owner?.id }))))
     check('the argument is the exact live parent Agent, not a copy of its id', registry.calls[0].owner === parentAgent && registry.calls[0].id === 'ses_child')
+
+    // A continuable child is materialized on demand and keeps its creator in its
+    // own session header, so two states the platform predicate alone cannot
+    // answer are decided from that recorded lineage: no live Agent yet, and a
+    // runtime owner object replaced by a parent resume.
+    const resumedParent = agentOf('ses_parent', 'art-role')
+    const resumedChild = { ...childAgent, session: { header: { parentSession: 'ses_parent' } } }
+    const unmaterialized = createOwnershipPort({ get: () => fakeAgents([resumedParent], []) })
+    check('a child with no live Agent yet cannot be decided', unmaterialized('ses_child', 'ses_parent') === undefined)
+    const lived = createOwnershipPort({ get: () => fakeAgents([resumedParent, resumedChild], []) })
+    check('a child whose runtime owner moved is decided by its recorded header', lived('ses_child', 'ses_parent') === true)
+    const foreign = createOwnershipPort({ get: () => fakeAgents([agentOf('ses_other_parent', 'art-role'), resumedChild], []) })
+    check('a recorded lineage naming another session stays a refusal', foreign('ses_child', 'ses_other_parent') === false)
 
     const noRegistry = createOwnershipPort({ get: () => undefined })
     check('no registry is undecidable, not a refusal', noRegistry('ses_child', 'ses_parent') === undefined)
@@ -876,6 +961,8 @@ for (const backend of BACKENDS) {
   await caseAdoption(backend, 'a target that already holds the lock is adopted')
   await caseDesignatedClaim(backend, 'only the delegated session claims through the delegation')
   await caseRoleBeforeIsCurrent(backend, 'roleBefore is the role at delegate time')
+  await caseRerouteDuringDelegate(backend, 'the delegation owns the routing id while it lasts')
+  await caseRefusedWriteTakesRoleBack(backend, 'a refused delegation write takes its temporary role back')
   await caseRepeatDelegate(backend, 'a repeated delegation settles the one it replaces')
   await caseRevoke(backend, 'revoking releases, deletes, and is idempotent')
   await caseDisposeSettles(backend, 'a disposed delegate returns the requirement to the pool')

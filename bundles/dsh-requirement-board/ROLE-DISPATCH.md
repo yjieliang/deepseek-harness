@@ -61,6 +61,8 @@ const presetRole = declared?.roleId ?? (agent === undefined ? undefined : preset
 
 **兜底是关键**：没有显式声明的预设自动用**预设 id** 当角色，所以内置预设零改动就有角色。`agents`/`agentPresets` 都是**可选读取**，读不到就降级（2.6）。
 
+**兜底值必须本身就是合法角色 id**：预设 id 是平台的自由字符串（`packages/preset/agent-preset-registry/src/index.ts:83` 只要求非空），所以形如 `Art Team` 的 id 按 §2.3 的同一套格式拒绝 —— **不建档、prompt 无角色段**，并按 id 各报一次具名 warn（`host/roles.js` 的 `resolveOwn`/`#warnPresetId`）。记下一个谁也路由不到的角色是这条链唯一不能产生的后果。
+
 **注意**：这里解析的是"我自己的角色"，用于**公共任务**的资格。**被指派给我的任务**（`delegatedTo.session === 我`）另有资格来源，见 5.4 判定表第 3 条 —— 不需要在会话上做"绑定优先"的角色覆盖。
 
 ### 2.2 本机的覆盖结果（8 个预设）
@@ -146,8 +148,10 @@ const presetRole = declared?.roleId ?? (agent === undefined ? undefined : preset
 | ----------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
 | `preset`    | `agent/created` 里解析到该会话的角色声明                    | 取自 `board-role` 行；与库里现值不同才写                                            |
 | `manual`    | **面板**编辑角色（HTTP；模型面不开放，见 5.6）                   | 显式给的 `name`/`duties`                                                   |
-| `observed`  | `create`/`update`/`delegate` 引用了库里没有的 `role` id | 只建 `{ id, name: id, duties: [] }`，标 `dutiesMissing`                    |
+| `observed`  | `agent/created` 里没有声明、只有预设 id 兜底（2.1）    | 只建 `{ id, name: id, duties: [] }`，标 `dutiesMissing`                    |
 | `delegated` | `delegate` 派发                                   | 铸造 `tmp-<任务id>`，`ephemeral`，带 `boundSession`/`boundTask`，`duties` 取派发方给的 |
+
+**需求引用不是建档时机**：`create`/`update`/`delegate` 写下的 `role` 只按格式校验，既不查角色表也不补记录。库里没有该 id 时它是**派生可见**的未登记状态（`roleUnregistered`，3.4），不是一个 `observed` 记录 —— 引用本身不足以定义职能。
 
 `agent/created` 契约（已核对）：serial、`payload: { agent, source, signal? }`（`signal` 可选）、"ready for per-agent initialization **after factory setup**"、**"listeners run in order and are awaited before creation resolves"**、**"a throw or rejection fails creation"**。
 
@@ -171,8 +175,8 @@ const presetRole = declared?.roleId ?? (agent === undefined ? undefined : preset
 
 ### 3.4 缺职能怎么办（降级，不报错）
 
-- 无 `duties` → `dutiesMissing: true`：`requirement_role{list}`、面板、prompt 都提示"这个角色没写职能，无法按职能路由"。
-- 需求引用库里没有的角色 → 允许，返回带 `roleUnregistered: true`，`list` 列为 `unregistered`。
+- 无 `duties` → `dutiesMissing: true`：**记录与预设声明都没有**职能时才算（`host/roles.js` 的 `#present` 与 `promptLine` 用同一条规则）。记录为空但声明有职能时，`requirement_role{list}`、面板与 prompt 一律报声明里的职能，不报"无法按职能路由"。
+- 需求引用了库里没有的角色 → 允许，返回带 `roleUnregistered: true`，`list` 列为 `unregistered`。**引用本身就是证据**：即使没有任何活会话持有该 id，只要它被需求引用就列出，`holders` 计 `{ online: 0, idle: 0, running: 0 }`（`agents` 缺失时 `holders.online` 为 `null`）；角色删除不再级联，未登记状态由这条派生规则持续可见。
 - 从不静默：要么能路由，要么明说。
 
 ### 3.5 持有人与在线状态（派生，不落盘）
@@ -184,6 +188,14 @@ const presetRole = declared?.roleId ?? (agent === undefined ? undefined : preset
 ### 3.6 角色之间不耦合
 
 扁平表；引用只有"需求 → 角色"单向；路由只按职能（5.6）；跨角色先后关系只表达在**需求**的 `blocksOn` 上。
+
+### 3.7 预设 ↔ 角色的对照（派生，不落盘）
+
+- 记录的 `source` 说的是"谁建的档"，**不是**"它属于哪个预设"：预设 id 兜底建档时二者恰好相同，但被面板改过的记录是 `manual`，删除重建后也可能对不上。所以对照关系不存字段，每次现算。
+- 算法（`host/roles.js` → `presetRoster()`）：`agentPresets.list()` 取组合里声明的每个预设 → 有活会话时取该会话解析出的角色 id（`confirmed: true`）→ 没有活会话时按"预设 id 本身是合法角色 id"推定（`confirmed: false`，面板标"推定"）→ 连合法角色 id 都不是则为 `''`（面板标"不能作角色 id"）。`recorded` 查 `roles` 表，`dutiesMissing` 与角色列表同一条规则（3.4）。
+- 读不到名册要能区分两种原因：组合没挂 `agentPresets` → `unavailable: { code: 'service-absent' }`；`list()` 抛错或没回数组 → `{ code: 'read-failed', detail }`。"名册为空"与"读不到"不是一回事，文案分开。
+- 一键登记**不新增写路径**：面板按该行预填 id 与显示名，再走既有的 `role.put`（落成 `source: 'manual'`），登记后该行 `recorded` 转真。
+- 不进 `snapshot()`：它同步、且在每次刷新/健康检查/SSE `ready` 都走，而 `agentPresets.list()` 要逐预设做启用诊断（异步）。面板只在打开角色管理时按需读一次（§8.1）。
 
 ## 4. 存储与数据模型
 
@@ -205,7 +217,7 @@ defineDomain({
 })
 ```
 
-**域名与路由键都写 `requirement_board`**（`host/domain.js:38-39`、`dev.overlay.yml:20-31`）：连字符不匹配 `UNIT_NAME_RE`，会静默落到默认后端而进程不报错。
+**域名与路由键都写 `requirement_board`**（`host/domain.js:47-48`、`dev.overlay.yml:20-31`）：连字符不匹配 `UNIT_NAME_RE`，会静默落到默认后端而进程不报错。
 
 **为什么写路径不经应用层整文档重写**：`storage-domain` 每条记录一次**单行 UPDATE**，写入成本与文档规模无关，`executionSync` 才能默认为 true。**执行单元不单独建表**：它是需求记录里的有界数组（≤ `maxExecutions`），一次 UPDATE；**平台不提供跨行事务**（单域一条串行写链，`storage-domain/src/domain.ts:148-149`），跨行一致性靠**防御性 join + 启动 sweep** 兜。
 
@@ -241,7 +253,7 @@ await domain.global.set({ ...globals, revision: revisionCounter })
 | `requestedBy` | `string` | `''` | `create` 时定格为调用方显示名（无名字时用会话 id）；决策队列"谁在等你" |
 | 既有字段 | | | `id`/`title`/`description`/`priority`/`owner`/`sessions`/`labels`/`status`/`templateId`/`nodeId`/`nodes`/`blockReason`/`blockedAt`/`rev`/`createdAt`/`updatedAt`/`createdBy`/`updatedBy`/`history` |
 
-`ExecutionUnit = { ref, kind: 'subagent' | 'job', label, status, progress, detail, startedAt, finishedAt, updatedAt }`（`host/domain.js:110-120`）；`ref` 是子会话 id/runId 或 job id，重复观察更新同一条；`stale` 按 `stallAfterHours` 读时派生、不落盘（`host/service.js:577-580`）。
+`ExecutionUnit = { ref, kind: 'subagent' | 'job', label, status, progress, detail, startedAt, finishedAt, updatedAt }`（`host/domain.js:146-165`）；`ref` 是子会话 id/runId 或 job id，重复观察更新同一条；`stale` 按 `stallAfterHours` 读时派生、不落盘（`host/service.js:734-737`）。
 `EXEC_STATUSES = ['running', 'stopping', 'completed', 'killed', 'failed']`（协议常量，`host/model.js:46`）；`executions` 超过 `maxExecutions` 丢最旧并把 `executionsTruncated` 置真（`host/runs.js:230-243`）。
 
 ### 4.3 队列记录（`queues` 表，每会话一行）
@@ -262,6 +274,8 @@ await domain.global.set({ ...globals, revision: revisionCounter })
 | `claimable` | **唯一公式**（4.5） | `list{claimable}` 与 prompt 共用同一个函数 |
 | `advanceable` | **正典公式**：`（锁在手上 ∨ 面板）∧ 跨需求门禁已清 ∧ 节点前置已满足 ∧ 状态 ∉ {done,archived} ∧ kind 允许` | prompt 区分"能接"与"能推进"；节点自身完成条件（`completion-not-met`）有意不入（`host/dispatch.js:208-245`） |
 | `reservedBy` | 反查 `queues` | 预留；非空且非我 → `claimable` 为假 |
+| `roleUnregistered` | `role !== ''` 且 `roles` 表无此 id | 面板角色徽标标警、`get`/`list` 回执；未登记的引用不接线到任何会话 |
+| `unregistered`（角色列表） | （活会话解析到的 id ∪ 需求 `role` 引用到的 id）减去已有记录的 id | `requirement_role{list}` 与面板角色页；引用即证据，不需要活会话 |
 | `children` | 反查 `parentId` | 父需求详情 |
 
 ### 4.5 `claimable` 的唯一公式
@@ -323,7 +337,7 @@ claimable(req, me) =
 | `queue{id}` | 追加到**我的**队列并**软预留**。要求：未归档未完成、`kind==='task'`、**角色/绑定资格成立**、`lockAllows` 成立、未被别人预留、不在队列里（幂等）、队列未满。**不取锁** |
 | `unqueue{id}`（面板另接受 `targetSession`） | 从我的队列移除（幂等）。**面板可用 `targetSession` 清除任意会话的预留**（人覆盖 AI）；`targetSession` 是**操作目标**，与 actor 的 `session` 分开 |
 
-- 释放路径：`unqueue`、我的 `agent/disposed`、任务完成/归档/删除、`revoke`（释放**目标会话**在该任务上的预留）、`delegate`（释放**调用方自己**在该任务上的预留）；**面板可随时抢下并清预留**（`host/service.js:1626-1740`、`1804-1842`）。
+- 释放路径：`unqueue`、我的 `agent/disposed`、任务完成/归档/删除、`revoke`（释放**目标会话**在该任务上的预留）、`delegate`（释放**调用方自己**在该任务上的预留）；**面板可随时抢下并清预留**（`host/service.js:1796-1908`、`1972-2013`）。
 - 队头被别人**上锁** → `claim` 返回 `conflict`（`details.queued:true`）并提示 `unqueue` 换一条；**不自动改队列**。公开可达序列：租约过期 → 他人合法软预留 → 原持锁者再写一次使锁复活 → 预留者 `claim` 命中该分支（`host/dispatch.js:322-340`，`tests/queue.mjs` 用注入时间证实）。
 - 上界 `maxQueueItems`（默认 20），超出 `invalid-input`。
 - **已知取舍**：软预留**没有租约**（你的选择）—— 一个活着但卡住的会话会占住队内任务。处置：会话结束自动释放 + 面板可见 + 人可清；`stats.reserved` 计入观测。若实测被占死，加一个预留租约配置是小改动。
@@ -366,22 +380,27 @@ claimable(req, me) =
 | 5 | 子会话 | 也能从看板注入段看到 `Delegated to you`（服务端注入，6）；`claim{id}` → 判定表第 3 条命中 `delegatedTo.session === 我` → 通过 → 上锁 |
 | 6 | 子会话 | 执行 → 推进 → `complete`（自动放锁；临时角色与绑定清理；`role` 回退） |
 
-**前置（fail loud）**：调用方必须是**自己就能接**这条任务（`role` 为空/等于我的角色）**且**是创建者、`owner` 或 `sessions` 成员（或面板）；`session` 不得是调用方自己（要自己做请直接 `claim`）；任务未归档未完成，且锁持有者不是**目标会话以外**的会话 —— **锁持有者恰为目标会话时幂等收编**（补写绑定、不报 conflict：子会话继承父角色，所以在我 delegate 之前它就有资格 `claim`，这是正常路径而非异常）；同一任务重复 `delegate` 先收尾旧委托；**第三方会话的预留** → `conflict{reserved}`，目标会话自己的预留是收编路径，调用方自己的预留被本次调用释放；被指名会话可链式再派发给它的子会话（资格按结算后的 `roleBefore` 取，`host/service.js:1626-1740`）。
+**前置（fail loud）**：调用方必须是**自己就能接**这条任务（`role` 为空/等于我的角色）**且**是创建者、`owner` 或 `sessions` 成员（或面板）；`session` 不得是调用方自己（要自己做请直接 `claim`）；任务未归档未完成，且锁持有者不是**目标会话以外**的会话 —— **锁持有者恰为目标会话时幂等收编**（补写绑定、不报 conflict：子会话继承父角色，所以在我 delegate 之前它就有资格 `claim`，这是正常路径而非异常）；同一任务重复 `delegate` 先收尾旧委托；**第三方会话的预留** → `conflict{reserved}`，目标会话自己的预留是收编路径，调用方自己的预留被本次调用释放；被指名会话可链式再派发给它的子会话（资格按结算后的 `roleBefore` 取，`host/service.js:1796-1908`）。
 
 **`roleBefore` 取值写死**：取**派发时的当前 `role`**（不是创建时值）—— `revoke`/完成时要把任务退回"上一个可用状态"，而创建时值可能已被合法的 `update{role}` 覆盖。因为"重复 delegate 先收尾旧委托"，收编时读到的值**永远不可能是 `tmp-*`**，所以二次派发（revoke → delegate 新子会话）能正确回退。
+
+**派发期间路由归委托所有**：`delegatedTo !== null` 时 `update{role}` 改成一个**不同**的 id 被拒（`conflict{delegated-role}`）—— 结算一定会把它抹回 `roleBefore`，接受一个必然被擦掉的写就是把降级留给用户去看。把当前值**原样写回**是零变化（面板保存别的字段时总是带上 `role`，所以这条必须放行）。非派发状态下改 `role` 照常落地，并写一条 `update` history（`role "a" -> "b"`）。
+
+**写被拒要收回刚铸造的临时角色**：`role` 先铸造、需求后命名（步 3），所以需求写链里的任何拒绝（CAS 版本不符、并发委托、锁变动）都会留一行需求不再引用的临时角色。`delegate` 在 `catch` 里重读需求，**只有 `role !== tmp-<任务id>`**（证明写没落地）才删该行；删失败只写 warn，随后原样抛出原错误。启动 sweep 是兜底，不是第一道防线。
 
 **初始 prompt 待命模板**（派发前唯一发给子会话的内容）："你即将接到一个看板任务。先不要自己认领任何任务；等我把角色 ID 与任务 ID 发给你，那时按 `claim` 的说明拿锁再开始。" —— 与 §6"存在待接指派时 `Claimable` 段降权"配合，避免子会话用**唯一那把锁**去接别的公共任务。
 **撤销** `delegate{revoke:true}`：解绑、删临时角色、清 `delegatedTo`、`role` 回退、**结算该任务的 `executions` 与锁**（放锁或标孤儿）—— 与会话 dispose 同一套收尾。
 
-**归属校验失败不写任何记录**：`owns(target, caller)` 判为 `false` 时 `delegate` 在锁与角色表之前抛出 `forbidden{not-owned}`，需求记录、临时角色、绑定与 history 都不动（`tests/delegate.mjs:536`）。
-**同一套收尾**：`#settleDelegation` 是唯一实现，被 7 处调用 —— 重复 `delegate`、`revoke`、`agent/disposed`（锁标孤儿）、`complete`、`archive`、`delete` 各一次，加上启动 sweep 一次（`host/service.js:1701-2700`）；六件事（`role` 回退、清 `delegatedTo`、删临时角色、放锁或标孤儿、结算执行单元、释放预留）都在它内部。
+**归属校验失败不写任何记录**：`owns(target, caller)` 判为 `false` 时 `delegate` 在锁与角色表之前抛出 `forbidden{not-owned}`，需求记录、临时角色、绑定与 history 都不动（`tests/delegate.mjs` 的 `caseOwnership`）。
+**判定顺序（三道）**：① **先问平台谓词**——能答的注册表（含可持久判定的实现）说 `true` 就是 `true`，与目标是否还活着无关；② 谓词说 `false` 时读**目标自己会话头里的 `header.parentSession`**（平台记录的创建关系）：等于调用方 → `true`，等于别的会话 → `false`；③ 两者都没有依据时——目标没有活 Agent（continuable 子会话按需物化）、注册表不可用、或调用方无活 Agent → `undefined` → 放行 + 具名 warn 一次。有活 Agent 且谓词 `false`、会话头也指别人或缺失 → 决定性的 `false`（`index.js:111-132`）。
+**同一套收尾**：`#settleDelegation` 是唯一实现，被 7 处调用 —— 重复 `delegate`、`revoke`、`agent/disposed`（锁标孤儿）、`complete`、`archive`、`delete` 各一次，加上启动 sweep 一次（`host/service.js:1960-3366`）；六件事（`role` 回退、清 `delegatedTo`、删临时角色、放锁或标孤儿、结算执行单元、释放预留）都在它内部。
 
 **执行同步的归属与通道**
 
 | 观察对象 | 订阅 | 字段 |
 |---|---|---|
 | 子智能体 | **`subagent/start` / `subagent/end`**（`packages/subagent/subagent/src/lifecycle.ts:134-163`，payload `{ runId, provider, id: 子会话id, local }`，`end` 带 `stopReason`/`lastAssistantMessage`） | 起止成对；`id` 就是归属子会话 |
-| 归属校验 | 端口是 id 形状的 `owns(target, caller)`，平台知识只留在 `index.js` 边界：平台谓词 `isOwnedBy(id, owner: Agent)` 按**对象身份**比较（传字符串恒 false），适配器用 `agents.get(caller)` 换回 Agent；注册表不可用或调用方无活 Agent → `undefined` → 放行 + 具名 warn 一次（`index.js:103-111`、`host/service.js:2114-2129`） | 确认这确实是该持锁会话的子会话；`false` 拒绝，`undefined` 降级放行 |
+| 归属校验 | 端口是 id 形状的 `owns(target, caller)`，平台知识只留在 `index.js` 边界：平台谓词 `isOwnedBy(id, owner: Agent)` 按**对象身份**比较（传字符串恒 false），适配器用 `agents.get(caller)` 换回 Agent；**谓词先答**（`true` 即采纳），`false` 时按目标会话头的 `header.parentSession` 判定，二者都无依据（注册表不可用、调用方或目标无活 Agent）→ `undefined` → 放行 + 具名 warn 一次（`index.js:111-132`、`host/service.js` 的 `#assertOwnedTarget`） | 确认这确实是该持锁会话的子会话；`false` 拒绝，`undefined` 降级放行 |
 | 后台任务 | `ctx.jobs.events.subscribe({ owners: 'all' }, …)`，`registered`/`progress`/`stopping`/`settled`/`removed` | `JobView`：`owner`（会话）、`kind`、`label`、`status`、`startedAt`/`finishedAt` |
 | kind 过滤 | **不做白名单**：除已知 `subagent`/`workflow` 外的所有 kind 都算后台任务（本机是 `pwsh`，不是 `bash`） | `JobKindMap` 合并出 `bash`/`subagent`/`pwsh`/`pty-send`/`workflow` |
 | 会话活动 | `agent/status`（`idle ⇄ running`）、`agent/disposed` | **只作"该会话有活动"展示**；任务归因只用上两行（defensive-patterns："async state is not synchronous state"，一个 `running` 区间可能包含多个回合与注入工作） |
@@ -396,18 +415,18 @@ claimable(req, me) =
 
 | 工具 | 动作 | 说明 |
 |---|---|---|
-| `requirement_board`（18 个动作） | `list`/`get`/`create`/`update`/`claim`/`release`/`queue`/`unqueue`/`delegate`/`transition`/`checklist`/`block`/`unblock`/`archive`/`restore`/`delete`/`stats`/`changes`；**没有 `assign`** | `get` 返回 `lock`/`delegatedTo`/`executions`/`executionsTruncated`/`execRev`/`running`/`sync`/`claimable`/`advanceable` 与该会话自己的 `queue`（`host/tools.js:195-200`） |
+| `requirement_board`（18 个动作） | `list`/`get`/`create`/`update`/`claim`/`release`/`queue`/`unqueue`/`delegate`/`transition`/`checklist`/`block`/`unblock`/`archive`/`restore`/`delete`/`stats`/`changes`；**没有 `assign`** | `get` 返回 `lock`/`delegatedTo`/`executions`/`executionsTruncated`/`execRev`/`running`/`sync`/`claimable`/`advanceable` 与该会话自己的 `queue`（`host/tools.js:201-206`） |
 | `requirement_role`（模型面 1 个动作） | `list`（含 `dutiesMissing`/`unregistered`/`ephemeral`/`boundSession`/`boundTask`/`holders`/`open`） | `put`/`delete` **只走面板 HTTP**（角色管理是人/预设的事） |
 
-参数：`create`/`update` 接受 `role`/`parentId`/`blocksOn`（`kind` 只在 `create` 时有意义；`update` 带 `kind` 一律 `invalid-argument{kind-immutable}`）；`list` 接受 `session`/`owner`/`status`/`priority`/`kind`/`role`/`templateId`/`query`/`claimable`/`limit`（**没有** `running`/`queue`/`sort`/`offset`）；`stats` 增加 `byKind`/`byRole`/`decisions`/`criticalPath`/`queues`/`queued`/`reserved`/`orphanedLocks`/`pendingDelegations`/`running`/`execSync`（`ignored`/`gaps`，`host/service.js:2846-2914`）。
+参数：`create`/`update` 接受 `role`/`parentId`/`blocksOn`（`kind` 只在 `create` 时有意义；`update` 带 `kind` 一律 `invalid-argument{kind-immutable}`）；`list` 接受 `session`/`owner`/`status`/`priority`/`kind`/`role`/`templateId`/`query`/`claimable`/`limit`（**没有** `running`/`queue`/`sort`/`offset`）；`stats` 增加 `byKind`/`byRole`/`decisions`/`criticalPath`/`queues`/`queued`/`reserved`/`orphanedLocks`/`pendingDelegations`/`running`/`execSync`（`ignored`/`gaps`，`host/service.js:3443-3511`）。
 **首轮 token 预算**：18 + 1 个动作都进首轮请求；**首轮工具 JSON schema 字符数的固定断言**是阶段 G 的未竟项（见 §9 与清单 §5）——插件当前不进受控源码，README 记明该例外与理由，超支就继续砍动作/合并参数（`agent-experience` 要求）。
 
 ### 5.7 决策类需求只能由人推进
 
 `kind === 'decision'` 且调用方是 AI 时：`claim`/`transition`/`archive`/`delete`/`delegate`/`queue` 六个动作一律 `forbidden`（`details.reason:'decision-task'`）；`update` 只允许 `{title, description, priority, labels, sessions}`。面板路径不受限。
 **两入口实测分解（12 条拒绝）**：工具入口 6 条（六个动作）+ 1 条（`delegate{revoke:true}`）；command 入口 `claim`/`queue` 各 1 条 `invalid-argument`（**面板 command 没有这两个动作**），`transition`/`archive`/`delete` 各 1 条 `decision-task`。服务层对同三个动作的拒绝证明"规则在操作里"，不是靠入口缺失（`tests/decision.mjs:201-254`）。
-**`kind` 创建后不可变**：`update{kind}` 在 AI 与面板两条路径都返回 `invalid-argument{kind-immutable}`，记录与 `rev` 不动；否则 `update{kind:'task'}` 能让 AI 把决策改成普通任务再认领（`host/service.js:2320-2326`）。
-**已知边界**：`block`/`unblock`/`checklist` **有意不**加进上面六个动作的清单（`kind` 不可变 + `update` 白名单已关后门，`block` 不通向执行），但它们仍先按同一条人类专属规则拒绝 AI —— 决策的锁永远拿不到，先报 `lock-required` 会把模型引向一把没人能拿的锁；在普通任务上它们照常要求持锁（`host/service.js:1941-1969`、`2339-2421`）。
+**`kind` 创建后不可变**：`update{kind}` 在 AI 与面板两条路径都返回 `invalid-argument{kind-immutable}`，记录与 `rev` 不动；否则 `update{kind:'task'}` 能让 AI 把决策改成普通任务再认领（`host/service.js:2481-2487`）。
+**已知边界**：`block`/`unblock`/`checklist` **有意不**加进上面六个动作的清单（`kind` 不可变 + `update` 白名单已关后门，`block` 不通向执行），但它们仍先按同一条人类专属规则拒绝 AI —— 决策的锁永远拿不到，先报 `lock-required` 会把模型引向一把没人能拿的锁；在普通任务上它们照常要求持锁（`host/service.js:2109-2137`、`2498-2585`）。
 
 ### 5.8 门禁（可选）
 
@@ -428,7 +447,7 @@ effectivePriority(req) = max( own priority(req),
 
 - 抬高对象是**拦路那条**；被挡那条只标 `gated`。
 - **不落盘、不改 `priority`**；前置清掉自动回落；`escalated` 派生。
-- prompt/列表写 `[high↑]`；面板标"关键路径"；`stats.criticalPath` 是**计数**（被抬高的条数），每行的 `escalated` 才是那一条的标记（`host/service.js:2867-2899`）。
+- prompt/列表写 `[high↑]`；面板标"关键路径"；`stats.criticalPath` 是**计数**（被抬高的条数），每行的 `escalated` 才是那一条的标记（`host/service.js:3464-3496`）。
 - 传播沿 `blocksOn` 单遍（图保证无环），每次读时重算。
 
 ### 5.10 不通知、不唤醒
@@ -462,7 +481,7 @@ effectivePriority(req) = max( own priority(req),
 
 ## 6. 模型可见面
 
-prompt 按会话组装，段序固定（角色行 → `Delegated to you` → `Claimable for you` → `Your queue` → `Executing now` → `This session's requirements` → `Other sessions' requirements` → `Waiting on the human`），共享 `promptMaxItems` 总预算；决策段先占预算、最后输出（`host/service.js:3001-3174`）：
+prompt 按会话组装，段序固定（角色行 → `Delegated to you` → `Claimable for you` → `Your queue` → `Executing now` → `This session's requirements` → `Other sessions' requirements` → `Waiting on the human`），共享 `promptMaxItems` 总预算；决策段先占预算、最后输出（`host/service.js:3598-3775`）：
 
 ```text
 <requirement-board>
@@ -488,8 +507,8 @@ Waiting on the human (1) — only the human advances these:
 </requirement-board>
 ```
 
-- 角色段：`name`/`duties` 的单一权威是 roles 表的记录；记录不存在（被删或从未建档）时退到预设声明、再退到预设 id。角色 **id 永远来自解析链**，面板改名不改 id。`dutiesMissing` = 记录与预设声明**都没有** duties（`host/roles.js:99-116`、`413-444`）。被指派的任务段单独标该任务的临时角色 id。
-- **门禁呈现**：`get`/`list` 暴露 `gated`/`blockedBy`，面板按宿主事实显示；prompt 的条目行**不**带 `gated by` 标记（`host/service.js:3016-3037`，未决项见 §11）。
+- 角色段：`name`/`duties` 的单一权威是 roles 表的记录；记录不存在（被删或从未建档）时退到预设声明、再退到预设 id。角色 **id 永远来自解析链**，面板改名不改 id。`dutiesMissing` = 记录与预设声明**都没有** duties；记录为空但声明有职能时读声明（`host/roles.js` 的 `#present`/`promptLine`）。被指派的任务段单独标该任务的临时角色 id。
+- **门禁呈现**：`get`/`list` 暴露 `gated`/`blockedBy`，面板按宿主事实显示；prompt 的条目行**不**带 `gated by` 标记（`host/service.js:3613-3638`，未决项见 §11）。
 - 被别的会话预留的任务**不出现**在我的"可接"段。
 - 我自己已持锁的任务**不出现在** "Claimable for you"（只出现在 "Executing now"）—— 同一任务只属于一段。
 - 存在 `Delegated to you` 时，"Claimable" 段**降权**：措辞是"先接上面的指派，再考虑公共任务"，避免子会话用**唯一那把锁**去接别的活。
@@ -523,6 +542,7 @@ Waiting on the human (1) — only the human advances these:
 12. **不建的任务**：一句话能答的、没有验收标准的、角色不明的、重复的。
 13. **认领礼仪**：接之前 `get`；开工就 `claim`；做完写 `note` 再 `advance`；被门禁挡住**不 `force`**，除非写明理由。
 14. **推进顺序**：勾 `checklist` → `transition{action:'advance'}` → 最后 `transition{action:'complete'}`。
+15. **流程模板匹配（不符合就建模板）**：建需求前先 `flow_template{action:'list'}`，按这条活真实的生命周期挑 `templateId`；现有模板都对不上就先 `flow_template{action:'create'}` 把节点写成真实步骤（稳定 id、`dependsOn` 成链、该判完成的写成 checklist）再建需求。`templateId` 省略会**静默**绑默认模板，不能拿默认模板当占位；模板看板共享，要改进现有流程就 `flow_template{action:'revise'}` **追加一个版本**（存量需求一律不动，改错了不能就地改），需要换版的需求再用 `flow_template{action:'migrate'}` 迁到新版本（先看受影响清单；不指名 `requirementIds` 即"全部钉在旧版的"，需要 `force`）；此外 `archive`（`archive:false` 恢复）、`clone`（改内置流程的正路）、`delete`（按 `force` 把受影响需求改绑到默认模板并写一条历史）也在工具面，只有 `prune`（裁剪历史版本）留给面板。绑错的代价在推进时才暴露（`dependency-not-met`、检查项与交付物错位），事后改绑走 `update` 的 `templateId`（要锁）并重算节点状态。
 
 ### 7.3 与插件的关系
 
@@ -531,14 +551,14 @@ Waiting on the human (1) — only the human advances these:
 | skill → 工具 | 只用公开契约的**动作名与意图**，不复述参数与语法 |
 | 插件 → skill | **没有引用**；不检测、不加载、不假设它存在 |
 | 共同事实 | 动作/参数只在插件；规范（何时/怎么建、怎么派、怎么排队）只在 skill |
-| 验收 | 开发期以 `project-agents` 出现在 `<repo>/.agents/skills/`，启动期提升为 `user-dsh`；能加载、覆盖十四条、**未出现工具参数表** |
+| 验收 | 开发期以 `project-agents` 出现在 `<repo>/.agents/skills/`，启动期提升为 `user-dsh`；能加载、覆盖十五条、**未出现工具参数表** |
 
 ## 8. 面板
 
 | 位置 | 新增 |
 |---|---|
 | 顶部 | **"待你决策"队列**：标题、优先级、谁在等、挡住什么、创建时间；点开直接推进 |
-| 角色管理 | 角色列表（**含 `put`/`delete` 编辑入口**）：id、显示名、职能、在线/空闲、未完成数；临时角色行显示 `ephemeral` + `boundSession`/`boundTask`；缺职能/未登记高亮 |
+| 角色管理 | 角色列表（**含 `put`/`delete` 编辑入口**）：id、显示名、职能、来源（`preset`/`manual`/`observed`/`delegated`）、在线/空闲、未完成数；临时角色行显示 `ephemeral` + `boundSession`/`boundTask`；缺职能/未登记高亮。**预设对照区**：列出组合里声明的每个预设（`agentPresets.list()`），逐行给出它解析到的角色 id、是否已建档、有无活会话、启用诊断，未建档的预设带**一键登记**（预填 id 与显示名，仍走 `role.put`）；打开对话框时读一次名册，`put`/`delete` 成功后再读一次，所以刚登记的那一行立刻翻面，不会继续显示"登记角色" |
 | 列表卡片 | 🔒 锁持有者与时长（孤儿锁标红）、"执行中 N"、"已派给会话 X（未接）"、"已被会话 X 排队预留"、角色徽标、`↑` 抬高、"关键路径"/"被 N 条挡住" |
 | 详情 | **执行单元表**（kind/label/status/时长/`progress`/`stale`/`executionsTruncated`）；锁、`delegatedTo`（含 `roleBefore`）、`blocksOn` 及状态、`effectivePriority`；**队列**（谁的、第几位）；按钮：释放 / 派发 / 撤销派发 / **清预留（`targetSession`）** / 推进（决策）—— **不设"认领"按钮**：面板 actor 的 `session` 是空串，写进 `lock.session` 会让 AI 侧 `lockAllows` 全部拒绝直到 8h 租约过期；而人本就不受锁约束，不需要占锁，要让某个会话做就"派发" |
 | 筛选区 | 角色（含"任意角色"）、`kind`、"只看可接"、"执行中"、"已派发"、"我的角色" |
@@ -555,10 +575,12 @@ Waiting on the human (1) — only the human advances these:
 | `GET /api/requirement-board/health` | — | 存活探测 |
 | `POST /api/requirement-board/command` | `{ action, session, name, me, id, ... }` | `refresh`/`list`/`create`/`update`/`transition`/`checklist`/`release`/`unqueue`/`delegate`（含 `revoke`）/`block`/`unblock`/`archive`/`restore`/`delete`/`stats`/`changes`/`template.*`/`role.*` |
 
-快照信封 `{ ok: true, data: { revision, generatedAt, requirements, total, templates, roles, stats, queues } }`；`queues` 每行 `{ session, sessionName, items, head, length, updatedAt }`，顺序由服务端给（`host/service.js:2981-2988`，`host/http.js:359-373`）。
-`?role=human` 是人的收件箱、`?claimable=true` 只回答"这个 `me` 现在能不能接"、`?session=` 是归属筛选，三者互相独立。每条需求带 `lock`/`delegatedTo`/`executions`/`executionsTruncated`/`execRev`/`running`/`sync`/`claimable`/`advanceable`/`blocksOn`/`blockedBy`/`gated`/`effectivePriority`/`escalated`/`parentId`/`children`/`reservedBy`。
-失败信封 `{ ok: false, error: { code, message, details } }`：`BoardError` 一律 **409**，其余 **500**；信任判定（平台 `connection.requestRejection(request)`，缺席时回退回环 `Origin` 校验）在进入命令分发之前直接回 `401 unauthenticated` / `403 forbidden-origin`，方法不对回 `405 method-not-allowed`；请求体超过 256 KiB 仍是 `invalid-argument`（409，`host/http.js:79`）（`host/http.js:332-419`）。
-**面板 command 没有** `claim`/`queue`：面板 actor 的 `session` 为空串，占锁会让 AI 侧全部 `lockAllows` 为假直到租约过期；`session` 非空的任务不得认领（`host/http.js:225-314`）。
+快照信封 `{ ok: true, data: { revision, generatedAt, requirements, total, templates, roles, stats, queues } }`；`queues` 每行 `{ session, sessionName, items, head, length, updatedAt }`，顺序由服务端给（`host/service.js:3578-3585`，`host/http.js:382-396`）。
+`?role=human` 是人的收件箱、`?claimable=true` 只回答"这个 `me` 现在能不能接"、`?session=` 是归属筛选，三者互相独立。每条需求带 `lock`/`delegatedTo`/`executions`/`executionsTruncated`/`execRev`/`running`/`sync`/`claimable`/`advanceable`/`blocksOn`/`blockedBy`/`gated`/`effectivePriority`/`escalated`/`parentId`/`children`/`reservedBy`/`roleUnregistered`。
+失败信封 `{ ok: false, error: { code, message, details } }`：`BoardError` 一律 **409**，其余 **500**；信任判定（平台 `connection.requestRejection(request)`，缺席时回退回环 `Origin` 校验）在进入命令分发之前直接回 `401 unauthenticated` / `403 forbidden-origin`，方法不对回 `405 method-not-allowed`；请求体超过 256 KiB 仍是 `invalid-argument`（409，`host/http.js:79`）（`host/http.js:355-434`）。
+**面板 command 没有** `claim`/`queue`：面板 actor 的 `session` 为空串，占锁会让 AI 侧全部 `lockAllows` 为假直到租约过期；`session` 非空的任务不得认领（`host/http.js:225-337`）。
+
+`role.list` 多回一段 `presets`：`{ items, unavailable }`。`items` 每个声明过的预设一行 `{ id, name, broken, roleId, roleName, recorded, dutiesMissing, confirmed, online, open }`——`roleId` 优先取**活会话**解析到的 id，没有活会话时按"预设 id 本身是合法角色 id"推定（`confirmed` 标出这两种来源），预设 id 连角色 id 都不是时为 `''`；`recorded` 是 `roles` 表里有没有这条记录，`dutiesMissing` 与角色列表同源。`unavailable` 为 `null` 表示名册读到了，否则 `{ code: 'service-absent' | 'read-failed', detail? }`：前者是组合里没挂 `agentPresets`，后者是 `list()` 抛错或没回数组——**空名册与读不到名册是两件事**，面板分别给不同文案。这段**不进 `snapshot`**：`snapshot()` 是同步读、且每次刷新/健康检查/SSE `ready` 都会走，而 `agentPresets.list()` 要逐个预设做启用诊断，只能异步；面板打开角色管理时按需读一次。`items`/`unregistered` 与 `snapshot().roles` 同源同字段。
 
 ### 8.2 失败码与 `details`
 
@@ -572,7 +594,7 @@ Waiting on the human (1) — only the human advances these:
 | `invalid-transition` | `reason: blocked-by`（+`id`/`action`/`blockedBy`） | 状态或节点不允许该流转；`advance`/`complete` 的跨需求门禁未清（`rollback` 不走门禁，`jump` 另需 `force`） |
 | `dependency-not-met` | `node`（+`missing`） | 模板节点的前置节点未完成（先于跨需求门禁判定） |
 | `completion-not-met` | `node`/`reason`/`missing` | 当前节点的完成条件未满足 |
-| `conflict` | `reason`: `locked`（+`id`/`current`/`queued`）/`reserved`（+`reservedBy`）/`session-busy`（+`id`/`current`/`queueHead`）/`delegated`（+`delegatedTo`）；CAS 版本不符不带 `reason`，带 `expected`/`current` | 锁、软预留、一会话一把锁、已有委托、CAS 版本不符 |
+| `conflict` | `reason`: `locked`（+`id`/`current`/`queued`）/`reserved`（+`reservedBy`）/`session-busy`（+`id`/`current`/`queueHead`）/`delegated`（+`delegatedTo`）/`delegated-role`（+`role`/`delegatedTo`）；CAS 版本不符不带 `reason`，带 `expected`/`current` | 锁、软预留、一会话一把锁、已有委托、在派发期间改路由（5.5）、CAS 版本不符 |
 | `forbidden` | `reason`: `decision-task`/`invalid-kind`（+`kind`）/`role-mismatch`（+`role`/`myRole`）/`not-owned`（+`target`/`owner`）/`not-related`（+`id`）/`lock-required`/`not-lock-holder`（+`current`）/`panel-only`（+`targetSession`） | 决策的人类专属、非任务 kind、角色不符、归属不符、无锁 |
 | `invalid-role` | `roleId`，或 `role`（格式校验的两条路径） | 角色声明非法（格式、`tmp-` 前缀、`human` 保留字） |
 | `not-found` | `id`（+`known`） | 需求/模板/角色不存在；`GET /image/<id>` 下也指没有这张已存图片 |
@@ -605,7 +627,7 @@ Waiting on the human (1) — only the human advances these:
 | **C 决策队列** | `kind`（**不可变**）、`human` 保留角色、面板队列、`stats` 计数 | `kind:'decision'` 在 AI 侧 12 条拒绝：工具 6 动作 + `delegate{revoke}`，command 3 动作（`transition`/`archive`/`delete`）+ `claim`/`queue` 各一条 `unknown action`；服务层对同 3 个动作另有一条（规则在操作里，不靠入口缺失）；**`update{kind}` 被拒且 `kind` 不变**；面板可推进；`requestedBy` 取首条 `create` |
 | **D 门禁 + 等级抬高** | `parentId`、`blocksOn`（可选，写入要锁+history）、派生 `blockedBy`/`gated`、`advance`/`complete` 门禁、环检测、继承 | 门禁拒绝与 `force` 越各一条（`advance` 与 `complete` 各一次）；挡路完成后自动可推进且**等级自动回落**；未知 id/自指/成环各一条；**`delete` 挡路者后引用被清、等级回落**；归档不算完成用例；继承用例（A 挡 B、B 为 urgent → A `urgent↑`；B 完成 → 回落；链式 A→B→C） |
 | **E 执行同步** | `subagent/start`/`subagent/end` + `isOwnedBy` 归属、jobs 订阅（**不做 kind 白名单**）、`executions`/`sync`、写纪律、对账、上界 | 喂 `subagent/start`/`subagent/end` fixture → 落库并 emit 一次；喂 `JobEvent`（registered→running、settled→completed 带 `finishedAt`）→ 同上；**无锁会话事件不落库但 `execSync.ignored` +1**；重复同状态不写；`output` 不落库；`ctx.jobs` 缺失时 warn 一次并标 `sync.gap`；**执行同步写不推进 `rev`**（CAS 用例：拿旧 `rev` 的 `transition` 仍成功）；超 `maxExecutions` 置 `executionsTruncated`；`claim` 时 `jobs.list(owner)` 补齐；**订阅 disposer 被调用（HMR 用例）** / **10 个执行事件 → snapshot ≤1 次**（`sseCoalesceMs` 合并，读放大） |
-| **F 任务规范 skill** | `SKILL.md` + `references/roles.md`（生成快照）+ `references/dispatch.md` | 开发期出现在 `<repo>/.agents/skills/`（`project-agents`）、启动期提升为 `user-dsh`；能加载、覆盖十四条、**不含工具参数表** |
+| **F 任务规范 skill** | `SKILL.md` + `references/roles.md`（生成快照）+ `references/dispatch.md` | 开发期出现在 `<repo>/.agents/skills/`（`project-agents`）、启动期提升为 `user-dsh`；能加载、覆盖十五条、**不含工具参数表** |
 | **G 文档与清理** | 本文件定稿 + DESIGN/README/OPTIMIZATION 同步；承接 O1：删 4 处死代码 + 命名 2 处裸 `catch`；`files` 加 `role.js` | 文档与实现一致且每条改动可锚到 `host/*.js`/`index.js`/`client.js`/`cordis.patch.yml`/`tests/*.mjs`；`DESIGN.md` 接口表删 `readiness`；`smoke.mjs` 的 `schemaVersion` 断言为 2；`package.json` `files` 含 `role.js`；工件文件卫生（恰一个尾换行、LF、无 BOM）；最终验收（全量套件、receipt 等值扫描、prompt/schema 预算 pin、真子会话 e2e、GIF、提交裁定）由 Lead 与独立验证者执行 |
 | **R 启动（Rollout，唯一动全局的一步）** | 覆盖层内容并进 `web` profile、bundle 归位、skill 提升到 `~/.dsh/skills`、旧 JSON 导入、重启 `dsh web`（**O7 路由 token 已定：不做**，见 §11） | 见 §13.2：`live.mjs` 35/35 + 四条人工验收 + `--dump-config` 与覆盖层一致 + 回滚点已记录 |
 
@@ -622,7 +644,7 @@ Waiting on the human (1) — only the human advances these:
 - **recorded-session snapshot**：pin prompt 各段（角色/指派/可接/队列/执行中/本会话/其他会话/决策）—— 或说明该插件为何不能进 snapshot 树并给出替代 pin。
 - **四条人工验收**（无法自动化）：① 显式角色（自定义预设 + `isolate` 组）→ prompt 出现"你是角色…"与职能；② 兜底角色（`standard` 预设）；③ **真机派发**（continuable 起子会话 → 从工具回执拿 `subagentId` → `delegate` → `send_message` 发模板 → 子会话 prompt 出现 "Delegated to you" 且 `claim` 成功 → 收尾后临时角色与绑定被清、`role` 回退）；④ 真机执行同步（持锁会话起子智能体与 `pwsh` 后台任务，确认单元随实际进程变化，**失败长什么样也要写**：例如该出现 `running` 却始终为空）。
 - **写放大上界**：给每个任务/每分钟的 `executions` 写次数与文档字节上界，加一条约束用例（阶段 0 之后单行 UPDATE，这个上界才成立）。
-- skill 不在包内：验收是"出现在目录 + 能加载 + 覆盖十四条"；若纳入版本控制，则加 spec 校验 frontmatter 与"不含参数表"。
+- skill 不在包内：验收是"出现在目录 + 能加载 + 覆盖十五条"；若纳入版本控制，则加 spec 校验 frontmatter 与"不含参数表"。
 - **SSE 读放大**：10 个连续执行事件 → `/snapshot` 请求 ≤1 次；`sseCoalesceMs: 0` 时逐条转发（对照，证明合并窗口是唯一来源）。
 - **派发竞态收编**：先 `claim` 后 `delegate` → 幂等补写绑定、不报 conflict，且 `roleBefore` 记录的是 `claim` 当时的 role（阶段 B）。
 - **启动 sweep**：手工往库里塞 4 类悬挂引用 → 挂载后被清掉且写日志（阶段 A1）。
@@ -645,8 +667,8 @@ Waiting on the human (1) — only the human advances these:
 | 软预留没有租约（已定） | 活着但卡住的会话会占住队内任务 | 会话结束自动释放；面板可见 + 人可清；`stats.reserved` 可观；若被占死再加预留租约（小改动） |
 | **`agent/status` 不是任务归因** | 一个 `running` 区间可能含多个回合/注入工作（defensive-patterns） | 只作"会话有活动"展示；归因只用 `subagent/*` 与 `JobView.owner` |
 | 工具面 18+1 的首轮 token | 每个动作都进首轮请求 | **未落地**：插件不进受控源码/profile，无法进 snapshot pin；README 记明该例外；超支就继续合并动作 |
-| **归属校验端口** | 平台谓词 `isOwnedBy(id, owner: Agent)` 按**对象身份**比较；插件暴露 id 形状的 `owns(target, caller)`，适配器用 `agents.get(caller)` 换回 Agent | 记入限制：注册表不可用或调用方无活 Agent → 放行 + 具名 warn 一次；判定为 `false` 才拒绝（`index.js:103-111`、`host/service.js:2114-2129`） |
-| **prompt 缺 `gated by` 标记** | 被门禁挡住的条目仍出现在 "Claimable for you"，条目行不标门禁；`get`/`list` 与面板有 `gated`/`blockedBy` | **待裁定**：是否在 prompt 补标记，或把 `gated` 条目移出可接段（`host/service.js:3016-3037`） |
+| **归属校验端口** | 平台谓词 `isOwnedBy(id, owner: Agent)` 按**对象身份**比较；插件暴露 id 形状的 `owns(target, caller)`，适配器用 `agents.get(caller)` 换回 Agent | 记入限制：注册表不可用、调用方无活 Agent、或目标无活 Agent → 放行 + 具名 warn 一次；判定为 `false`（有活目标且不是调用方的子会话）才拒绝（`index.js:111-126`、`host/service.js` 的 `#assertOwnedTarget`） |
+| **prompt 缺 `gated by` 标记** | 被门禁挡住的条目仍出现在 "Claimable for you"，条目行不标门禁；`get`/`list` 与面板有 `gated`/`blockedBy` | **待裁定**：是否在 prompt 补标记，或把 `gated` 条目移出可接段（`host/service.js:3613-3638`） |
 | 4 个自定义预设各要加 `isolate` 组 | 动的是你的 profile 配置 | YAML 在 2.3；**待你确认**（阶段 R 决定）：不加就走兜底（角色 id = 预设 id，但无职能） |
 | 内置预设角色没有职能 | 兜底角色 `duties` 为空 | 明确 `dutiesMissing` 降级（3.4）；按职能路由只对写了职能的角色有效 |
 | prompt 段的可回放性 | 段文本经 `systemPrompt.context` 进入请求，可从会话日志重建 | recorded-session snapshot pin **未落地**（同上一条例外）；段序与文本见 §6 |
@@ -679,7 +701,7 @@ Waiting on the human (1) — only the human advances these:
 | `cordis.patch.yml` | 显式写 8 个配置键（`defaultTemplateId`/`stallAfterHours`/`staleClaimHours`/`promptContext`/`promptMaxItems`/`maxQueueItems`/`http`/`importLegacy`）；不含 `dataDir` |
 | `.artifacts/requirement-board/dev.overlay.yml`（新，**开发期**） | profile 级改动的唯一载体：`storage-sqlite` 行 + `storage-domain.routes` + 4 个自定义预设的 `isolate` 组 + `board-role` 行 + **存储后端独立路径**（`.artifacts/requirement-board/dev-board.db`）+ `importLegacy: false`；用 `dsh web --patch <该文件>` 生效，不写 profile |
 | `~/.dsh/profiles/web/cordis.patch.yml`（**仅阶段 R**） | 把 `dev.overlay.yml` 的内容并进 profile；改前备份 `cordis.patch.yml.bak-<日期>` |
-| `<repo>/.agents/skills/requirement-board-tasks/SKILL.md`（新，**开发期**，项目级 rank 200） | 任务创建与派发规范（7.2 十四条） |
+| `<repo>/.agents/skills/requirement-board-tasks/SKILL.md`（新，**开发期**，项目级 rank 200） | 任务创建与派发规范（7.2 十五条） |
 | `<repo>/.agents/skills/requirement-board-tasks/references/roles.md`（新，开发期） | 角色与职能生成快照 + 生成时间 |
 | `<repo>/.agents/skills/requirement-board-tasks/references/dispatch.md`（新，开发期） | 派发模板与美术↔程序协作示例 |
 | `~/.dsh/skills/requirement-board-tasks/**`（**仅阶段 R**） | 从项目级提升为用户级（跨项目可用） |

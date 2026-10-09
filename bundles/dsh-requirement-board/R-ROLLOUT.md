@@ -4,6 +4,12 @@
 执行：Lead（编排/记录）+ `rollout-installer`（R-1/R-2）+ `storage-migration`（R-3/R-4）+ `composition-verifier`（R-6 独立验收，**已完成**）。
 本记录是**回滚与运维的唯一入口**；原始读数在 `rollout/**`，独立报告在 `tests/verification/R-verification.md`。
 
+> **已被取代（superseded，2026-10-08）**：本记录是阶段 R 的时点读数，两处变化让下列行不再是最新状态——
+> ① 看板 skill 升到 **15 条**（`SKILL.md` 现 18555 B / sha256 前缀 `90BDC0B97D57…`，§1 的 R-2 行哈希作废）；
+> ② 部署副本按仓库包**重新同步**，新增 `skills/` 与 bundle 层 `skill-filesystem-requirement-board` 行，
+> 于是 §1 的文件数与 `client.js` 哈希、§3 的 `rows [requirement-board]`、§5.4 的"同名两份"读数均已过时。
+> **当前部署事实以 §9 为准**；§4 的回滚步骤与其余维护陷阱仍然有效。
+
 ## 1. 已完成步骤与绝对路径
 
 | 步 | 结果 | 目标路径 | 关键哈希 / 读数 |
@@ -107,3 +113,45 @@
 - **面板人工四条（剩下三条）**：① 显式角色（四个自定义预设之一）prompt 出现"你是角色…"与职能；② ~~兜底角色~~ ✅ 已有真实样本（本会话角色段 `cordis` / `no duties recorded`）；③ 真机派发六步（需真模型通道起 continuable 子会话）；④ 真机执行同步（持锁会话起子智能体/后台任务，观察执行单元随真实进程变化，失败长什么样也要写）。
 - **常驻 json 作用域看板**（§6 待跟进）：写入者身份未定，建议在宿主重启窗口把 `storage-domain` 路由覆盖挪到 bundle 层验证。
 - **分支/提交**：仍是零提交（`.artifacts/` 被 gitignore；唯一受控交付物是 `.agents/skills/requirement-board-tasks/**`）。待用户裁定。
+
+## 9. 部署副本更新（2026-10-08：skill 规范变更后同步）
+
+**触发**：需求看板 skill 新增第 15 条「流程模板要匹配需求本身的流程」，三份副本（`.agents/skills/`、包内 `skills/`、`~\.dsh\skills\`）逐字节相同 = **18555 B / sha256 前缀 `90BDC0B97D57…`**。部署副本此前**没有** `skills/`、补丁里也没有 skill 行，只能靠 `~\.dsh\skills\` 那份生效。
+
+**做法**：用仓库包 `C:\code\deepseek-harness\bundles\dsh-requirement-board` 的**全部受控文件**（`git ls-files` = 102）覆盖部署副本，**排除** `package.json` 与 `dev/**`；部署侧独有内容一律保留（`tests/verification/_*` 181 个原始读数、`probes/*.json`、`live-board.db*`、截图、`dev.overlay.yml`、`_r-import.overlay.yml`、`node_modules\` 的 2 个入口 / 5 个 junction）。
+
+**结果**：部署副本 286 → **290** 文件；99 个受控文件逐文件 sha256 与仓库侧一致（**0 缺失 / 0 不一致**）。关键新值：`client.js = DDF9C6AE90B7…`（159064 B，取代 §7 的 `6687242B…`）、`cordis.patch.yml = 7B8192D18AD8…`（31 → 53 行）。
+
+**生效路径**：
+
+- `cordis.patch.yml` 新增 bundle 层 `skill-filesystem-requirement-board` 行（`providerName: requirement-board`、`includeDefaultRoots: false`、`!!js` 从已安装包解析 `skills/`）。`plugin_manager { action: "list_bundles" }` 已即时重读出两行 `[requirement-board, skill-filesystem-requirement-board]`（补丁解析通过）；但**该行的激活仍需重启 `dsh web`**（INSTALL.md §升级 3）。
+- `client.js` / `locale/*.json`：刷新页面即生效，不必重启。
+- 静态校验：`!!js` 表达式按 loader 的方式在三种 baseUrl（仓库路径 / 部署真实路径 / profile 符号链接路径）求值，都得到 `<部署包>\skills`，其下 `SKILL.md` 与 `references\{dispatch,roles}.md` 均存在——部署包 `package.json` 的 `exports` 含 `./package.json`，包内自引用即可解析，不依赖 profile 的符号链接。
+
+**有意不做**：
+
+- **`package.json` 与 junction 机制**：本节当时按旧机制保留（理由见上）；**同日稍后按用户指示迁移为 peer 形态并删除 junction，见 §9.1**。
+- `dev/**`：仓库把两个 overlay 挪进了 `dev\`，部署侧仍在根目录；本次未动，需要时单独处理。
+
+**新分发路径的影响**：skill 现由 bundle 的全局层发布，`~\.dsh\skills\requirement-board-tasks\` 成为冗余副本（INSTALL.md 第 55 行即如此描述）；本次**未删除**用户级目录。§5.4 的"同名两份"表述以本节为准。
+
+**坑**：`git ls-files` 对非 ASCII 路径默认做 C 风格转义（`"\350\257\204…"`），PowerShell 会把它解析成非法路径并**静默跳过**——`评审文档.md` 第一次就漏拷了。同步后必须按文件系统枚举复核，或单独显式拷贝这一份。
+
+### 9.1 依赖机制迁移（2026-10-08 同日，按用户指示）
+
+**背景**：§9 之前部署副本仍是 `dependencies` + `node_modules\` 5 个 junction 的旧机制（R-1 / S1），而 INSTALL.md §依赖是怎么解析的 已把 junction 定为要取代的不可移植做法。
+
+**做了什么**：① `package.json` 覆盖为仓库版（`peerDependencies`: `@deepseek-ai/dsh-storage-domain`、`zod`；无 `dependencies`；`files` 含 `skills`）；② **删除整个 `node_modules\`**（`zod` 与 `@deepseek-ai\dsh-storage{,-domain,-json,-sqlite}` 四个 junction；`@deepseek-ai` 影子目录本身是真实目录，子项才是 junction）；③ 删除冗余的用户级 skill 副本 `~\.dsh\skills\requirement-board-tasks\`（skill 改由 bundle 全局层发布，INSTALL.md 第 55 行即此设计）。
+
+**备份与回滚**：`C:\code\deepseek-harness\.artifacts\requirement-board\deployment-20261008\` —— `package.json.old`、`junctions.txt`（5 个 junction 的绝对目标）、`restore.ps1`（一键复原 manifest 与全部 junction）。
+
+**证据（按真实启动路径 `apps/cli/src/profile-boot.ts:206` 复刻，而非只读文档）**：
+
+- `createRuntimeResolution({ installAnchor: apps/cli/package.json, profile: web })` 把 `dsh-requirement-board` 列为 linked root，并把 `zod`（由 `packages/goal/goal` 声明）与 `@deepseek-ai/dsh-storage-domain`（由 `packages/bundle/base` 声明）列为 installation-scope 条目。
+- 装 `installRuntimeInterception` 后 `import <部署包>/host/images.js` 与 `host/domain.js` 均成功（6 / 11 个导出）。
+- **红控**：同一脚本不装 interception → `ERR_MODULE_NOT_FOUND: Cannot find package 'zod' imported from …\bundles\dsh-requirement-board\host\images.js`，证明解析来自拦截层（即该 linked 包的 `peerDependencies`），不是残留 `node_modules`。
+- 静态裸名扫描：15 个运行时文件只用到两个裸名 `zod`、`@deepseek-ai/dsh-storage-domain`，都在新 peer 清单内（旧清单多声明的 `storage-sqlite` 从未被包内代码引用）。
+
+**代价（必须知道）**：部署副本**不再能跑自己的套件**——`node tests/smoke.mjs` 之类是普通 Node 程序、不经过拦截层，需要真实 `node_modules`（INSTALL.md §验证 已如此说明）。§3 第 5 行的"部署副本自证 66/66"自此只在带 `node_modules` 链接的**开发侧**副本上可复现。要恢复该能力：给开发侧副本补一套等价的 `node_modules` 链接（或把 `bundles/*` 纳入 pnpm workspace），**不要**再放回部署副本。
+
+**与 §9 的其余部分的关系**：迁移对已加载的 3080 宿主无影响（模块已在内存）；§9 的 skill 行仍需重启 `dsh web` 才激活。§2 与 §5.3 关于 junction 的描述自此作废，以本节为准。

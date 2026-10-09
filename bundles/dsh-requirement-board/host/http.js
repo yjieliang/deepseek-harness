@@ -291,15 +291,40 @@ async function dispatch(service, body) {
       return await service.deleteRequirement(id, body, actor)
     case 'template.create':
       return await service.createTemplate(body.template ?? body, actor)
+    case 'template.get':
+      if (id === undefined) fail('invalid-argument', '"id" is required for template.get')
+      return service.getTemplate(id)
+    case 'template.revise':
+      if (id === undefined) fail('invalid-argument', '"id" is required for template.revise')
+      return await service.reviseTemplate(id, body.patch ?? body, actor)
+    case 'template.metadata':
+      if (id === undefined) fail('invalid-argument', '"id" is required for template.metadata')
+      return await service.setTemplateMetadata(id, body.patch ?? body, actor)
+    case 'template.migrate':
+      if (id === undefined) fail('invalid-argument', '"id" is required for template.migrate')
+      return await service.migrateRequirementsToRevision(id, body.revision, { requirementIds: body.requirementIds }, actor, body.force)
+    // Pruning a version is panel-only (§11.5): it is housekeeping rather than flow
+    // authorship, so the model's tool surface has no action for it.
+    case 'template.prune':
+      if (id === undefined) fail('invalid-argument', '"id" is required for template.prune')
+      return await service.pruneTemplateVersion(id, body.revision, actor)
+    case 'template.archive':
+      if (id === undefined) fail('invalid-argument', '"id" is required for template.archive')
+      return await service.archiveTemplate(id, { archived: body.archived }, actor)
+    case 'template.clone':
+      if (id === undefined) fail('invalid-argument', '"id" is required for template.clone')
+      return await service.cloneTemplate(id, { name: body.name }, actor)
     case 'template.delete':
       if (id === undefined) fail('invalid-argument', '"id" is required for template.delete')
-      return await service.deleteTemplate(id, body)
+      return await service.deleteTemplate(id, body, actor)
     case 'template.list':
-      return service.listTemplates()
+      return service.listTemplates({ includeArchived: body.includeArchived })
     // Role management is panel-only: the model's `requirement_role` tool reads
-    // roles and has no create, edit, or delete action.
+    // roles and has no create, edit, or delete action. The panel's listing also
+    // carries the live preset roster, which is the only place the two are tied
+    // together for a reader.
     case 'role.list':
-      return service.listRoles()
+      return await service.listRoleCatalogue()
     case 'role.put':
       return await service.putRole(body.role ?? body)
     case 'role.delete':

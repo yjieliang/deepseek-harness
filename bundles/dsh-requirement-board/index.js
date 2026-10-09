@@ -92,11 +92,22 @@ function warnExecutionSync(logger, source, error) {
  * first. Keeping that resolution here means no board code has to know what an
  * Agent object is, and the platform's signature appears in exactly one place.
  *
- * The port answers `undefined` when this composition cannot decide: no registry
- * is mounted, the registry exposes no ownership predicate, or the caller has no
- * live Agent to compare against. `undefined` is not a refusal — the caller
- * reports it once and delegates without the check — while a live registry that
- * says the relation does not hold is a definite `false`.
+ * Runtime ownership alone is not the whole answer, and it is asked first: a
+ * registry that can decide for a session with no live Agent — a durable one, or
+ * the platform's own once the child is materialized — knows more than a liveness
+ * guess does, so its `true` is taken whatever the target's state is.
+ *
+ * Only a `false` needs more evidence. A continuable sub-session is materialized
+ * on demand, so a target the registry does not hold yet may well be the caller's
+ * own child; and a child keeps its recorded creator in its own session header
+ * (`header.parentSession`) even after the parent's live Agent object is replaced
+ * by a resume. The header is the platform's own record of the relation, so it
+ * decides: naming the caller is a `true`, naming anyone else is a `false`.
+ *
+ * `undefined` is the answer when a `false` cannot be made to mean anything: no
+ * registry is mounted, the registry exposes no ownership predicate, the caller
+ * has no live Agent, or the target has no live Agent and no recorded creator to
+ * read. The caller reports that once and delegates without the check.
  * @param ctx - Host plugin context.
  * @returns `(target, caller) => boolean | undefined`.
  */
@@ -106,7 +117,14 @@ export function createOwnershipPort(ctx) {
     if (agents === undefined || typeof agents.isOwnedBy !== 'function' || typeof agents.get !== 'function') return undefined
     const owner = agents.get(caller)
     if (owner === undefined) return undefined
-    return agents.isOwnedBy(target, owner) === true
+    if (agents.isOwnedBy(target, owner) === true) return true
+    const child = agents.get(target)
+    const recorded = child?.session?.header?.parentSession
+    if (typeof recorded === 'string' && recorded !== '') return recorded === caller
+    // A target the registry does not hold is not a decided stranger: a
+    // continuable sub-session has no live Agent until it is first activated.
+    if (child === undefined) return undefined
+    return false
   }
 }
 

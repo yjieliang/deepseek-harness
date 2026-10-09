@@ -16,7 +16,7 @@
  *   refresh or a prompt assembly cannot mutate the board (§3.2).
  */
 
-import { TMP_ROLE_PREFIX, delegatedRoleId, fail, nowIso, parseRoleDeclaration } from './model.js'
+import { ROLE_ID_RE, TMP_ROLE_PREFIX, delegatedRoleId, fail, nowIso, parseRoleDeclaration } from './model.js'
 
 /** Requirement states that no longer need an owner. */
 const SETTLED_STATUSES = ['done', 'archived']
@@ -60,17 +60,23 @@ export class RoleRegistry {
   #ports
   /** @type {() => Promise<void>} Advances the document revision after a commit. */
   #bumpRevision
+  /** @type {{ warn?: (message: string) => void } | undefined} Host logger for degradations. */
+  #logger
+  /** @type {Set<string>} Preset ids already reported as unusable, so each is warned once. */
+  #warnedPresetIds = new Set()
 
   /**
-   * @param options - The open `domain`, the optional port `resolvers`, and
-   * `bumpRevision`, the service's own revision write.
+   * @param options - The open `domain`, the optional port `resolvers`,
+   * `bumpRevision`, the service's own revision write, and the optional `logger`
+   * that receives named degradations once each.
    */
-  constructor({ domain, ports = {}, bumpRevision }) {
+  constructor({ domain, ports = {}, bumpRevision, logger }) {
     this.#roles = domain.table('roles')
     this.#requirements = domain.table('requirements')
     this.#queues = domain.table('queues')
     this.#ports = { agents: ports.agents, presets: ports.presets }
     this.#bumpRevision = bumpRevision ?? (async () => {})
+    this.#logger = logger
   }
 
   /** @returns the live agents service, or undefined when this composition has none. */
@@ -89,8 +95,9 @@ export class RoleRegistry {
    * A role declared inside the Agent's preset group wins; otherwise the preset
    * id is the role, which is what gives every built-in preset a role with no
    * configuration at all (§2.1). A session with neither — no agent, no preset
-   * registry, or an unbound agent — has no role, and the absence is reported as
-   * `undefined` rather than invented.
+   * registry, an unbound agent, or a preset id that is not a legal role id —
+   * has no role, and the absence is reported as `undefined` rather than
+   * invented.
    *
    * @param agent - Live Agent, or undefined.
    * @returns `{ roleId, roleName, duties, source }`, or undefined when the
@@ -112,7 +119,28 @@ export class RoleRegistry {
     }
     const presetId = presets?.composedPreset?.(agent.ctx)
     if (typeof presetId !== 'string' || presetId.trim() === '') return undefined
-    return { roleId: presetId.trim(), roleName: presetId.trim(), duties: [], source: 'observed' }
+    const fallbackId = presetId.trim()
+    // The fallback trusts the platform's preset id, which the platform only
+    // requires to be non-empty (`packages/preset/agent-preset-registry`). An id
+    // that is not a legal role id would be recorded as a role no requirement can
+    // route to and no panel can edit, so the session holds no role instead — and
+    // the operator is told once, because silently unroutable is the one outcome
+    // this chain must not produce.
+    if (!ROLE_ID_RE.test(fallbackId)) {
+      this.#warnPresetId(fallbackId)
+      return undefined
+    }
+    return { roleId: fallbackId, roleName: fallbackId, duties: [], source: 'observed' }
+  }
+
+  /**
+   * Report one preset id that cannot be a role id, once per id.
+   * @param presetId - The preset id that failed the role-id form.
+   */
+  #warnPresetId(presetId) {
+    if (this.#warnedPresetIds.has(presetId)) return
+    this.#warnedPresetIds.add(presetId)
+    this.#logger?.warn?.(`requirement-board: preset id "${presetId}" is not a usable role id (must match ${ROLE_ID_RE}); its sessions hold no role until the preset declares one`)
   }
 
   /**
@@ -250,20 +278,147 @@ export class RoleRegistry {
 
   /**
    * Every role the board knows, plus the ids that are in use but unrecorded.
+   *
+   * "In use" is two facts, not one: a live session resolving an id, and a
+   * requirement naming one. A requirement can name a role no session holds and
+   * no record describes — a typo, or a role whose sessions are all gone — and
+   * that reference is exactly the state §3.4 promises to report instead of
+   * leaving unroutable work invisible. Referenced ids are therefore derived
+   * here, from records this read already holds; nothing is written.
    * @returns `{ items, unregistered }`.
    */
   list() {
     const scan = this.#scan()
     const items = [...this.#roles.entries()].map(([, record]) => this.#present(record, scan))
-    const unregistered = []
-    if (scan !== undefined) {
-      for (const [roleId, holders] of scan.presence) {
-        if (this.#roles.get(roleId) !== undefined) continue
-        unregistered.push({ id: roleId, dutiesMissing: (scan.declared.get(roleId) ?? []).length === 0, holders, open: this.#openCount(roleId) })
-      }
-      unregistered.sort((left, right) => left.id.localeCompare(right.id))
+    const used = new Map(scan === undefined ? [] : scan.presence)
+    for (const [, requirement] of this.#requirements.entries()) {
+      const roleId = requirement.role ?? ''
+      if (roleId === '' || used.has(roleId) || this.#roles.get(roleId) !== undefined) continue
+      // No live session resolves this id, so it has no presence entry; a
+      // composition without a registry reports the same unknown count it
+      // reports for every other role.
+      used.set(roleId, scan === undefined ? this.#unreachableHolders() : { online: 0, idle: 0, running: 0 })
     }
+    const unregistered = []
+    for (const [roleId, holders] of used) {
+      if (this.#roles.get(roleId) !== undefined) continue
+      unregistered.push({ id: roleId, dutiesMissing: (scan?.declared.get(roleId) ?? []).length === 0, holders, open: this.#openCount(roleId) })
+    }
+    unregistered.sort((left, right) => left.id.localeCompare(right.id))
     return { items, unregistered }
+  }
+
+  /**
+   * The live preset roster, mapped onto the roles this board records.
+   *
+   * This is the read that ties role management to preset modes: the panel shows
+   * which role a preset's sessions wear and which presets have no role of their
+   * own. Two facts come from different places and stay apart. The roster —
+   * id, display name, activation diagnostic — is the preset registry's. The role
+   * a preset resolves to is *observed* on its live sessions through the same
+   * chain {@link resolveOwn} uses, because a preset's declaration is readable
+   * only through a live Agent. A preset with no live session has no observation,
+   * so its row reports the level the chain would fall back to — its own id, when
+   * that id is itself a legal role id — and says so with `confirmed: false`
+   * rather than presenting an inference as an observation.
+   *
+   * The read is asynchronous: the registry audits each preset's activation while
+   * it lists it, so the panel asks for this when the role dialog opens instead of
+   * on every board read.
+   *
+   * @returns `{ items, unavailable }`. `items` is one row per declared preset;
+   * `unavailable` names the cause (and carries a `detail` when a read failed)
+   * when this composition has no roster to read, and `null` otherwise.
+   */
+  async presetRoster() {
+    const presets = this.#presets()
+    if (presets === undefined || typeof presets.list !== 'function') {
+      return { items: [], unavailable: { code: 'service-absent' } }
+    }
+    let rows
+    try {
+      rows = await presets.list()
+    } catch (error) {
+      return { items: [], unavailable: { code: 'read-failed', detail: String(error?.message ?? error) } }
+    }
+    if (!Array.isArray(rows)) {
+      return { items: [], unavailable: { code: 'read-failed', detail: 'the preset registry listed no array' } }
+    }
+    const observed = this.#presetObservations()
+    const items = rows.map(row => {
+      const presetId = typeof row?.id === 'string' ? row.id : ''
+      const seen = observed.get(presetId)
+      const roleId = seen !== undefined && seen.roleId !== ''
+        ? seen.roleId
+        : (ROLE_ID_RE.test(presetId) ? presetId : '')
+      const record = roleId === '' ? undefined : this.#roles.get(roleId)
+      const duties = record !== undefined && record.duties.length > 0 ? record.duties : (seen?.duties ?? [])
+      return {
+        id: presetId,
+        name: typeof row?.name === 'string' ? row.name : '',
+        broken: typeof row?.broken === 'string' ? row.broken : '',
+        roleId,
+        roleName: record?.name ?? seen?.roleName ?? '',
+        recorded: record !== undefined,
+        // The same rule the role rows use: a preset's role is missing its
+        // function only when neither its record nor a live declaration gives it
+        // any (§3.4).
+        dutiesMissing: duties.length === 0,
+        confirmed: seen !== undefined,
+        online: seen?.online ?? 0,
+        open: roleId === '' ? 0 : this.#openCount(roleId),
+      }
+    })
+    return { items, unavailable: null }
+  }
+
+  /**
+   * The role each live session's preset resolves to, keyed by preset id.
+   *
+   * The registry's roster says nothing about roles, and a declaration is only
+   * readable through a live Agent, so the association is observed where it
+   * exists: `composedPreset` names the preset and {@link resolveOwn} names the
+   * role. One entry per preset id holds the first resolved role among that
+   * preset's sessions — every session on one preset revision resolves the same
+   * role — and how many sessions are on it.
+   * @returns a `Map` from preset id to `{ online, roleId, roleName, duties }`;
+   * empty when this composition has no agent or preset registry to observe.
+   */
+  #presetObservations() {
+    const observed = new Map()
+    const agents = this.#agents()
+    const presets = this.#presets()
+    if (agents === undefined || typeof agents.list !== 'function') return observed
+    if (presets === undefined || typeof presets.composedPreset !== 'function') return observed
+    for (const agent of agents.list()) {
+      const presetId = presets.composedPreset(agent.ctx)
+      if (typeof presetId !== 'string' || presetId === '') continue
+      const entry = observed.get(presetId) ?? { online: 0, roleId: '', roleName: '', duties: [] }
+      entry.online += 1
+      if (entry.roleId === '') {
+        const resolved = this.resolveOwn(agent)
+        if (resolved !== undefined) {
+          entry.roleId = resolved.roleId
+          entry.roleName = resolved.roleName
+          entry.duties = [...resolved.duties]
+        }
+      }
+      observed.set(presetId, entry)
+    }
+    return observed
+  }
+
+  /**
+   * Whether the roles table holds a record for one id.
+   *
+   * The read a requirement takes when it reports `roleUnregistered`: "is the
+   * routing this record names described anywhere", which is a different question
+   * from whether a session currently holds it.
+   * @param roleId - Role id; `''` (any role) is never recorded.
+   * @returns true when a record exists.
+   */
+  has(roleId) {
+    return roleId !== '' && this.#roles.get(roleId) !== undefined
   }
 
   /**
@@ -417,8 +572,8 @@ export class RoleRegistry {
    * changes which id a session claims work with. The name and the duties come
    * from the roles record when one exists — the table is their single owner, and
    * a human's naming survives into the model-visible layer — and from the preset
-   * declaration, then the preset id, when the record was deleted or never
-   * established (§2.1, §3.2).
+   * declaration, then the preset id, when the record was deleted, never
+   * established, or carries no duties of its own (§2.1, §3.2).
    *
    * A role with no duties in either place says so instead of leaving the model to
    * assume it can be routed by function (§3.4).
@@ -436,7 +591,11 @@ export class RoleRegistry {
     if (resolved === undefined) return ''
     const record = this.#roles.get(resolved.roleId)
     const roleName = record?.name ?? resolved.roleName
-    const duties = record?.duties ?? resolved.duties
+    // An empty record does not cancel what the preset declares: `dutiesMissing`
+    // is "neither the record nor a declaration gives duties" (§3.4), so the
+    // duties the model reads here are the same ones the role list reports.
+    const recordedDuties = record?.duties ?? []
+    const duties = recordedDuties.length > 0 ? recordedDuties : resolved.duties
     const abilities = duties.length === 0
       ? 'no duties recorded, so this role cannot be routed by function'
       : duties.join(', ')

@@ -24,6 +24,15 @@
  * and reads as a requirement carrying no images, while raising the stamp would
  * make the platform refuse every stored board (exact-equality comparison, no
  * `compatibleVersions`), which is data loss this additive field does not justify.
+ *
+ * Template version management (`DESIGN.md` §11) follows that precedent: the
+ * template fields `revision`/`versions`/`archived`/`updatedBy`/`supersedes`/
+ * `changes` and the requirement field `templateRevision` are all optional, so a
+ * record written before they existed still parses (a template reads as revision 1
+ * with no history, a requirement as pinned to revision 1) and the domain version
+ * stays 2. The medium validates the stamp for exact equality and has no
+ * migration, so the cost is the same one-way door as `images`: a build that does
+ * not know these fields refuses a record that carries them.
  */
 
 import { readFile, rename } from 'node:fs/promises'
@@ -171,7 +180,8 @@ const executionSyncSchema = z.object({
  * a record written before gating reads as a root that waits on nothing. `images`
  * follows too: a record written before pasted images existed reads as one that
  * carries none, while the refs it does carry point at files outside the record
- * (see `host/images.js`).
+ * (see `host/images.js`). `templateRevision` follows: a record written before
+ * template versions existed reads as one pinned to revision 1.
  *
  * A record this schema refuses stops the whole open, and that is the design rather
  * than an accident: `kind`, `status`, and `priority` are closed sets the write path
@@ -200,6 +210,10 @@ const requirementRecordSchema = z.object({
   blocksOn: z.array(z.string()).optional(),
   templateId: z.string().min(1),
   nodeId: z.string().min(1),
+  // The version of `templateId` this requirement runs on (§11.4). Absent on a
+  // record written before template versions existed, and such a record reads as
+  // one pinned to revision 1; every write made after that change carries it.
+  templateRevision: z.number().int().positive().optional(),
   status: storedEnum('status', REQ_STATUSES),
   blockReason: z.string(),
   blockedAt: z.string().nullable(),
@@ -241,7 +255,37 @@ const templateNodeSchema = z.object({
   }).strict(),
 }).strict()
 
-/** One flow template. `createdBy` is absent on the built-in template. */
+/** One historical template version (`DESIGN.md` §11.4); the current version stays at the record's top level. */
+const templateVersionSchema = z.object({
+  revision: z.number().int().positive(),
+  at: z.string().min(1),
+  by: z.string(),
+  name: z.string(),
+  description: z.string(),
+  nodes: z.array(templateNodeSchema),
+  summary: z.string(),
+}).strict()
+
+/** One template-side audit entry (§11.4): what a write changed and the revision it left current. */
+const templateChangeSchema = z.object({
+  at: z.string().min(1),
+  by: z.string(),
+  revision: z.number().int().positive(),
+  summary: z.string(),
+}).strict()
+
+/**
+ * One flow template. `createdBy` is absent on the built-in template.
+ *
+ * The top-level fields are always the current version, so every reader that
+ * predates version management reads the same record it always read. The version
+ * fields are optional for that reason: `revision` is the management version
+ * (absent means 1; the legacy `version` field carries no management meaning),
+ * `versions` holds the superseded versions oldest-first and excludes the current
+ * one, and `archived`/`updatedBy`/`supersedes`/`changes` are the metadata and
+ * audit tail §11.4 adds. Both arrays are bounded, and the bound is enforced by
+ * the write path rather than silently truncating here.
+ */
 const templateRecordSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
@@ -252,6 +296,12 @@ const templateRecordSchema = z.object({
   updatedAt: z.string().min(1),
   createdBy: z.string().optional(),
   nodes: z.array(templateNodeSchema),
+  revision: z.number().int().positive().optional(),
+  versions: z.array(templateVersionSchema).max(20).optional(),
+  archived: z.boolean().optional(),
+  updatedBy: z.string().optional(),
+  supersedes: z.string().optional(),
+  changes: z.array(templateChangeSchema).max(20).optional(),
 }).strict()
 
 /**

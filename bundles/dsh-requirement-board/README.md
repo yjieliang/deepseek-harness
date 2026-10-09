@@ -6,7 +6,7 @@
 - 侧边栏「需求看板」入口 + 主面板（列表、筛选、统计、流程图、节点详情、流转历史、队列、角色、执行单元）
 - 三个 Agent 工具：`requirement_board` / `flow_template` / `requirement_role`
 - **随包携带 skill `requirement-board-tasks`**：建、接、派看板任务的规范（查重、角色路由、一条任务一个交付物、
-  先注册再跑、排队、派给子会话、跨角色门禁、要人拍板）随插件一起发布，装到哪台机器都在会话目录里
+  选流程模板、先注册再跑、排队、派给子会话、跨角色门禁、要人拍板）随插件一起发布，装到哪台机器都在会话目录里
 - 每个模型步骤自动注入当前看板摘要（角色行 + 指派 / 可接 / 我的队列 / 执行中 / 本会话 / 其他会话 / 待人类决策）
 - **角色化分发**：按角色路由任务、执行锁、执行队列（软预留）、把同角色的活派给子会话、待人类决策的需求、跨需求门禁与优先级继承、执行状态自动同步
 - **图片粘贴**：新建需求时可直接粘贴截图或选文件（PNG/JPEG/WebP/GIF，单张 ≤20 MiB，最多 20 张）；字节存在 `imageDir` 目录、记录里只留引用，agent 通过工具拿到引用与文件绝对路径
@@ -99,7 +99,7 @@ AI 用的工具与面板走同一套服务方法，所以 AI 的改动会立刻�
 | `stats` | — | 完成率、分布、节点耗时、阻塞与停滞、角色/决策/队列/执行同步读数 |
 | `changes` | `since` | 某个时刻之后的变更与流转（补上下文用） |
 
-**`flow_template`**：`list` / `get` / `create`（`name` + `nodes[]`）/ `delete`（被引用时需 `force`）。
+**`flow_template`**：`list` / `get` / `create`（`name` + `nodes[]`）/ `revise`（**追加一个版本**，存量需求一行不动）/ `migrate`（把需求迁到新版，不指名 `requirementIds` 即全部迁移、需 `force`）/ `archive`（`archive: false` 恢复）/ `clone`（改内置流程的正路）/ `delete`（被引用时需 `force`，会改绑受影响需求并写历史）。裁剪历史版本的 `prune` 只在面板、不在工具面。
 **`requirement_role`**：`list`（含 `dutiesMissing`/`unregistered`/`ephemeral`/`boundSession`/`boundTask`/`holders`）。
 
 所有写操作都可带 `expectedRev`：与库中不一致时返回 `conflict{expected,current}` 而不会覆盖其它会话的修改。
@@ -193,6 +193,7 @@ node tests/decision.mjs       # 决策需求：228 项
 node tests/gates.mjs          # 门禁与优先级继承：246 项
 node tests/runs.mjs           # 执行状态同步：312 项
 node tests/client-smoke.mjs   # 浏览器半边（桩件真实渲染）：314 项
+node tests/templates-revision.mjs   # 模板版本管理（追加版本、钉版本、迁移、裁剪）：316 项
 node tests/loader.mjs         # 装载清单与配置：53 项
 node tests/composition/driver.mjs   # 真组合通道（需 runner 提供隔离 cwd 与环境）
 node tests/verification/*.mjs       # 各阶段独立验证仪器

@@ -47,7 +47,7 @@ Host 面    index.js → host/*.js → RequirementService        ← 规则唯�
 | `host/model.js` | 共享词汇：标识符、闭枚举、边界校验、唯一错误类型 `fail()` | 加一个校验或枚举 |
 | `host/flow.js` | 流程引擎：`recomputeNodes` 派生节点状态、流转规则、统计 | 改流转语义 |
 | `host/dispatch.js` | 执行锁与认领判定表，派生 `advanceable` 与门禁/升级索引 | 改锁或可推进判定 |
-| `host/roles.js` | 角色注册表：两层链路决定会话自身角色，派生 `dutiesMissing`/`holders`/`open`/`unregistered` | 改角色派生 |
+| `host/roles.js` | 角色注册表：两层链路决定会话自身角色，派生 `dutiesMissing`/`holders`/`open`/`unregistered`（未登记 = 活会话解析到的 id ∪ 需求引用到的 id） | 改角色派生 |
 | `host/runs.js` | 执行同步：观测 subagent 与后台任务，折叠成有界执行单元 | 加一个新执行生产者 |
 | `host/templates.js` | 内置标准模板、输入归一化、结构不变量（节点 id 唯一、`dependsOn` 无环、`order` 等于数组下标） | 改模板规则 |
 | `host/http.js` | 浏览器传输：前缀路由 `/api/requirement-board` + `/snapshot` `/` `/events` `/health` `/command` `/image`（二进制） | 加一个端点（先问是否该进 service） |

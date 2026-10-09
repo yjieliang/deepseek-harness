@@ -164,7 +164,7 @@
 
 ## D24 F-sync（skill ↔ 实现）裁决与收口
 
-- **判据取实现、逐条给"规则 → 实现锚点（文件:行）"对照**：F-sync 交付的对照表（R1–R14）是这次对齐的权威记录，**14 条规模未变**、无参数表/调用语法、`user-invocable: false` 保持、三份文件同步、未 commit。
+- **判据取实现、逐条给"规则 → 实现锚点（文件:行）"对照**：F-sync 交付的对照表（R1–R14）是这次对齐的权威记录，**14 条规模未变**、无参数表/调用语法、`user-invocable: false` 保持、三份文件同步、未 commit。（**已被取代 2026-10-08**：看板 skill 现为 15 条——新增「流程模板要匹配需求本身的流程」，见 `SKILL.md` 第 15 条；本条保留为 D24 时点记录。）
 - **R8「执行状态」写"看板目前不同步"是正确的**：E 阶段未落地前，skill 不许把未实现的能力写成既有能力。**E 落地后必须翻面**（已开收口任务）。
 - **R9/R10 只做文档字面校对**（按 Lead 指示不写实现细节）：D 落地后由 Lead 把事实交给 skill 作者收口，避免它猜实现。
 - **`roles.md` 重新生成的依据**：`dev.overlay.yml` 的 4 条声明 + 8 个预设实况（4 个 observed 兜底无职能、4 个自定义声明有 duties）+ `roles.js`/`model.js`/`templates.js`。
@@ -224,7 +224,7 @@
 - **开发期 `~/.dsh` 足迹审计（Lead 亲查）**：自 02:00 起只有三处——`storages/requirement_board.json`（02:07，v2 域存储，`requirements/roles/queues` 全空，只有内置模板）、`requirement-board/requirement-board.json`（05:30，旧版式，空板，事故写入）、`profiles/web/cordis.yml`（05:12，**内容仍是 stock 4 行**，mtime 被触但无可归因改动）；profile 补丁层 `cordis.patch.yml` **不含**本插件或存储路由行（阶段 R 未泄漏）。`profiles/web/node_modules/dsh-requirement-board` 是开发期软链（设计内）。**两处板数据都是空板，无用户数据**。
 - **PowerShell 编码教训的精确版**：`Get-Content` 在 PS 5.1 控制台会**按 GB2312 误读 UTF-8**，因此看到的中文乱码可能只是**读侧**假象——本次我一度以为 `~/.dsh/profiles/web/cordis.patch.yml` 的 `displayName` 坏了（`闃块噷浜戠櫨鐐?`），用 `read` 工具核实**文件本身是好的**（`阿里云百炼`）。所以规矩是双向的：处理含 CJK 的文件**读**也用 `read`/Node，**写**绝不用 `Set-Content`/`-replace`。
 - **UI-2c 通过**：`client-smoke` 225 → **279**（去重后 **277**，删掉的是 UI-2b 遗留的重复夹具块，逐字节比对确认无独有断言），`client.js` 2939 行；`role` 切服务端（本地收窄层及其标签彻底删除）、队列队头取自 `snapshot.queues`（与 `unqueue` 回执 `head` 同源、不自排序）、执行单元三态（同步关/有 gap/同步且空**严格分开**）、`stats.running`/`execSync.*` 存在性守卫、**401/403 终态提示**（`authExpired`/`authCrossOrigin`，SSE 关闭、不自动重试；保留一个**用户手动**的"重新检查"按钮，裁定接受：禁的是自动重试循环，不是手动出口）。
-- **F-sync 收口通过**：R8 整条翻面为"执行状态：看板自动同步"（含 `executions`/`sync` 三态读法、`execRev` 与 `rev` 解耦、真机事件无证据如实标注、`workflow` 不再列为被追踪对象）；R9/R10 升级为实现事实；顺带对齐 R5（`requireLockForExecution` 使"非全进程强制"不再成立）、R13 与 `dispatch.md §4` 的"被指派 ≠ 推得动"；14 条不变、无参数表、三份文件同步、LF-only。
+- **F-sync 收口通过**：R8 整条翻面为"执行状态：看板自动同步"（含 `executions`/`sync` 三态读法、`execRev` 与 `rev` 解耦、真机事件无证据如实标注、`workflow` 不再列为被追踪对象）；R9/R10 升级为实现事实；顺带对齐 R5（`requireLockForExecution` 使"非全进程强制"不再成立）、R13 与 `dispatch.md §4` 的"被指派 ≠ 推得动"；14 条不变、无参数表、三份文件同步、LF-only。（**已被取代 2026-10-08**：现为 15 条，多出「流程模板匹配」一条；本条保留为 D30 时点记录。）
 
 ## D31 G 文档同步裁决、原始日志豁免、以及 live.mjs 的凭据口径
 
@@ -273,3 +273,39 @@
 - **生产库未被写入（硬证据）**：取证前后生产库 `requirements = 0`、`templates = 1`、`queues = 0`；`roles` 由 2 → 3、`execSync.ignored` 由 83 → 456 都是**活宿主 3080 的运行时效应**（该宿主观测到我派的子会话事件、会话按预设声明角色），不是本轮的写入。开发库 4 条需求全部只存在于 `rollout/ui-dev-board.db`。
 - **新增常驻仪器 `tests/verification/ui-dev-shots.mjs`**（`<base> <token>`，无凭据 exit 2）：自己造数、驱动真 UI、断言三面为平台 Modal 且 Escape 可关，**16/16 exit 0**。仪器本身踩到并修正了一个断言错误：门禁拒绝在 wire 上映射为 **HTTP 409**，浏览器把任何 4xx 记成 console error，所以"页面零错误"是个**做不到也不该断言**的目标；正确断言是"**唯一被拒的命令、唯一的 console 行，都是它自己故意挑起的那一次 `blocked-by` 推进**"。另：因为仪器自己的外部写入会让页面快照 stale，它在驱动前**重载页面**消除该竞态，而不是忽略冲突。
 - **一处未修的文案债（报给用户，未擅自改）**：门禁拒绝的 Toast 是"本地化标题 + 原始英文主机细节"的混排（`被未完成的需求挡着。( "req_…" is blocked by unfinished requirement(s): req_…)`）。`client-smoke` 有一条检查项明确要求携带原始细节，所以这是**有意设计**，但读起来是混语；要不要本地化或折叠由用户定。
+
+## D34 流程模板管理的形态裁决：追加版本（存量不动）、归档、模型可改可删、面板表单
+
+- **用户表态（先于本条）**："修改模板我希望不影响存量模板"，随后对几个取舍答"按推荐来"；本轮只改设计与本文件，`host/*.js`、`client.js` 一行未动。
+- **机制裁决：追加版本（机制 1）**，否决"就地改模板"与"新增模板版本表"。模板顶层字段永远是"最新版"（读法与今天同构），历史版进 `versions`（有界 20 条）；需求加可选字段 `templateRevision` 钉住自己跑的那一版。**改模板 ＝ 追加版本，完全不碰 `requirements`**；把需求迁到新版是独立动作，且必须先列出受影响需求（"全部迁移"要 `force`）；裁剪历史版本被任何需求钉住即拒（`in-use`）。
+- **只加可选字段、不升域版本号**：`requirementBoardDomain.version` 仍是 2——这套介质按精确版本戳校验且没有迁移，升号＝现有库整库打不开；加可选字段有现成先例（`images`，`host/domain.js:22-26`）。代价如实记录：**只能前进不能后退**（旧构建的 `.strict()` 会拒绝带新字段的记录），回滚必须连数据一起回（口径同 R-ROLLOUT.md §9.1）。
+- **存量零迁移**：没有 `revision`/`versions` 的模板读作"第 1 版、无历史"，没有 `templateRevision` 的需求读作"钉在第 1 版"——**不需要任何回填写入**；首次追加版本时才把当时的顶层字段快照进 `versions`。
+- **Q3 归档**（硬删的常规替代）、**Q4 模型可改/可归档/可删**（删除必须带影响清单 + 需求侧 `retemplate` 留痕；**裁剪历史版本不进工具面，面板独有**）、**Q5 面板表单 + 只读流程图预览**（不做拖拽）。
+- **一处设计细节（可推翻，已向用户点名）**：模板级 `name`/`description` 原地改（不动 `revision`、不进历史），**只有节点数组的变动**才追加版本。若要求"连改名也保留旧名"，改成一律追加版本即可。
+- **改动面（实现时最该先看的一条）**：读侧要引入 `templateAtRevision(template, revision)`——`advance`/`complete` 的节点判定、`recomputeNodes`、快照的 `flow` 投影、prompt 段都必须取"该需求钉住的那一版"，不能再直接用顶层 `nodes`。这是本次唯一有全局影响的改动点。
+- **落盘**：`DESIGN.md` §11（11.3–11.10 整段改写，§11.10 由"待决"转为"已裁决"）；看板上该裁决以决策需求 `req_c2c26f95db` 呈现（决策类需求只能由人推进）。
+- **只读独立评审（同日）抓到三条阻断**，已全部落盘：① 新建需求必须写**当前** revision（否则模板到 v2 后新建的需求会被读成钉 v1、继续跑旧流程）；② 两条改绑路径（`updateRequirement{templateId}`、`deleteTemplate` 的 `force` 改绑）必须把钉子重置为目标模板当前版（否则需求永久 `invalid-transition` 或静默用错版本）；③ `versions` 溢出必须**拒绝**（第 21 版报 `invalid-transition`），不能照 `maxExecutions` 的先例丢最旧——执行观测丢了无所谓，模板版本丢了违反 I2。另有五条应修（读侧解析点清单改为可 grep 规则、`listRequirements` 经 `summarize` 需一并加字段、裁剪的"被钉住"沿用删除的引用集合、模型侧改名走 `revise`、钉子悬空时开域修复）与四条可选项一并并入 §11。
+
+## D35 宿主侧落地、两次扰动验真，与"派发归属"不兼容
+
+- **落地范围（看板 req_15b6cfb671）**：`host/domain.js`（`revision`/`versions`/`archived`/`updatedBy`/`supersedes`/`changes` 与需求的 `templateRevision` 全部可选，**`requirementBoardDomain.version` 实测仍为 2**）、`host/templates.js`（新增 `templateAtRevision`/`templateNodeView`/`templateView`）、`host/service.js`（六个新方法、写入点①②③、读侧解析、`#repairDanglingPins`、`#retemplateEntry`）、`host/tools.js`（工具面加 `revise`/`migrate`/`archive`/`clone`，**不加** `prune`/`metadata`/`preview`，`get` 投影掉 `versions`/`changes`）、`host/http.js`（`template.get|revise|metadata|migrate|prune|archive|clone`）。新增 `tests/templates-revision.mjs` 316 条断言（json + sqlite 双后端）。面板与真浏览器门仍属 req_574df2066a / req_8ab885146f，尚未开工。
+- **Lead 独立复验（不采信实施者报告）**：新套件 316/316 exit 0；既有 11 个套件与 `client-smoke` 314/314 全绿；`g-hygiene all` 5/5；`git diff --check` 0；新建需求确实写当前版、两条改绑路径确实重置钉子（`host/service.js:1563`/`:2433`/`:3259`）。
+- **反向验证（两次扰动；缺此步等于没验）**：① 删掉 `createRequirement` 的钉子写入（模拟评审抓到的 B1）→ **308/316，8 条红**；② 让 `pruneTemplateVersion` 忽略"被钉住"→ **3 条红**。两次都逐字节还原，`host/service.js` SHA256 回到 `1BC3770687F2811AA85B36791ECEF547A55636447706D82A7B8F934B59037237`。**"断言会红"这条读数比"316 全绿"更有价值**——D26/D32/D33 三次同型教训都出在没人验过假件能否变红。
+- **一处平台不兼容（新增，值得记住）**：看板 `delegate` **拒绝**把需求派给 harness 的 continuable 子会话——报 `session "session-3782…" does not own session "ca1c9de9…"`，而平台自己的子会话记录写着 `parent=session-3782…`（本会话）。**裁决：不派发**（按"拿不到归属就显式报错、不静默换路"），改为 Lead 持锁 + 子会话只当实现工人，看板每一条写仍由 Lead 做。代价如实记：子会话没有独立角色，**其产出必须由 Lead 自己复验**（上面两次扰动就是这笔代价的兑付）。要走第 7 条派发，得先修看板的归属判定，或由人在面板上派。
+- **固化四个实现判断点（可推翻）**：① `prune` **先判 revision 合法性、再判 `in-use`**（否则裁剪当前版会错报 `in-use`，与失败码表冲突）；② `changes[].revision` ＝ 该次写入**留下的当前版号**，故裁剪留下的痕迹会重复当前版号；③ 迁移清单里的 `clearedChecks` 是**布尔**（该节点勾选是否会被清空），不是清单或计数；④ 归档模板：显式点名新建、以及"绑定真的变化"的改绑拒绝，**已在跑的需求照旧可读可推进**，`migrate`/`prune` 一律拒。
+- **顺手补上的两条设计项**：`deleteTemplate` 现在拒删 `config.defaultTemplateId`（G4），并把 `force` 改绑的每条需求写 `retemplate(force:true)` + `updatedAt`/`updatedBy`（G5）；两条改绑路径的历史形状抽成 `#retemplateEntry` 统一，该方法因此多一个可选 `actor` 参数。
+- **本地跑测试需要的一处链接**：`bundles/dsh-requirement-board/node_modules` 现为指向 `.artifacts/requirement-board/node_modules`（zod + 4 个 storage 包）的 junction，git 忽略它；没有它，本 checkout 里任何 import 宿主的套件都起不来（`ERR_MODULE_NOT_FOUND: zod`）。它是开发期设施，**不进部署副本**（部署走 `peerDependencies`）。不要时 `Remove-Item` 撤掉即可。
+- **锚点债（如实登记）**：g-anchors 只验"文件存在、行号在范围内、该行非空"，正文里写死的行号会随代码插入衰减——本次 600 行插入使约 50 处引用失灵，其中 **2 处指到空行**才被抓到（`DESIGN.md:430 → host/service.js:2728`、`G-CHECKLIST.md:22 → host/service.js:1664`）。本轮把被抓到的、§11 自身的、以及 `ROLE-DISPATCH.md`/`G-CHECKLIST.md`/`OPTIMIZATION.md`/`README.md` 的同类引用一并**按内容重定位**（同一批文档工人执行）。**更稳的做法（未采纳，留作提案）**：正文引用符号名而非行号，或让 g-anchors 对可定位引用做内容核对——否则每次大改都要重扫一遍。
+- **待办**：宿主改动要**重启一次 `dsh web`** 才生效（父需求 req_d8779c1055 的"发布上线"节点负责，未在用户不知情时重启）；面板侧（req_574df2066a）与验证侧（req_8ab885146f）尚未开工。
+
+## D36 角色管理六处修正（含 D35「派发归属不兼容」的修法）
+
+- **背景**：用户要求"检查需求看板的角色管理逻辑"，审计列 F1–F6 六条，用户指示"进行优化"，六条一并落地。
+- **F1 归属端口不再把"判不了"压成"不是我的孩子"**（D35 line 294 那条 live 缺陷的修法）：`false` **只对目标有活 Agent 时**下；目标没有活 Agent（continuable 子会话按需物化）→ `undefined` → 放行 + 具名 warn 一次；目标有活 Agent 但运行期 owner 已被父会话 resume 换掉 → 读**目标自己会话头的 `header.parentSession`**（平台记录的创建关系）判定：等于调用方放行、等于别的会话拒绝、缺失拒绝（`index.js` 的 `createOwnershipPort`）。理由：D35 那次拒绝的真实状态是"平台谓词判不了"，把它压成拒绝等于让 resume 过的会话永远派不出去；D35 的"不派发"是当时唯一不违"不静默换路"的选择，现在有了能判的来源。代价如实记：**目标 id 根本不存在（真幽灵）也从拒绝变成放行**，与"注册表不可用"同级降级、同由具名 warn 记账。
+- **F2 未登记角色改为派生可见**：`unregistered` = （活会话解析到的 id ∪ 需求 `role` 引用到的 id）− 已有记录；每条需求新增派生字段 `roleUnregistered`，面板角色徽标标警。**需求引用不再算建档**：§3.2 原表把 `observed` 写成"create/update/delegate 引用了库里没有的 id"是文档漂移——代码里 `observed` 只表示**预设 id 兜底**；`roleUnregistered` 此前只写在 §3.4，代码里根本不存在（同一处漂移的产物）。
+- **F3 prompt 与列表同口径**：`promptLine` 在记录 `duties` 为空时改用预设声明里的职能（与 `#present` 的 `dutiesMissing` 同一规则），不再出现"列表说可路由、prompt 说无法按职能路由"。
+- **F4 兜底值加格式闸**：预设 id 兜底前先过 `ROLE_ID_RE`（平台只要求预设 id 非空，`packages/preset/agent-preset-registry/src/index.ts:83`）；不合形 → 该会话无角色 + 按 id 各 warn 一次，不记一个谁也路由不到的角色。
+- **F5 派发期间不许改路由**：`delegatedTo !== null` 时把 `role` 改成一个**不同**的 id → `conflict{delegated-role}`（结算必然抹回 `roleBefore`，接受一个必然被擦掉的写就是把降级留给用户看）；**原样写回仍是零变化**——面板保存别的字段时总会带上 `role`，所以这条必须放行。非派发状态下改 `role` 现在补一条 `update` history（`role "a" -> "b"`）。
+- **F6 写被拒就收回刚铸造的临时角色**：需求写链拒绝（CAS 版本不符、并发委托、锁变动）后 `delegate` 重读需求，**只有 `role !== tmp-<任务id>`**（证明写没落地）才删该行；删失败只 warn，随后原样抛原错误。启动 sweep 仍是兜底，不再是第一道防线。
+- **证据**：`tests/roles.mjs` **260/260**（新增 3 案 × 2 后端）、`tests/delegate.mjs` **372/372**（新增 2 案 × 2 后端 + 适配器案扩到 15 条/后端）、`tests/dispatch.mjs`、`tests/client-smoke.mjs`、`g-receipts` 5/5、`g-anchors` 3/3 全绿。F1 的正向证据是"运行期 owner 被换掉后仍按会话头判定"（`caseOwnershipAdapter`）。**未验证**：真机上"按需物化的 continuable 子会话"这条仍没在受控 profile 里真跑（与 D35 的未验证项同源，需用户点头才碰 `~/.dsh`）。
+- **锚点**：本次只把**自己改动的代码**的引用改成符号名（`createOwnershipPort`、`resolveOwn`/`promptLine`/`#present`、`#assertOwnedTarget`），没有全量重扫——D35 登记的锚点债仍在，正文里那些 `host/service.js:NNNN` 又会因本次约 40 行插入各差几十行。

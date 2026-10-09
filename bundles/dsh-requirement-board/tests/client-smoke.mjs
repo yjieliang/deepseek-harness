@@ -48,6 +48,8 @@ function check(label, condition, detail = '') {
 function createReactHarness() {
   const stateSlots = new Map()
   const effectSlots = new Map()
+  const refSlots = new Map()
+  const callbackSlots = new Map()
   const cleanups = []
   let counters = new Map()
   let keys = []
@@ -161,13 +163,29 @@ function createReactHarness() {
       hookIndex += 1
       return factory()
     },
-    useCallback(callback) {
+    useCallback(callback, deps) {
+      // React hands back the same function while its dependencies are unchanged,
+      // and a component whose effects name that function then stops re-running.
+      const key = keys[keys.length - 1]
+      const slots = callbackSlots.get(key) ?? []
+      callbackSlots.set(key, slots)
+      const index = hookIndex
       hookIndex += 1
+      const previous = slots[index]
+      if (previous !== undefined && deps !== undefined && sameDeps(previous.deps, deps)) return previous.callback
+      slots[index] = { callback, deps }
       return callback
     },
     useRef(initial) {
+      // A ref keeps one object for the life of the component: code that writes
+      // `ref.current` from an async callback must see it after a re-render.
+      const key = keys[keys.length - 1]
+      const slots = refSlots.get(key) ?? []
+      refSlots.set(key, slots)
+      const index = hookIndex
       hookIndex += 1
-      return { current: initial ?? null }
+      if (slots[index] === undefined) slots[index] = { current: initial ?? null }
+      return slots[index]
     },
   }
 
@@ -280,6 +298,10 @@ let snapshotRefusal = null
 let commandFailure = null
 /** The receipt a successful stubbed command answers with. */
 let commandData = { done: true }
+/** Per-action receipt data; an action without an entry answers `commandData`. */
+let commandAnswers = {}
+/** Per-action refusal errors, for the refusals a test deliberately provokes. */
+let commandRefusals = {}
 /** Ids the stubbed takeover read reports; `null` answers with every listed id. */
 let claimableIds = null
 let claimableFailure = false
@@ -356,7 +378,11 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (parsed.pathname.endsWith('/command')) {
     if (commandFailure !== null) return { status: 409, json: async () => ({ ok: false, error: commandFailure }) }
-    return { status: 200, json: async () => ({ ok: true, data: commandData }) }
+    const body = init.body === undefined ? {} : JSON.parse(String(init.body))
+    const refusal = commandRefusals[body.action]
+    if (refusal !== undefined) return { status: 409, json: async () => ({ ok: false, error: refusal }) }
+    const answer = Object.hasOwn(commandAnswers, body.action) ? commandAnswers[body.action] : commandData
+    return { status: 200, json: async () => ({ ok: true, data: answer }) }
   }
   if (snapshotFailure !== null) return { status: 500, json: async () => ({ ok: false, error: snapshotFailure }) }
   if (snapshotRefusal !== null) {
@@ -703,6 +729,17 @@ function renderPage() {
   }
 }
 
+/**
+ * One meta-grid reading, found by the label cell it sits under.
+ *
+ * The grid renders a dim label above its own value, so a reading is two
+ * elements rather than one `label: value` line.
+ */
+function metaValue(page, label) {
+  const index = page.collected.findIndex(element => String(element.props.className ?? '').includes('rb-meta-k') && element.html === label)
+  return index < 0 ? null : page.collected[index + 1]?.html ?? null
+}
+
 /** Fill a dictionary entry's `{name}` placeholders the way the panel does. */
 function tst(key, params) {
   return String(localeDicts[boundLocale][key] ?? key).replace(/\{(\w+)\}/g, (whole, name) => params?.[name] ?? whole)
@@ -920,24 +957,344 @@ check('submitting the form posts the create command', createCall?.requirement?.t
 check('the form carries every edited field', createCall?.requirement?.priority === 'urgent' && Array.isArray(createCall?.requirement?.sessions) && createCall?.requirement?.templateId === 'tpl-standard', JSON.stringify(createCall?.requirement))
 check('the dialog closes after a successful create', renderPage().html.includes('模板名称') === false)
 
-// The template dialog parses its node lines into a node declaration list.
-renderPage().findButton('新建流程模板').props.onClick()
-const templateDialog = renderPage()
-check('the template dialog renders its node hint', templateDialog.html.includes('每行一个节点'))
-const nodesArea = templateDialog.findInput(props => props.name === 'template.nodes')
-nodesArea.props.onChange({ target: { value: '需求评审 | 张三 | 范围明确;干系人确认\n方案设计 | 李四\n开发实现' } })
-const templateName = renderPage().findInput(props => props.name === 'template.name')
-templateName.props.onChange({ target: { value: '三段流程' } })
-const templatePreview = renderPage()
-check('the template dialog previews the parsed nodes', templatePreview.html.includes('3 个节点') && templatePreview.html.includes('需求评审 → 方案设计 → 开发实现'))
-templatePreview.findButton('创建').props.onClick()
-await new Promise(resolve => setTimeout(resolve, 0))
-await new Promise(resolve => setTimeout(resolve, 0))
-const templateCall = requests.filter(request => String(request.url).includes('/command'))
-  .map(request => JSON.parse(request.init.body))
-  .find(body => body.action === 'template.create')
-check('the template dialog posts parsed nodes', templateCall?.template?.nodes?.length === 3, JSON.stringify(templateCall?.template))
-check('a checklist node keeps its checklist', templateCall?.template?.nodes?.[0]?.completion?.checklist?.length === 2)
+/* ----------------------------------------------------- template drawer */
+
+boundLocale = 'zh'
+commandData = { done: true }
+commandAnswers = {}
+commandRefusals = {}
+snapshotPayload = boardSnapshot()
+
+/** The declared nodes of the fixture template, as `template.get` answers them. */
+const templateNodes = requirement.flow.map(node => ({
+  id: node.id,
+  name: node.name,
+  order: node.order,
+  dependsOn: node.dependsOn,
+  assignee: node.assignee,
+  description: node.description,
+  completion: node.completion,
+}))
+/** One row of `template.list`, carrying the revision facts the drawer shows. */
+const templateRow = {
+  id: 'tpl-standard',
+  name: '标准研发流程',
+  description: '内置流程',
+  builtin: true,
+  version: 1,
+  revision: 3,
+  archived: false,
+  updatedBy: 'ses_A',
+  versionCount: 3,
+  createdAt: iso(86_400_000 * 5),
+  updatedAt: iso(3_600_000),
+  nodes: templateNodes,
+}
+/** The full record `template.get` answers, version history included. */
+const templateFull = {
+  ...templateRow,
+  versions: [
+    { revision: 1, at: iso(86_400_000 * 4), by: 'ses_A', summary: '初始版本', nodes: [] },
+    { revision: 2, at: iso(86_400_000 * 2), by: 'ses_B', summary: '加入测试验证节点', nodes: [] },
+    { revision: 3, at: iso(3_600_000), by: 'ses_B', summary: '调整依赖关系', nodes: [] },
+  ],
+  changes: [],
+}
+commandAnswers = { 'template.list': { items: [templateRow] }, 'template.get': templateFull }
+// The fixture requirement is pinned to revision 3, so that version cannot be dropped.
+snapshotPayload = boardSnapshot({ requirements: [{ ...requirement, templateRevision: 3 }] })
+
+/**
+ * Render the drawer, let every read it issues come back, and render again.
+ *
+ * The drawer opens on a chain of reads (list, pins, then the selected record),
+ * and each answer only reaches the screen through a render: an effect that sets
+ * state does not paint by itself. Four rounds cover list → select → record →
+ * versions, and a render that changes nothing is harmless.
+ */
+const settledDrawer = async () => {
+  let page = renderPage()
+  for (let round = 0; round < 4; round += 1) {
+    await settle()
+    page = renderPage()
+  }
+  return page
+}
+/**
+ * Let one action and every read it triggers finish before the next assertion.
+ *
+ * A command's own promise chain runs `refresh()` after the write, and the reads
+ * it starts keep the page's busy flag up until they settle; rendering between
+ * rounds is what lets an answer reach the screen.
+ */
+const drain = async (rounds = 4) => {
+  for (let round = 0; round < rounds; round += 1) {
+    await settle()
+    renderPage()
+  }
+}
+/** Every checkbox the harness collected, whatever it labels. */
+const checkboxes = page => page.collected.filter(element => element.type === 'input' && element.props.type === 'checkbox')
+/**
+ * The checkbox a reader identifies by its visible label.
+ *
+ * A collected string element carries the HTML of its children, so the `label`
+ * the checkbox stub wraps around its input holds exactly the label text, and the
+ * input is the nearest preceding checkbox in collection order.
+ */
+const checkboxFor = (page, label) => {
+  const at = page.collected.findIndex(element => element.type === 'label' && element.html === label)
+  if (at < 0) return undefined
+  for (let index = at; index >= 0; index -= 1) {
+    const element = page.collected[index]
+    if (element.type === 'input' && element.props.type === 'checkbox') return element
+  }
+  return undefined
+}
+
+renderPage().findButton(localeDicts.zh.templates).props.onClick()
+const drawer = await settledDrawer()
+check('the template drawer lists the templates', drawer.html.includes(localeDicts.zh.templateList))
+check('the drawer marks a builtin template', drawer.html.includes(localeDicts.zh.templateBuiltin))
+check('the drawer shows each template revision', drawer.html.includes(tst('templateCurrentRevision', { revision: 3 })))
+check('the drawer counts the requirements using the template',
+  drawer.html.includes(`${localeDicts.zh.templateInUse} 1`), drawer.html.slice(0, 0) || 'in-use count missing')
+const archivedToggle = checkboxFor(drawer, localeDicts.zh.includeArchived)
+check('the drawer defaults to hiding archived templates', archivedToggle?.props.checked === false, String(archivedToggle?.props.checked))
+archivedToggle.props.onChange({ target: { checked: true } })
+const shownArchived = await settledDrawer()
+const archivedList = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).filter(body => body.action === 'template.list').at(-1)
+check('the archived toggle asks the Host for archived templates', archivedList?.includeArchived === true, JSON.stringify(archivedList))
+check('the drawer keeps the archived choice on screen', checkboxFor(shownArchived, localeDicts.zh.includeArchived)?.props.checked === true)
+
+// Opening the record loads its own history; the list projection carries no versions.
+const detailRead = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.get')
+check('selecting the first template reads its full record', detailRead?.id === 'tpl-standard', JSON.stringify(detailRead))
+check('the drawer renders the read-only flow chart',
+  drawer.collected.some(element => element.type === 'div' && String(element.props.className ?? '').includes('rb-flow-canvas')))
+check('the drawer renders one row per version', drawer.collected.filter(element => String(element.props.className ?? '') === 'rb-version-row').length === 3,
+  String(drawer.collected.filter(element => String(element.props.className ?? '') === 'rb-version-row').length))
+check('a version row names its author and summary',
+  drawer.html.includes('初始版本') && drawer.html.includes(`${localeDicts.zh.templateVersionAuthor}: ses_A`))
+check('the drawer says a revision change touches no requirement', drawer.html.includes(localeDicts.zh.templateReviseHint))
+check('the version list offers the prune action',
+  drawer.collected.some(element => element.type === 'button' && String(element.props.name ?? '').startsWith('template.prune.')))
+
+const drop3 = drawer.collected.find(element => element.props.name === 'template.prune.3')
+const drop1 = drawer.collected.find(element => element.props.name === 'template.prune.1')
+check('prune is disabled on the revision a requirement is pinned to', drop3?.props.disabled === true, String(drop3?.props.disabled))
+check('a version nobody is pinned to stays droppable', drop1?.props.disabled === false, String(drop1?.props.disabled))
+check('the disabled prune names the requirement holding it', String(drop3?.props.title ?? '').includes('req_demo000001'), String(drop3?.props.title))
+check('the pinned version is tagged with its holder count', drawer.html.includes(tst('templatePinnedCount', { count: 1 })))
+
+// Dropping an unheld version asks first, then posts the revision as a number.
+drop1.props.onClick()
+const pruneRow = renderPage()
+check('the drop asks for confirmation first', pruneRow.html.includes(tst('templatePruneConfirm', { revision: 1 })))
+pruneRow.collected.find(element => element.type === 'button' && element.html === localeDicts.zh.confirm).props.onClick()
+await settle()
+const pruneCall = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.prune')
+check('confirming the drop posts the chosen revision', pruneCall?.revision === 1, JSON.stringify(pruneCall))
+
+/* ------------------------------------------------ metadata and structure */
+
+/** The drawer's own action button, by its stable name. */
+const byName = (page, name) => {
+  const found = page.collected.find(element => element.type === 'button' && element.props.name === name)
+  if (found === undefined) throw new Error(`no button named "${name}"`)
+  return found
+}
+
+byName(renderPage(), 'template.edit').props.onClick()
+const editor = renderPage()
+check('the editor explains that metadata saves move no revision',
+  editor.html.includes(tst('templateRevisionUnchanged', { revision: 3 })))
+check('the editor explains that a revise touches no requirement', editor.html.includes(localeDicts.zh.templateReviseHint))
+editor.findInput(props => props.name === 'template.edit.name').props.onChange({ target: { value: '标准研发流程（改）' } })
+byName(renderPage(), 'template.metadata.save').props.onClick()
+await settle()
+const metadataCall = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.metadata')
+check('saving metadata posts the name in place', metadataCall?.patch?.name === '标准研发流程（改）', JSON.stringify(metadataCall))
+check('the metadata save moves no revision', metadataCall?.patch?.expectedRevision === undefined, JSON.stringify(metadataCall?.patch))
+
+// The metadata save leaves the editor open: the name form and the node editor
+// are one pane, so the structure save follows without reopening it.
+renderPage().findInput(props => props.name === 'template.node.name.0').props.onChange({ target: { value: '需求澄清' } })
+byName(renderPage(), 'template.revise.save').props.onClick()
+await settle()
+const reviseCall = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.revise')
+check('saving the structure appends a version under the current revision',
+  reviseCall?.patch?.expectedRevision === 3 && reviseCall?.patch?.nodes?.length === 5, JSON.stringify(reviseCall?.patch?.expectedRevision))
+check('the structure save carries the edited node name', reviseCall?.patch?.nodes?.[0]?.name === '需求澄清', JSON.stringify(reviseCall?.patch?.nodes?.[0]))
+
+/* --------------------------------------------------------- the refusal path */
+
+// A revision that moved underneath the editor: the Host refuses with `conflict`,
+// the draft stays, and the notice names the revision that is now current.
+commandRefusals = { 'template.revise': { code: 'conflict', message: 'revision moved' } }
+byName(renderPage(), 'template.edit').props.onClick()
+renderPage().findInput(props => props.name === 'template.node.name.0').props.onChange({ target: { value: '本地稿' } })
+byName(renderPage(), 'template.revise.save').props.onClick()
+await settle()
+const afterConflict = renderPage()
+check('a refused revision keeps the draft on screen',
+  afterConflict.findInput(props => props.name === 'template.node.name.0').props.value === '本地稿',
+  String(afterConflict.findInput(props => props.name === 'template.node.name.0').props.value))
+check('a refused revision is reported where the work is',
+  afterConflict.html.includes(localeDicts.zh.errTemplateConflict)
+  && afterConflict.html.includes(tst('templateCurrentRevision', { revision: 3 })))
+byName(afterConflict, 'template.edit.cancel').props.onClick()
+commandRefusals = {}
+
+/* -------------------------------------------------------- migration dialog */
+
+/** The refusal `template.migrate` answers an unnamed call with, by design. */
+const migrateRefusal = {
+  code: 'in-use',
+  message: 'requirements are pinned',
+  details: {
+    affected: [
+      { id: 'req_demo000001', nodeId: 'build', revision: 2, next: 'design', clearedChecks: true },
+      { id: 'req_demo000003', nodeId: 'verify', revision: 2, next: 'verify', clearedChecks: false },
+    ],
+  },
+}
+commandRefusals = { 'template.migrate': migrateRefusal }
+snapshotPayload = boardSnapshot({ requirements: [requirement, reserved], total: 2 })
+byName(renderPage(), 'template.migrate').props.onClick()
+const migration = renderPage()
+check('the migration dialog states its step', migration.html.includes(tst('templateMigrationStep', { step: 1, total: 3 })))
+migration.findButton(localeDicts.zh.templateMigrationRead).props.onClick()
+await drain()
+const impact = renderPage()
+check('the migration dialog renders every affected requirement',
+  impact.collected.filter(element => String(element.props.className ?? '') === 'rb-impact-row').length === 2,
+  String(impact.collected.filter(element => String(element.props.className ?? '') === 'rb-impact-row').length))
+check('the impact list names the requirement and its move',
+  impact.html.includes('跨会话需求看板') && impact.html.includes(`${localeDicts.zh.templateMigrationFrom}: 开发实现`)
+  && impact.html.includes(`${localeDicts.zh.templateMigrationTo}: 方案设计`))
+check('the impact list reports a cleared checklist as a warning',
+  impact.html.includes(localeDicts.zh.templateMigrationCleared) && impact.html.includes(localeDicts.zh.templateMigrationKept))
+// The refusal is the step's answer, not a failure: it reaches the impact list
+// without also raising the app-level error toast or the drawer's error notice.
+// The toast store is read rather than rendered, because rendering the overlay
+// here would re-run this dialog's effects and reset the list under test.
+check('the migration read is not announced as a failure',
+  !JSON.stringify(toastFace.hooks.toast.getSnapshot()).includes(localeDicts.zh.errInUse)
+  && !impact.collected.some(element => String(element.props.className ?? '').includes('rb-notice-error')),
+  JSON.stringify(toastFace.hooks.toast.getSnapshot()).slice(0, 120))
+check('the impact list is the only place the refusal is reported',
+  impact.html.includes(tst('templateMigrationStep', { step: 2, total: 3 })))
+const migrateRows = checkboxes(impact).slice(-2)
+check('the migration dialog adds one checkbox per affected requirement',
+  checkboxes(impact).length === checkboxes(drawer).length + 2, String(checkboxes(impact).length))
+check('every affected requirement starts selected', migrateRows.length === 2 && migrateRows.every(element => element.props.checked === true),
+  String(migrateRows.length))
+migrateRows[0].props.onChange({ target: { checked: false } })
+const narrowed = renderPage()
+check('unchecking an impact row narrows the confirmed set', narrowed.html.includes(tst('templateMigrationPicked', { count: 1 })))
+// The refusal above is how the impact list is read; the confirmed call that
+// names the picked requirements is answered normally.
+commandRefusals = {}
+commandAnswers = { ...commandAnswers, 'template.migrate': { migrated: ['req_demo000003'] } }
+narrowed.collected.find(element => element.type === 'button' && element.props.name !== 'template.migrate.pick'
+  && element.html === tst('templateMigrationPicked', { count: 1 })).props.onClick()
+await drain()
+const migrateCall = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).filter(body => body.action === 'template.migrate').at(-1)
+check('the confirmed migration names only the picked requirements',
+  migrateCall?.requirementIds?.length === 1 && migrateCall?.requirementIds?.[0] === 'req_demo000003', JSON.stringify(migrateCall))
+check('a per-row migration carries no force', migrateCall?.force === undefined, JSON.stringify(migrateCall))
+check('a successful migration closes the dialog', renderPage().html.includes(localeDicts.zh.templateMigrationHint) === false)
+
+// "Migrate all" is an extra, explicit step that ends in a forced call.
+commandRefusals = { 'template.migrate': migrateRefusal }
+byName(renderPage(), 'template.migrate').props.onClick()
+await drain()
+renderPage().findButton(localeDicts.zh.templateMigrationRead).props.onClick()
+await drain()
+byName(renderPage(), 'template.migrate.all').props.onClick()
+const bulkStep = renderPage()
+check('the bulk migration warns before it is confirmed', bulkStep.html.includes(localeDicts.zh.templateMigrationBulkWarn))
+check('the bulk step counts as its own step', bulkStep.html.includes(tst('templateMigrationStep', { step: 3, total: 3 })))
+// The forced bulk call is the one the reader confirmed; it must be answered.
+commandRefusals = {}
+bulkStep.collected.find(element => element.type === 'button' && element.props.name !== 'template.migrate.all'
+  && element.html === localeDicts.zh.templateMigrationBulk).props.onClick()
+await drain()
+const bulkCall = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).filter(body => body.action === 'template.migrate').at(-1)
+check('the bulk migration is the force form', bulkCall?.force === true && bulkCall?.requirementIds === undefined, JSON.stringify(bulkCall))
+commandRefusals = {}
+snapshotPayload = boardSnapshot({ requirements: [{ ...requirement, templateRevision: 3 }] })
+
+/* ---------------------------------------- archive, clone, delete, create */
+
+commandAnswers = { 'template.list': { items: [templateRow] }, 'template.get': templateFull }
+byName(renderPage(), 'template.archive').props.onClick()
+await settle()
+const templateArchiveCall = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.archive')
+check('the archive action posts the archived flag', templateArchiveCall?.archived === true && templateArchiveCall?.id === 'tpl-standard', JSON.stringify(templateArchiveCall))
+
+byName(renderPage(), 'template.clone').props.onClick()
+renderPage().findInput(props => props.name === 'template.clone.name').props.onChange({ target: { value: '标准流程副本' } })
+byName(renderPage(), 'template.clone.confirm').props.onClick()
+await settle()
+const cloneCall = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.clone')
+check('the clone action carries the new name', cloneCall?.name === '标准流程副本' && cloneCall?.id === 'tpl-standard', JSON.stringify(cloneCall))
+
+byName(renderPage(), 'template.delete').props.onClick()
+const deleteArmed = renderPage()
+check('deleting a bound template names the requirements it rebinds',
+  deleteArmed.html.includes(tst('templateMigrationRow', { title: requirement.title, id: requirement.id })))
+// The pinned revision goes through the locale template, not string concatenation:
+// a raw `{revision}` in the tree means the placeholder was never substituted.
+check('an impact row renders the pinned revision through the locale template',
+  deleteArmed.html.includes(tst('templateRevisionLine', { revision: 3 })) && !deleteArmed.html.includes('{revision}'),
+  deleteArmed.html.includes(tst('templateRevisionLine', { revision: 3 })))
+// A bound template is deleted in two steps: the first click arms the rebind,
+// the second sends it, so the destructive act is never one stray click away.
+check('the delete confirmation is armed before it sends anything',
+  byName(deleteArmed, 'template.delete.confirm').html === localeDicts.zh.templateDeleteArmed,
+  byName(deleteArmed, 'template.delete.confirm').html)
+byName(deleteArmed, 'template.delete.confirm').props.onClick()
+const deleteReady = renderPage()
+check('the armed confirmation asks once more before it posts',
+  byName(deleteReady, 'template.delete.confirm').html === localeDicts.zh.confirm)
+byName(deleteReady, 'template.delete.confirm').props.onClick()
+await settle()
+const templateDeleteCall = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.delete')
+check('the armed delete forces the rebind', templateDeleteCall?.force === true && templateDeleteCall?.id === 'tpl-standard', JSON.stringify(templateDeleteCall))
+
+// Creating a template lives in the drawer now and parses the line grammar.
+byName(renderPage(), 'template.new').props.onClick()
+const addForm = renderPage()
+check('the drawer offers the node-per-line create form', addForm.html.includes(localeDicts.zh.templateNodesHint))
+check('an empty create form cannot be sent', byName(addForm, 'template.create').props.disabled === true)
+addForm.findInput(props => props.name === 'template.new.nodes').props.onChange({
+  target: { value: '需求评审 | 张三 | 范围明确;干系人确认\n方案设计 | 李四\n开发实现' },
+})
+renderPage().findInput(props => props.name === 'template.new.name').props.onChange({ target: { value: '三段流程' } })
+byName(renderPage(), 'template.create').props.onClick()
+await settle()
+const templateCreateCall = requests.filter(request => String(request.url).includes('/command'))
+  .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.create')
+check('the drawer create posts parsed nodes', templateCreateCall?.template?.nodes?.length === 3, JSON.stringify(templateCreateCall?.template))
+check('a checklist node keeps its checklist', templateCreateCall?.template?.nodes?.[0]?.completion?.checklist?.length === 2)
+check('the create form carries the typed name', templateCreateCall?.template?.name === '三段流程')
+
+// Closing the drawer clears it.
+renderPage().findButton(localeDicts.zh.close).props.onClick()
+check('closing the drawer clears it', renderPage().html.includes(localeDicts.zh.templateList) === false)
+commandAnswers = {}
 
 /* -------------------------------------------------- description images */
 
@@ -1223,7 +1580,10 @@ await settle()
 check('the human inbox is asked for by its reserved role',
   lastSnapshotUrl().includes('role=human') && renderPage().html.includes('是否走自研渲染'), lastSnapshotUrl())
 check('the human inbox is offered by the role filter',
-  renderPage().collected.some(element => element.type === 'option' && element.props.value === 'human'))
+  renderPage().collected.some(element => element.props.name === 'filter.role.human'))
+check('the human inbox chip is the one that is on while its filter is in force',
+  String(renderPage().collected.find(element => element.props.name === 'filter.role.human')?.props.className ?? '').includes('rb-chip-on')
+  && !String(renderPage().collected.find(element => element.props.name === 'filter.role.all')?.props.className ?? '').includes('rb-chip-on'))
 check('the role filter no longer offers the unexpressible "no role" value',
   !renderPage().collected.some(element => element.type === 'option' && String(element.props.value).includes('\u0000')))
 face.setFilter({ role: 'unknown-role' })
@@ -1350,6 +1710,9 @@ await settle()
 renderPage().findButton('角色管理').props.onClick()
 const rolesDialog = renderPage()
 check('the role dialog lists a role with its duties', rolesDialog.html.includes('美术') && rolesDialog.html.includes('资产规范'))
+check('a role row states where the role came from', rolesDialog.html.includes('来自预设声明'))
+check('the role dialog states that it is reading the preset roster first',
+  rolesDialog.html.includes('正在读取预设名册'))
 check('a temporary role shows what delegation bound it to',
   rolesDialog.html.includes('临时') && rolesDialog.html.includes('绑定会话') && rolesDialog.html.includes('ses_sub') && rolesDialog.html.includes('绑定任务'))
 check('a role without duties is highlighted', rolesDialog.html.includes('没有登记职能'))
@@ -1385,6 +1748,83 @@ const deleteCall = commandBodies().find(body => body.action === 'role.delete')
 check('confirming a role deletion posts role.delete', deleteCall?.id === 'art', JSON.stringify(deleteCall))
 renderPage().findButton('关闭').props.onClick()
 check('the role dialog closes again', !renderPage().html.includes('新建角色'))
+
+/* ---------------------------------------- role management: preset modes */
+
+// The catalogue is the read that ties a role to the preset it comes from: the
+// dialog asks for it on open, because the registry audits each preset as it
+// lists them and the board's own snapshot read must not wait on that. The same
+// answer is served again after a write, so `registered` stands for the roster
+// the Host holds once the preset's role has a record.
+const presetCatalogue = registered => ({
+  items: snapshotPayload.roles.items,
+  unregistered: snapshotPayload.roles.unregistered,
+  presets: {
+    items: [
+      { id: 'art', name: '美术预设', broken: '', roleId: 'art', roleName: '美术', recorded: true, dutiesMissing: false, confirmed: true, online: 1, open: 1 },
+      { id: 'qa', name: '', broken: '', roleId: 'qa', roleName: '', recorded: registered, dutiesMissing: true, confirmed: false, online: 0, open: 1 },
+      { id: 'Art Team', name: '非法 id 预设', broken: 'row failed to activate', roleId: '', roleName: '', recorded: false, dutiesMissing: true, confirmed: false, online: 0, open: 0 },
+    ],
+    unavailable: null,
+  },
+})
+commandAnswers['role.list'] = presetCatalogue(false)
+renderPage().findButton('角色管理').props.onClick()
+// The mount starts the read; the render after it lands shows the roster.
+renderPage()
+await settle()
+const presetDialog = renderPage()
+check('the role dialog reads the preset catalogue when it opens', commandBodies().some(body => body.action === 'role.list'))
+check('the preset section lists a preset with the role it resolves to',
+  presetDialog.html.includes('预设模式') && presetDialog.html.includes('美术预设') && presetDialog.html.includes('角色: 美术 (art)'))
+check('an unrecorded preset offers to register its role',
+  presetDialog.buttons.some(element => element.props.name === 'preset.register.qa'))
+check('a recorded preset offers no duplicate register action',
+  !presetDialog.buttons.some(element => element.props.name === 'preset.register.art'))
+check('a preset id that cannot be a role id offers nothing to register',
+  !presetDialog.buttons.some(element => element.props.name === 'preset.register.Art Team')
+  && presetDialog.html.includes('预设 id 不是合法角色 id'))
+check('a preset with no observed session states that its role is inferred', presetDialog.html.includes('按预设 id 推定'))
+check('the preset row keeps the activation diagnostic as its title',
+  presetDialog.collected.some(element => element.props.title === 'row failed to activate'))
+
+presetDialog.buttons.find(element => element.props.name === 'preset.register.qa').props.onClick()
+const prefilled = renderPage()
+check('registering a preset prefills its role id and display name',
+  prefilled.collected.some(element => element.type === 'input' && element.props.name === 'role.roleId' && element.props.value === 'qa')
+  && prefilled.collected.some(element => element.type === 'input' && element.props.name === 'role.roleName' && element.props.value === 'qa'))
+
+// Saving is the ordinary panel put; the roster is read again afterwards, so the
+// registration the panel just made stops reading as one still to make.
+const readsBefore = commandBodies().filter(body => body.action === 'role.list').length
+commandAnswers['role.list'] = presetCatalogue(true)
+prefilled.collected.find(element => element.type === 'button' && element.props.name === 'role.save').props.onClick()
+await settle()
+check('the register button posts the ordinary role put with the prefilled id',
+  commandBodies().some(body => body.action === 'role.put' && body.role?.roleId === 'qa'))
+check('a successful put re-reads the preset roster',
+  commandBodies().filter(body => body.action === 'role.list').length === readsBefore + 1)
+check('the registered preset stops offering the register action',
+  !renderPage().buttons.some(element => element.props.name === 'preset.register.qa'))
+
+commandAnswers['role.list'] = { items: [], unregistered: [], presets: { items: [], unavailable: { code: 'service-absent' } } }
+renderPage().findButton('关闭').props.onClick()
+renderPage().findButton('角色管理').props.onClick()
+renderPage()
+await settle()
+check('an absent preset registry is stated with its cause, not as an empty roster',
+  renderPage().html.includes('没有挂载预设注册表') && !renderPage().html.includes('预设名册里没有任何预设'))
+
+commandAnswers['role.list'] = { items: [], unregistered: [], presets: { items: [], unavailable: { code: 'read-failed', detail: 'roster exploded' } } }
+renderPage().findButton('关闭').props.onClick()
+renderPage().findButton('角色管理').props.onClick()
+renderPage()
+await settle()
+check('a failed roster read is stated apart from an empty roster',
+  renderPage().html.includes('读取预设名册失败') && renderPage().html.includes('roster exploded'))
+
+renderPage().findButton('关闭').props.onClick()
+delete commandAnswers['role.list']
 
 snapshotPayload = boardSnapshot({ roles: { items: [], unregistered: [] } })
 await face.refresh()
@@ -1639,7 +2079,8 @@ const decisionCard = decisionsPage.collected.find(element => element.type === 'b
 check('the decisions view lists only decisions', decisionCard !== undefined && !decisionsPage.collected.some(element => element.type === 'button' && element.props.role === 'listitem' && element.html.includes('跨会话需求看板')))
 decisionCard?.props.onClick()
 const decisionDetail = renderPage()
-check('a decision shows who asked for the call', decisionDetail.html.includes(`${localeDicts.zh.requestedBy}: ses_A`))
+check('a decision shows who asked for the call',
+  metaValue(decisionDetail, localeDicts.zh.requestedBy) === 'ses_A')
 check('the panel may archive or remove a decision',
   decisionDetail.buttons.some(element => element.html === localeDicts.zh.archive)
   && decisionDetail.buttons.some(element => element.html === localeDicts.zh.remove))
@@ -1830,8 +2271,8 @@ blockerCard.props.onClick()
 await settle()
 const raisedDetail = renderPage()
 check('the detail names the stored priority and the effective level apart',
-  raisedDetail.html.includes(`${localeDicts.zh.ownPriority}: ${localeDicts.zh.priorityNormal}`)
-  && raisedDetail.html.includes(`${localeDicts.zh.effectivePriority}: urgent↑`),
+  metaValue(raisedDetail, localeDicts.zh.ownPriority) === localeDicts.zh.priorityNormal
+  && metaValue(raisedDetail, localeDicts.zh.effectivePriority) === 'urgent↑',
   raisedDetail.html.slice(0, 0) || 'the two levels are not told apart')
 check('the detail says the raised level was not written back',
   raisedDetail.html.includes(localeDicts.zh.priorityLiftedHint))
@@ -1850,8 +2291,8 @@ check('the detail names the parent and the sub-requirements',
 check('the gate hint explains that archiving a blocker is not finishing it',
   blockedDetail.html.includes(localeDicts.zh.gatesHint))
 check('a detail without escalation omits the effective level even when the row carries one',
-  !blockedDetail.html.includes(localeDicts.zh.effectivePriority)
-  && blockedDetail.html.includes(`${localeDicts.zh.ownPriority}: ${localeDicts.zh.priorityUrgent}`),
+  metaValue(blockedDetail, localeDicts.zh.effectivePriority) === null
+  && metaValue(blockedDetail, localeDicts.zh.ownPriority) === localeDicts.zh.priorityUrgent,
   blockedDetail.html.slice(0, 0) || 'a derived field was shown as escalation')
 
 check('the two eligibility answers are separate badges, not one verdict',
@@ -2200,6 +2641,46 @@ crossOriginPage.collected.find(element => element.props.name === 'auth.recheck')
 await settle()
 check('the page recovers when the origin is accepted again',
   !renderPage().html.includes(localeDicts.zh.authCrossOrigin))
+
+/* -------------------------------------------------------- visual language */
+
+// The redesign's own layer, read from the shipped source: one accent per theme
+// arm, every other colour a registered variable, and the concept's type scale
+// and geometry. A colour that drifts out of the registry, a rule that loses its
+// measurement, or a step of the type scale that is edited away fails here.
+const cssStart = source.indexOf(`const CSS = `)
+const cssRaw = source.slice(cssStart, source.indexOf(`\n${'`'}`, cssStart))
+const stylesheet = cssRaw.replace(/\/\*[\s\S]*?\*\//g, '')
+const registryLines = stylesheet.split('\n').filter(line => line.includes('--rb-'))
+const strayColours = stylesheet.split('\n')
+  .map((line, index) => ({ line, number: index + 1 }))
+  .filter(entry => !entry.line.includes('--rb-'))
+  .flatMap(entry => [...entry.line.matchAll(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g)]
+    .map(match => `${entry.number}:${match[0]}`))
+check('the stylesheet declares the accent once per theme arm',
+  (stylesheet.match(/--rb-accent:/g) ?? []).length === 2
+  && registryLines.some(line => line.includes('--rb-accent:#f06423;'))
+  && registryLines.some(line => line.includes('--rb-accent:#c2410c;')),
+  registryLines.filter(line => line.includes('--rb-accent:')).join(' | '))
+check('no colour outside the registered variables is written into the stylesheet',
+  strayColours.length === 0, strayColours.join(', '))
+check('the reading faces keep the concept type scale',
+  /\.rb-stat-value \{[^}]*font-size:26px/.test(stylesheet)
+  && /\.rb-ring-pct \{[^}]*font-size:14px/.test(stylesheet)
+  && stylesheet.includes('--rb-num:var(--dsw-font-family-brand)'))
+check('every numeral face is set to tabular figures',
+  (stylesheet.match(/font-variant-numeric:tabular-nums/g) ?? []).length >= 3,
+  String((stylesheet.match(/font-variant-numeric:tabular-nums/g) ?? []).length))
+check('the band keeps the concept proportions',
+  /\.rb-stats \{[^}]*grid-template-columns:300px repeat\(5, minmax\(0,1fr\)\) 220px/.test(stylesheet)
+  && stylesheet.includes('.rb-stats { display:flex; flex-wrap:wrap; align-items:stretch; }'),
+  'the band declares neither the concept columns nor its narrow arm')
+check('the completion ring keeps its measured diameter',
+  /\.rb-ring \{[^}]*width:56px; height:56px/.test(stylesheet))
+check('the two-column body keeps the queue at its measured width',
+  /\.rb-list \{[^}]*width:330px/.test(stylesheet))
+check('the meta grid keeps its measured four columns',
+  /\.rb-meta-grid \{[^}]*grid-template-columns:repeat\(4, minmax\(0,1fr\)\)/.test(stylesheet))
 
 /* --------------------------------------------------------------- teardown */
 

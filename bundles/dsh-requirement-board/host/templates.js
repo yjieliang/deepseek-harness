@@ -186,8 +186,86 @@ function assertAcyclic(nodes) {
 }
 
 /**
+ * The template as one pinned revision describes it (`DESIGN.md` §11.4).
+ *
+ * A requirement runs on the revision it recorded in `templateRevision`, so every
+ * function that derives nodes for a requirement must be handed this value rather
+ * than the stored record: a template record's top level is always its newest
+ * version. The current revision — or 1 when `revision` is absent, which is how a
+ * record written before versions existed reads — is returned unchanged; any other
+ * revision is looked up in `versions`, and the result overrides only
+ * `name`/`description`/`nodes`, so every caller keeps reading the same fields.
+ *
+ * @param template - Stored template record.
+ * @param revision - Pinned revision number, or `undefined` for the oldest reading (1).
+ * @returns the template at that revision, or `null` when no stored version carries it.
+ */
+export function templateAtRevision(template, revision) {
+  const wanted = revision ?? 1
+  if (wanted === (template.revision ?? 1)) return template
+  const version = (template.versions ?? []).find(entry => entry.revision === wanted)
+  if (version === undefined) return null
+  return { ...template, name: version.name, description: version.description, nodes: version.nodes }
+}
+
+/**
+ * One template node as a caller reads it, without the stored object's identity.
+ *
+ * `completion` is shared rather than copied, exactly as the panel list always
+ * sent it: a reader must not mutate a projection, and a stored record is never
+ * a projection of itself.
+ * @param node - Stored template node.
+ * @returns the projected node.
+ */
+export function templateNodeView(node) {
+  return {
+    id: node.id,
+    name: node.name,
+    order: node.order,
+    dependsOn: node.dependsOn,
+    assignee: node.assignee,
+    description: node.description,
+    completion: node.completion,
+  }
+}
+
+/**
+ * The bounded template view a model-facing result carries (`DESIGN.md` §11.7).
+ *
+ * The version history and the audit tail are deliberately absent: they are what
+ * the panel's own `template.get` reads, and shipping them to a model would run
+ * into the tools' result cap. `versionCount`/`changeCount` are what tell a reader
+ * that a history exists. The current version, its nodes, and the management
+ * fields are all present, with the absent `revision`/`archived` read as the first
+ * version and "not archived" so a record written before them reads the same.
+ *
+ * @param template - Stored template record.
+ * @returns the projected template.
+ */
+export function templateView(template) {
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    version: template.version,
+    builtin: template.builtin === true,
+    revision: template.revision ?? 1,
+    archived: template.archived === true,
+    supersedes: template.supersedes,
+    createdAt: template.createdAt,
+    updatedAt: template.updatedAt,
+    createdBy: template.createdBy,
+    updatedBy: template.updatedBy,
+    nodeCount: template.nodes.length,
+    nodes: template.nodes.map(templateNodeView),
+    versionCount: (template.versions ?? []).length,
+    changeCount: (template.changes ?? []).length,
+  }
+}
+
+/**
  * Whether every declared prerequisite of `nodeId` is finished on `requirement`.
- * @param template - Bound template.
+ * @param template - Bound template, already resolved to the requirement's pinned revision.
  * @param requirement - Requirement holding derived node states.
  * @param nodeId - Node being entered.
  * @returns `{ ok }` or `{ ok: false, missing }` naming unfinished prerequisites.
@@ -201,7 +279,7 @@ export function dependenciesMet(template, requirement, nodeId) {
 
 /**
  * The next node after `nodeId` in declaration order.
- * @param template - Bound template.
+ * @param template - Bound template, already resolved to the requirement's pinned revision.
  * @param nodeId - Current node.
  * @returns the next node, or `undefined` when the current node is the last.
  */
@@ -213,7 +291,7 @@ export function nextNodeId(template, nodeId) {
 
 /**
  * Index of a node in declaration order.
- * @param template - Bound template.
+ * @param template - Bound template, already resolved to the requirement's pinned revision.
  * @param nodeId - Node to locate.
  * @returns the index, or `-1` when the node is not part of the template.
  */

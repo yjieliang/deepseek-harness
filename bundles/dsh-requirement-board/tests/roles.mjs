@@ -39,11 +39,16 @@ function artAgent(id = 'ses_art', status = 'idle') {
 /**
  * The preset registry fake: `serviceFor` answers only for the agents whose id
  * appears in `declarations`, and `composedPreset` reads the agent context.
+ *
+ * `roster`, when given, is what `list()` answers with — the declared presets a
+ * real registry would report. Omitting it leaves the fake without a `list`, so a
+ * case can exercise the composition that has no roster to read.
  */
-function fakePresets(declarations = {}) {
+function fakePresets(declarations = {}, roster) {
   return {
     serviceFor: (agent, name) => (name === 'requirementBoardRole' ? declarations[agent.id] : undefined),
     composedPreset: ctx => ctx?.preset,
+    ...(Array.isArray(roster) ? { list: async () => [...roster] } : {}),
   }
 }
 
@@ -467,6 +472,96 @@ async function casePanelSurface(backend, name) {
   })
 }
 
+/**
+ * The panel's role catalogue ties each role to the preset it comes from, and
+ * reports every declared preset whose role has no record (§8.1).
+ */
+async function casePresetRoster(backend, name) {
+  await onBackend(backend, name, async dir => {
+    // Each session's preset id is what the roster keys on, so these sessions sit
+    // on the presets under test rather than on the shared fixtures' default.
+    const declared = { id: 'ses_declared', status: 'idle', ctx: { preset: 'art' } }
+    const fallback = { id: 'ses_fallback', status: 'idle', ctx: { preset: 'plain' } }
+    const unusable = { id: 'ses_unusable', status: 'idle', ctx: { preset: 'Art Team' } }
+    const roster = [
+      { id: 'art', name: '美术预设' },
+      { id: 'plain' },
+      { id: 'Art Team', name: '非法 id' },
+      { id: 'unused', name: '没有会话的预设', broken: 'row failed to activate' },
+    ]
+    const board = await openBoard({
+      backend,
+      dir,
+      ports: {
+        agents: () => fakeAgents([declared, fallback, unusable]),
+        presets: () => fakePresets({ [declared.id]: declarationOf(declared) }, roster),
+      },
+    })
+    // Only the declared session is established: the fallback preset stays the
+    // unrecorded case, and the observation of it comes from the live session
+    // alone — which is exactly the split the row has to keep.
+    await board.service.establishRole(declared)
+    const before = board.changes.length
+
+    const catalogue = await dispatchBoardCommand(board.service, { action: 'role.list' })
+    check('the catalogue lists every declared preset', catalogue.presets.items.length === 4, JSON.stringify(catalogue.presets.items.map(item => item.id)))
+    check('a readable roster is not reported as unavailable', catalogue.presets.unavailable === null)
+    check('the catalogue role records are the snapshot role records',
+      JSON.stringify(catalogue.items) === JSON.stringify(board.service.snapshot({ limit: 1 }).roles.items))
+
+    const art = catalogue.presets.items.find(item => item.id === 'art')
+    check('a declared preset names the role its live session resolved',
+      art.roleId === 'art' && art.recorded === true && art.confirmed === true && art.online === 1, JSON.stringify(art))
+    check('the preset row keeps the registry display name', art.name === '美术预设')
+    check('a recorded role with duties is not flagged as missing them', art.dutiesMissing === false)
+
+    const plain = catalogue.presets.items.find(item => item.id === 'plain')
+    check('an undeclared preset falls back to its own id',
+      plain.roleId === 'plain' && plain.confirmed === true && plain.recorded === false, JSON.stringify(plain))
+    check('an unrecorded preset role is flagged as missing duties', plain.dutiesMissing === true)
+    check('an unrecorded preset role still counts the sessions on it', plain.online === 1)
+
+    const odd = catalogue.presets.items.find(item => item.id === 'Art Team')
+    check('a preset id that is not a role id resolves no role', odd.roleId === '' && odd.recorded === false && odd.confirmed === true)
+    const unused = catalogue.presets.items.find(item => item.id === 'unused')
+    check('a preset with no live session reports an inference, not an observation',
+      unused.roleId === 'unused' && unused.confirmed === false && unused.online === 0, JSON.stringify(unused))
+    check('the activation diagnostic travels with the preset row', unused.broken === 'row failed to activate')
+    check('reading the catalogue writes nothing', board.changes.length === before, `changes=${board.changes.length - before}`)
+
+    // The register button prefills from the preset row and saves through the
+    // ordinary panel put, after which the association reads as recorded.
+    const created = await board.service.putRole({ roleId: plain.roleId, roleName: plain.name === '' ? plain.id : plain.name })
+    check('registering the prefilled preset role records it', created.id === 'plain' && created.source === 'manual')
+    const after = await dispatchBoardCommand(board.service, { action: 'role.list' })
+    check('the registered preset now reads as recorded', after.presets.items.find(item => item.id === 'plain').recorded === true)
+    await board.close()
+  })
+}
+
+/** A composition whose roster cannot be read degrades with its reason (§8.1). */
+async function casePresetRosterDegrade(backend, name) {
+  await onBackend(backend, name, async dir => {
+    const board = await openBoard({ backend, dir })
+    const absent = await dispatchBoardCommand(board.service, { action: 'role.list' })
+    check('a composition with no preset registry says the roster is absent',
+      absent.presets.unavailable?.code === 'service-absent' && absent.presets.items.length === 0, JSON.stringify(absent.presets))
+    check('the degraded catalogue still lists the role records', Array.isArray(absent.items) && Array.isArray(absent.unregistered))
+
+    const exploding = {
+      serviceFor: () => undefined,
+      composedPreset: () => undefined,
+      list: async () => { throw new Error('roster exploded') },
+    }
+    const failing = boardService(board.domain, resolveConfig({}), { presets: () => exploding })
+    const failed = await failing.listRoleCatalogue()
+    check('a roster read that fails reports the cause and its message',
+      failed.presets.unavailable?.code === 'read-failed' && failed.presets.unavailable.detail.includes('roster exploded'), JSON.stringify(failed.presets))
+    check('a failed roster is not an empty roster', failed.presets.items.length === 0 && failed.presets.unavailable !== null)
+    await board.close()
+  })
+}
+
 /** A temporary role is owned by delegation: the panel may not edit or delete it. */
 async function caseEphemeralOwnership(backend, name) {
   await onBackend(backend, name, async dir => {
@@ -506,11 +601,111 @@ function failingRolesDomain(domain) {
   }
 }
 
+/**
+ * A requirement may name a role nothing describes: a typo, or a role whose record
+ * was deleted. The reference alone keeps the id visible — in the role list, in
+ * the receipt a caller reads back, and in the panel's pickers — instead of
+ * leaving unroutable work looking like ordinary work (§3.4).
+ */
+async function caseReferencedRole(backend, name) {
+  await onBackend(backend, name, async dir => {
+    const agents = [artAgent('ses_art')]
+    const board = await openBoard({
+      backend,
+      dir,
+      ports: {
+        agents: () => fakeAgents(agents),
+        presets: () => fakePresets({ ses_art: declarationOf(agents[0]) }),
+      },
+    })
+    const panel = { session: '', name: '面板' }
+    const ghost = await board.service.createRequirement({ title: '拼错的角色', role: 'artt' }, panel)
+    check('an unrecorded role id is accepted at creation', ghost.role === 'artt')
+    check('the receipt reports the routing as unrecorded', ghost.roleUnregistered === true)
+    await board.service.putRole({ roleId: 'art', roleName: '美术', duties: ART_DUTIES })
+    const known = await board.service.createRequirement({ title: '登记过的角色', role: 'art' }, panel)
+    check('a recorded role is not reported as unrecorded', known.roleUnregistered === false)
+    const anyRole = await board.service.createRequirement({ title: '不限角色' }, panel)
+    check('a requirement routed to no role is not reported either', anyRole.roleUnregistered === false)
+
+    const listed = board.service.listRoles()
+    const row = listed.unregistered.find(entry => entry.id === 'artt')
+    check('the referenced id is listed as unregistered', row !== undefined, JSON.stringify(listed.unregistered))
+    check('no live session holds it, so its presence is zero', JSON.stringify(row.holders) === JSON.stringify({ online: 0, idle: 0, running: 0 }))
+    check('it counts the work routed to it', row.open === 1)
+    check('it has no duties to state', row.dutiesMissing === true)
+    check('the referenced id is not a role record', listed.items.every(item => item.id !== 'artt'))
+
+    await board.service.deleteRole('art')
+    const afterDelete = board.service.listRoles().unregistered.map(entry => entry.id)
+    check('a deleted role another requirement names stays visible', afterDelete.includes('art'), JSON.stringify(afterDelete))
+    await board.close()
+  })
+}
+
+/**
+ * The record owns the duties, but an empty record does not cancel a declaration:
+ * `dutiesMissing` is "neither the record nor a declaration gives duties" (§3.4),
+ * so the prompt reports the same function the role list does.
+ */
+async function caseDutiesFromDeclaration(backend, name) {
+  await onBackend(backend, name, async dir => {
+    const declared = artAgent('ses_declared')
+    const board = await openBoard({
+      backend,
+      dir,
+      ports: {
+        agents: () => fakeAgents([declared]),
+        presets: () => fakePresets({ [declared.id]: declarationOf(declared) }),
+      },
+    })
+    await board.service.putRole({ roleId: 'art', roleName: '美术' })
+    const row = board.service.listRoles().items.find(item => item.id === 'art')
+    check('the record carries no duties of its own', row.duties.length === 0)
+    check('the declaration keeps it routable by function', row.dutiesMissing === false)
+    const prompt = board.service.promptContext(declared.id, 4096)
+    check('the model reads the declared duties', prompt.includes(`You are role "art" (美术) — ${ART_DUTIES.join(', ')}.`), prompt)
+    await board.close()
+  })
+}
+
+/**
+ * The fallback level trusts the platform's preset id, and the platform requires
+ * only that an id is non-empty (`packages/preset/agent-preset-registry`). An id
+ * that is not a legal role id is therefore refused as a role, reported once, and
+ * never recorded — a role nothing can route to is the one outcome this chain must
+ * not produce (§2.1).
+ */
+async function casePresetIdForm(backend, name) {
+  await onBackend(backend, name, async dir => {
+    const odd = { id: 'ses_odd', status: 'idle', ctx: { preset: 'Art Team' } }
+    const board = await openBoard({
+      backend,
+      dir,
+      ports: { agents: () => fakeAgents([odd]), presets: () => fakePresets({}) },
+    })
+    const established = await board.service.establishRole(odd)
+    check('a preset id that is not a role id records nothing', established === undefined && board.domain.table('roles').size === 0)
+    check('the session resolves no role', board.service.promptContext(odd.id, 4096) === '' && board.service.listRoles().unregistered.length === 0)
+    check('the role tool lists nothing either', board.service.listRoles().items.length === 0)
+    const warnings = board.logger.lines.warn.filter(line => line.includes('is not a usable role id'))
+    check('the unusable preset id is reported once', warnings.length === 1, board.logger.lines.warn.join(' | '))
+    check('the report names the id', warnings[0].includes('Art Team'))
+    check('the report says what is required', warnings[0].includes('must match'))
+    board.service.promptContext(odd.id, 4096)
+    check('a later read does not repeat the report', board.logger.lines.warn.filter(line => line.includes('is not a usable role id')).length === 1)
+    await board.close()
+  })
+}
+
 for (const backend of BACKENDS) {
   await caseResolutionChain(backend, 'the resolution chain has three outcomes')
   await caseEstablish(backend, 'establishment records once and writes nothing after')
   await caseManualOutranksPreset(backend, 'a panel edit outranks the preset')
   await caseUnregistered(backend, 'a deleted role in use reports unregistered')
+  await caseReferencedRole(backend, 'a role only a requirement names stays visible')
+  await caseDutiesFromDeclaration(backend, 'a declaration fills an empty record in the prompt')
+  await casePresetIdForm(backend, 'a preset id that is not a role id is refused once')
   await caseHoldersDegrade(backend, 'presence degrades to unknown')
   await caseDutiesMissing(backend, 'a role with no duties is flagged')
   await caseReservedRoleIds(backend, 'reserved and unusable role ids are refused')
@@ -518,6 +713,8 @@ for (const backend of BACKENDS) {
   await caseMount(backend, 'the mount wires the listener, tools, and prompt')
   await caseRegistrationFailure(backend, 'a failed registration never fails a creation')
   await casePanelSurface(backend, 'role management is panel-only')
+  await casePresetRoster(backend, 'the catalogue ties roles to preset modes')
+  await casePresetRosterDegrade(backend, 'an unreadable roster degrades with its reason')
   await caseEphemeralOwnership(backend, 'delegation owns temporary roles')
 }
 

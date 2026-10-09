@@ -43,7 +43,7 @@ import { advanceable, assertLockHeld, claimable, escalationIndex, judgeClaim, lo
 import { applyTransition, computeStats, flowPrerequisiteMissing, recomputeNodes, setChecklistEntry } from './flow.js'
 import { ImageStore, IMAGE_MAX_COUNT } from './images.js'
 import { applyExecution, attributeExecution, runningCount, settleExecutions, unitFromJobEvent, unitFromSubagent, unitIsStale } from './runs.js'
-import { nodeIndex, normalizeTemplate } from './templates.js'
+import { nodeIndex, normalizeTemplate, templateAtRevision, templateNodeView, templateView } from './templates.js'
 import { nextRevision } from './domain.js'
 import { RoleRegistry } from './roles.js'
 
@@ -52,6 +52,77 @@ const UPDATABLE = ['title', 'description', 'priority', 'owner', 'labels', 'sessi
 
 /** Most `blocksOn` links one requirement may carry (§4.2). */
 const BLOCKS_ON_MAX = 20
+
+/**
+ * Most historical versions one template may hold (§11.4).
+ *
+ * The bound is an audit tail, not a runtime parameter, so it is fixed rather than
+ * configured. Exceeding it is refused with `invalid-transition` instead of
+ * dropping the oldest entry: a version a requirement is pinned to must survive,
+ * which is why this differs deliberately from `maxExecutions` truncation.
+ */
+const TEMPLATE_VERSION_LIMIT = 20
+
+/** Most template-side audit entries retained (§11.4); the oldest are dropped. */
+const TEMPLATE_CHANGE_LIMIT = 20
+
+/**
+ * Summarize what one revision changed, for the template's own audit tail (§11.4).
+ *
+ * The clauses are the vocabulary §11.4 fixes: a renamed template, a description
+ * edit, added and removed nodes (named by node id, because the id is a node's
+ * identity and a rename is a label change), a renamed node, a changed `dependsOn`
+ * list, and a checklist size change. An edit that changes nothing reports
+ * `无变化`, and `reviseTemplate` still appends a version for it: the caller asked
+ * for a new version, and a silent no-op would hide that.
+ *
+ * @param before - The current template before the revision.
+ * @param after - The normalized name/description/nodes of the new revision.
+ * @returns the summary text stored with the change.
+ */
+function templateChangeSummary(before, after) {
+  const parts = []
+  if (before.name !== after.name) parts.push(`改名 ${before.name}→${after.name}`)
+  if (before.description !== after.description) parts.push('描述更新')
+  const beforeNodes = new Map(before.nodes.map(node => [node.id, node]))
+  const afterNodes = new Map(after.nodes.map(node => [node.id, node]))
+  for (const id of beforeNodes.keys()) if (!afterNodes.has(id)) parts.push(`-节点 ${id}`)
+  for (const id of afterNodes.keys()) if (!beforeNodes.has(id)) parts.push(`+节点 ${id}`)
+  for (const [id, node] of afterNodes) {
+    const previous = beforeNodes.get(id)
+    if (previous === undefined) continue
+    if (previous.name !== node.name) parts.push(`节点 ${id} 改名 ${previous.name}→${node.name}`)
+    if (previous.dependsOn.join(',') !== node.dependsOn.join(',')) {
+      parts.push(`依赖 ${previous.dependsOn.join(',') || '无'}→${node.dependsOn.join(',') || '无'}`)
+    }
+    const beforeChecks = previous.completion?.checklist?.length ?? 0
+    const afterChecks = node.completion?.checklist?.length ?? 0
+    if (beforeChecks !== afterChecks) parts.push(`checklist ${beforeChecks}→${afterChecks}`)
+  }
+  return parts.length === 0 ? '无变化' : parts.join('、')
+}
+
+/** The revision a stored template currently is; absent reads as the first version (§11.4). */
+function currentTemplateRevision(template) {
+  return template.revision ?? 1
+}
+
+/**
+ * Read an optional positive integer revision reference.
+ *
+ * A revision number is compared for equality against stored numbers, so a
+ * fractional value would silently address no version at all; the integer check
+ * keeps the failure `invalid-argument` instead of a later `invalid-transition`.
+ * @param value - Raw boundary value.
+ * @param field - Field name used in the failure message.
+ * @returns the validated integer, or `undefined` when the field is absent.
+ */
+function asRevision(value, field) {
+  if (value === undefined || value === null || value === '') return undefined
+  const parsed = asNumber(value, field, undefined, { min: 1 })
+  if (!Number.isInteger(parsed)) fail('invalid-argument', `"${field}" must be a positive integer`)
+  return parsed
+}
 
 /**
  * The fields an AI may still change on a decision requirement (§5.7).
@@ -183,6 +254,10 @@ function sameImageRefs(before, next) {
 /**
  * A short, bounded requirement line for prompt context and list summaries.
  *
+ * `template` arrives already resolved to the requirement's pinned revision
+ * (§11.4), so `templateName`/`nodeName`/`nodeIndex`/`nodeCount` describe the flow
+ * that requirement actually runs rather than the newest one.
+ *
  * `derived` carries what only the board as a whole can answer (§4.4): the gate
  * and escalation values and the child lists from {@link escalationIndex} and the
  * `parentId` graph, and — for a reader with a session —
@@ -203,6 +278,9 @@ function summarize(requirement, template, derived = {}) {
     status: requirement.status,
     templateId: requirement.templateId,
     templateName: template.name,
+    // The version this requirement runs on (§11.4); a record written before
+    // template versions existed reads as pinned to the first one.
+    templateRevision: requirement.templateRevision ?? 1,
     nodeId: requirement.nodeId,
     nodeName: node?.name ?? requirement.nodeId,
     nodeIndex: index,
@@ -311,7 +389,7 @@ export class RequirementService {
     this.#templates = domain.table('templates')
     this.#queues = domain.table('queues')
     this.#images = new ImageStore(config.imageDir)
-    this.#roles = new RoleRegistry({ domain, ports: this.#ports, bumpRevision: () => this.#bumpRevision() })
+    this.#roles = new RoleRegistry({ domain, ports: this.#ports, bumpRevision: () => this.#bumpRevision(), logger })
     // Seed from the healed revision so this service never writes one below the
     // stored records, even when it is built on a domain that was not bootstrapped.
     this.#revision = nextRevision(domain)
@@ -416,6 +494,82 @@ export class RequirementService {
       fail('not-found', `no flow template with id "${id}"`, { id, known: [...this.#templates.keys()] })
     }
     return template
+  }
+
+  /**
+   * Resolve one revision of an already-loaded template (§11.4).
+   *
+   * Every read that derives flow from a template goes through here, so a
+   * requirement keeps running the flow it recorded after the template moves on. A
+   * pin naming no stored version can only come from a medium edited outside this
+   * plugin — the prune gate and the open-time sweep both prevent it — and it is
+   * refused loud rather than silently read as the newest version.
+   * @param template - Stored template record.
+   * @param revision - Pinned revision, or `undefined` for the oldest reading (1).
+   * @returns the resolved template.
+   */
+  #atRevision(template, revision) {
+    const resolved = templateAtRevision(template, revision)
+    if (resolved === null) {
+      fail('invalid-transition', `template "${template.id}" has no revision ${revision ?? 1}`, {
+        templateId: template.id,
+        revision: revision ?? 1,
+        current: currentTemplateRevision(template),
+      })
+    }
+    return resolved
+  }
+
+  /**
+   * The template a stored requirement runs on, resolved to its pinned revision.
+   * @param requirement - Stored requirement record.
+   * @returns the resolved template.
+   */
+  #templateFor(requirement) {
+    return this.#atRevision(this.#template(requirement.templateId), requirement.templateRevision)
+  }
+
+  /**
+   * Commit one transform of a template record through the domain write chain.
+   *
+   * Compare-and-set is judged inside the transform, at the record's commit slot,
+   * so two editors appending with the same `expectedRevision` serialize: the
+   * first commits `revision + 1`, and the second's transform then fails with
+   * `conflict` instead of quietly pushing the version to one past it.
+   * @param id - Template id.
+   * @param transform - Synchronous transform of a private clone of the stored record.
+   * @returns the committed record.
+   */
+  async #mutateTemplate(id, transform) {
+    if (this.#templates.get(id) === undefined) fail('not-found', `no flow template with id "${id}"`, { id })
+    let next
+    try {
+      next = await this.#templates.update(id, record => {
+        const draft = structuredClone(record)
+        return transform(draft) ?? draft
+      })
+    } catch (error) {
+      if (error instanceof DomainError && error.code === 'missing-key') {
+        fail('not-found', `no flow template with id "${id}"`, { id })
+      }
+      throw error
+    }
+    await this.#bumpRevision()
+    return next
+  }
+
+  /**
+   * The requirements bound to one template, whatever their status (§11.5).
+   *
+   * Prune's "is any requirement pinned here" judgment and delete's reference set
+   * are the same set: a done or archived requirement still resolves its flow when
+   * it is reopened, so looking only at open work would let a revision disappear
+   * from under it.
+   * @param templateId - Template id.
+   * @returns the bound requirement records.
+   */
+  #requirementsBoundTo(templateId) {
+    return this.#allRequirements().filter(requirement => requirement.templateId === templateId)
   }
 
   /** Normalize an actor record from a tool or route caller. */
@@ -525,7 +679,7 @@ export class RequirementService {
   #eligibility(requirement, me, derived) {
     const myRole = me === '' ? '' : this.#roleIdOf(me)
     const reservedBy = this.#reservationOf(requirement.id)
-    const template = this.#template(requirement.templateId)
+    const template = this.#templateFor(requirement)
     return {
       claimable: claimable(requirement, me, myRole, { reservedBy }),
       advanceable: advanceable(requirement, me, {
@@ -551,11 +705,18 @@ export class RequirementService {
    * @returns the presented requirement.
    */
   #present(requirement, derived = this.#derive()) {
-    const presented = presentRequirement(requirement, this.#template(requirement.templateId))
+    const presented = presentRequirement(requirement, this.#templateFor(requirement))
     const gate = derived.index.get(requirement.id)
     presented.reservedBy = this.#reservationOf(requirement.id)
+    // The routing this record names may have no role record at all — a typo, or a
+    // role whose record was deleted. Reporting it is what keeps unroutable work
+    // visible instead of silently claimable by nobody (§3.4).
+    presented.roleUnregistered = (requirement.role ?? '') !== '' && !this.#roles.has(requirement.role)
     presented.kind = requirement.kind ?? 'task'
     presented.requestedBy = requirement.requestedBy ?? ''
+    // A record written before template versions existed validates without the
+    // field, so every reader gets the revision it runs on rather than an absent key.
+    presented.templateRevision = requirement.templateRevision ?? 1
     // A record written before delegation validates without the field; every
     // reader gets the same `null` instead of an absent key.
     presented.delegatedTo = requirement.delegatedTo ?? null
@@ -1261,7 +1422,7 @@ export class RequirementService {
     })
     const page = items.slice(offset, offset + limit).map(requirement => {
       const template = this.#templates.get(requirement.templateId) ?? { id: requirement.templateId, name: requirement.templateId, nodes: [] }
-      return summarize(requirement, template, {
+      return summarize(requirement, this.#atRevision(template, requirement.templateRevision), {
         ...derived.index.get(requirement.id),
         children: derived.children.get(requirement.id) ?? [],
         ...this.#eligibility(requirement, me, derived),
@@ -1372,10 +1533,16 @@ export class RequirementService {
     const who = this.#actor(actor)
     const at = nowIso()
     const title = asString(input.title, 'title', { required: true, max: 200 })
-    const templateId = input.templateId === undefined || input.templateId === null || input.templateId === ''
-      ? this.#config.defaultTemplateId
-      : asString(input.templateId, 'templateId', { max: 64 })
+    const namedTemplate = input.templateId !== undefined && input.templateId !== null && input.templateId !== ''
+    const templateId = namedTemplate ? asString(input.templateId, 'templateId', { max: 64 }) : this.#config.defaultTemplateId
     const template = this.#template(templateId)
+    // An archived template stays readable and keeps serving the requirements
+    // already bound to it, but it is not offered as a new binding (§11.5). The
+    // deployment's default template cannot be archived, so the implicit path
+    // never reaches this refusal.
+    if (namedTemplate && template.archived === true) {
+      fail('invalid-transition', `template "${template.id}" is archived and cannot be bound to a new requirement`, { id: template.id })
+    }
     const first = template.nodes[0]
     const sessions = asStringArray(input.sessions, 'sessions', { max: 50, itemMax: 200 })
     if (who.session !== '' && !sessions.includes(who.session)) sessions.unshift(who.session)
@@ -1393,6 +1560,11 @@ export class RequirementService {
       role: asRoleId(input.role),
       sessions,
       templateId: template.id,
+      // §11.4 write point ①: a new requirement is pinned to the template's
+      // *current* revision. Reading the absent field as 1 is only for records
+      // written before template versions existed; without this write a
+      // requirement created after the template reached v2 would keep running v1.
+      templateRevision: currentTemplateRevision(template),
       nodeId: first.id,
       status: 'active',
       blockReason: '',
@@ -1804,28 +1976,42 @@ export class RequirementService {
     const duties = asStringArray(input.duties, 'duties', { max: ROLE_DUTIES_MAX, itemMax: ROLE_DUTY_MAX })
     const roleName = asString(input.roleName, 'roleName', { max: ROLE_NAME_MAX })
     // The role is declared before the requirement names it, so a requirement never
-    // routes to an id that has no row. A write chain that stops in between leaves
-    // an unbound temporary role, which the mount-time sweep clears.
+    // routes to an id that has no row. A refused requirement write — a concurrent
+    // delegation, a lock that moved — would otherwise leave the declared row as
+    // residue, so it is taken back here instead of waiting for the mount sweep.
     await this.#roles.mintDelegated({ taskId: id, session, duties, roleName, at })
-    const requirement = await this.#mutateRequirement(id, input.expectedRev, draft => {
-      if (draft.status === 'done' || draft.status === 'archived') {
-        fail('invalid-state', `"${id}" became ${draft.status} before the delegation landed`, { reason: 'invalid-state', id, status: draft.status })
+    let requirement
+    try {
+      requirement = await this.#mutateRequirement(id, input.expectedRev, draft => {
+        if (draft.status === 'done' || draft.status === 'archived') {
+          fail('invalid-state', `"${id}" became ${draft.status} before the delegation landed`, { reason: 'invalid-state', id, status: draft.status })
+        }
+        if (!lockState(draft, session, at, this.#config.staleClaimHours).allows) {
+          fail('conflict', `"${id}" is locked by session "${draft.lock?.session ?? ''}"`, { reason: 'locked', id, current: draft.lock })
+        }
+        const raced = draft.delegatedTo ?? null
+        if (raced !== null) {
+          fail('conflict', `"${id}" was delegated to session "${raced.session}" at the same time`, { reason: 'delegated', id, delegatedTo: raced })
+        }
+        draft.role = roleId
+        draft.delegatedTo = { session, name: this.#sessionName(session), roleId, roleBefore, at }
+        draft.updatedAt = at
+        draft.updatedBy = who.session
+        draft.rev = (draft.rev ?? 0) + 1
+        draft.history.push(lockEntry('delegate', draft, at, who, `role "${roleBefore}" -> "${roleId}" for session "${session}"`))
+        return draft
+      }, who.session, at)
+    } catch (error) {
+      // The write can fail after it committed — the revision write or a change
+      // subscriber throws — so only a row the requirement does not route to is
+      // provably residue; the sweep would settle the rest.
+      if ((this.#requirements.get(id)?.role ?? '') !== roleId) {
+        await this.#roles.removeDelegated(roleId).catch(cleanupError => {
+          this.#logger?.warn?.(`requirement-board: taking back the temporary role "${roleId}" after a refused delegation failed: ${String(cleanupError)}`)
+        })
       }
-      if (!lockState(draft, session, at, this.#config.staleClaimHours).allows) {
-        fail('conflict', `"${id}" is locked by session "${draft.lock?.session ?? ''}"`, { reason: 'locked', id, current: draft.lock })
-      }
-      const raced = draft.delegatedTo ?? null
-      if (raced !== null) {
-        fail('conflict', `"${id}" was delegated to session "${raced.session}" at the same time`, { reason: 'delegated', id, delegatedTo: raced })
-      }
-      draft.role = roleId
-      draft.delegatedTo = { session, name: this.#sessionName(session), roleId, roleBefore, at }
-      draft.updatedAt = at
-      draft.updatedBy = who.session
-      draft.rev = (draft.rev ?? 0) + 1
-      draft.history.push(lockEntry('delegate', draft, at, who, `role "${roleBefore}" -> "${roleId}" for session "${session}"`))
-      return draft
-    }, who.session, at)
+      throw error
+    }
     if (!ownReservation) return { ...this.#present(requirement), roleId }
     await this.#releaseReservationFor(who.session, id, at)
     return { ...this.#present(this.#requirements.get(id) ?? requirement), roleId }
@@ -2236,7 +2422,29 @@ export class RequirementService {
     if (patch.description !== undefined) assign('description', asString(patch.description, 'description', { max: 8000 }))
     if (patch.priority !== undefined) assign('priority', asEnum(patch.priority, PRIORITIES, 'priority'))
     if (patch.owner !== undefined) assign('owner', asString(patch.owner, 'owner', { max: 120 }))
-    if (patch.role !== undefined) assign('role', asRoleId(patch.role))
+    if (patch.role !== undefined) {
+      const next = asRoleId(patch.role)
+      const delegated = draft.delegatedTo ?? null
+      // A delegation owns the routing id while it lasts: it wrote the temporary
+      // id and it settles the requirement back to `roleBefore`, so a re-route
+      // written now would be discarded at settlement. A real change is refused
+      // rather than accepted-then-erased; restating the stored id stays the
+      // zero-change case, which is what the panel sends when it saves any other
+      // field of a delegated requirement (§5.5).
+      if (delegated !== null && next !== (draft.role ?? '')) {
+        fail('conflict', `"${id}" is delegated to session "${delegated.session}": its routing role stays the temporary id "${delegated.roleId}" until the delegation ends`, {
+          reason: 'delegated-role',
+          id,
+          role: next,
+          delegatedTo: delegated,
+        })
+      }
+      if (draft.role !== next) {
+        draft.history.push(lockEntry('update', draft, at, who, `role "${draft.role ?? ''}" -> "${next}"`))
+        draft.role = next
+        changed = true
+      }
+    }
     if (patch.labels !== undefined) {
       const next = asStringArray(patch.labels, 'labels', { max: 20, itemMax: 60 })
       if (!sameItems(draft.labels, next)) assign('labels', next)
@@ -2254,7 +2462,15 @@ export class RequirementService {
     if (patch.templateId !== undefined) {
       const template = this.#template(asString(patch.templateId, 'templateId', { max: 64 }))
       if (template.id !== draft.templateId) {
+        if (template.archived === true) {
+          fail('invalid-transition', `template "${template.id}" is archived and cannot be bound to a requirement`, { id: template.id })
+        }
         draft.templateId = template.id
+        // §11.4 write point ②: the pin is reset to the target template's current
+        // revision. The old number names a version of the *old* template, so
+        // keeping it would leave this requirement unresolvable — or, worse,
+        // silently reading a same-numbered version of the new one.
+        draft.templateRevision = currentTemplateRevision(template)
         if (nodeIndex(template, draft.nodeId) < 0) draft.nodeId = template.nodes[0].id
         draft.nodes = recomputeNodes(draft, template, at)
         retemplated = true
@@ -2274,22 +2490,7 @@ export class RequirementService {
     draft.updatedBy = who.session
     draft.rev = (draft.rev ?? 0) + 1
     if (retemplated) {
-      draft.history.push({
-        id: mintId('evt'),
-        at,
-        by: who.session,
-        byName: who.name,
-        action: 'retemplate',
-        from: null,
-        fromName: '',
-        to: draft.nodeId,
-        toName: draft.nodeId,
-        fromStatus: draft.status,
-        toStatus: draft.status,
-        note: `bound to template ${draft.templateId}`,
-        force: false,
-        durationMs: null,
-      })
+      draft.history.push(this.#retemplateEntry(draft, who, at, `bound to template ${draft.templateId}`, false))
     }
     return { changed: true }
   }
@@ -2379,7 +2580,9 @@ export class RequirementService {
     const requirement = await this.#mutateRequirement(id, input.expectedRev, draft => {
       this.#assertHumanOnly(draft, who, action)
       assertLockHeld(draft, who.session)
-      const template = this.#template(draft.templateId)
+      // The flow this requirement runs is the one it pinned, not the newest one
+      // (§11.4): a template revision it never migrated to must not move it.
+      const template = this.#templateFor(draft)
       const record = applyTransition(draft, template, {
         action,
         ...(input.to === undefined || input.to === null ? {} : { to: asString(input.to, 'to', { max: 64 }) }),
@@ -2451,7 +2654,7 @@ export class RequirementService {
       this.#assertHumanOnly(draft, who, 'tick the checklist of')
       assertLockHeld(draft, who.session)
       if (draft.status !== 'active') fail('invalid-transition', `checklist entries can only change on an active requirement`)
-      setChecklistEntry(draft, this.#template(draft.templateId), index, checked, at)
+      setChecklistEntry(draft, this.#templateFor(draft), index, checked, at)
       draft.updatedBy = who.session
       return draft
     }, who.session, at)
@@ -2661,35 +2864,43 @@ export class RequirementService {
 
   /**
    * List flow templates.
+   *
+   * Archived templates are hidden by default (§11.5): the list is what the panel's
+   * new-requirement selector and the model's `list` read, and a shelved template
+   * must not be offered as a new binding. `includeArchived` is how the template
+   * drawer still shows them; `getTemplate` always does.
+   * @param filter - `{ includeArchived }`; archived templates are dropped unless it is `true`.
    * @returns `{ items }` in insertion order.
    */
-  listTemplates() {
+  listTemplates({ includeArchived = false } = {}) {
     return {
-      items: [...this.#templates.entries()].map(([, template]) => ({
-        id: template.id,
-        name: template.name,
-        description: template.description,
-        builtin: template.builtin === true,
-        version: template.version,
-        createdAt: template.createdAt,
-        updatedAt: template.updatedAt,
-        nodes: template.nodes.map(node => ({
-          id: node.id,
-          name: node.name,
-          order: node.order,
-          dependsOn: node.dependsOn,
-          assignee: node.assignee,
-          description: node.description,
-          completion: node.completion,
+      items: [...this.#templates.entries()]
+        .filter(([, template]) => includeArchived === true || template.archived !== true)
+        .map(([, template]) => ({
+          id: template.id,
+          name: template.name,
+          description: template.description,
+          builtin: template.builtin === true,
+          version: template.version,
+          revision: currentTemplateRevision(template),
+          archived: template.archived === true,
+          updatedBy: template.updatedBy ?? '',
+          versionCount: (template.versions ?? []).length,
+          createdAt: template.createdAt,
+          updatedAt: template.updatedAt,
+          nodes: template.nodes.map(templateNodeView),
         })),
-      })),
     }
   }
 
   /**
-   * Read one flow template.
+   * Read one flow template, archived or not.
+   *
+   * The raw record is what the panel's detail view needs — the version history and
+   * the audit tail live here and nowhere else (§11.5). The model-facing tool
+   * projects this through `templateView`, which drops both arrays.
    * @param id - Template id.
-   * @returns the template.
+   * @returns the stored template record.
    */
   getTemplate(id) {
     return this.#template(id)
@@ -2714,31 +2925,384 @@ export class RequirementService {
   }
 
   /**
+   * Append a version to a flow template (`DESIGN.md` §11.5).
+   *
+   * This is the whole of "change a template": the current top-level fields are
+   * snapshotted into `versions`, the validated patch becomes the new top level,
+   * `revision` moves by one, and the audit tail gains one summary. **No
+   * requirement is touched** (I3) — the `nodeId`, node states, ticks, and history
+   * of every requirement bound to this template stay exactly what they were, and
+   * the returned view only reports how many remain pinned to an older revision.
+   * Moving them is `migrateRequirementsToRevision`'s separate, explicitly
+   * confirmed act.
+   *
+   * `patch.nodes` is the complete target node list, not a merge: a node whose id
+   * is absent from it is removed, and a node without an id gets one derived from
+   * its name. `expectedRevision` is the template's own `revision`, judged inside
+   * the commit slot so two concurrent appends cannot both win; a mismatch is
+   * `conflict` with `{ expected, current }`. The 20-version bound is refused
+   * rather than truncated (I2), because the oldest version may be one a
+   * requirement still runs on.
+   *
+   * @param id - Template id.
+   * @param patch - `{ name?, description?, nodes?, expectedRevision? }`.
+   * @param actor - `{ session, name }` of the caller.
+   * @returns the projected template, with `pinnedToOld` counting requirements on an older revision.
+   */
+  async reviseTemplate(id, patch = {}, actor) {
+    const who = this.#actor(actor)
+    const at = nowIso()
+    const template = this.#template(id)
+    if (template.builtin) fail('invalid-transition', `the built-in template "${id}" cannot be revised; clone it first`, { id })
+    const expected = asRevision(patch.expectedRevision, 'expectedRevision')
+    const stored = await this.#mutateTemplate(id, draft => {
+      const revision = currentTemplateRevision(draft)
+      if (expected !== undefined && revision !== expected) {
+        fail('conflict', `template "${id}" changed since revision ${expected}`, {
+          expected,
+          current: revision,
+        })
+      }
+      const versions = draft.versions ?? []
+      if (versions.length >= TEMPLATE_VERSION_LIMIT) {
+        fail('invalid-transition', `template "${id}" already holds ${TEMPLATE_VERSION_LIMIT} historical versions; prune an older revision first`, {
+          id,
+          limit: TEMPLATE_VERSION_LIMIT,
+        })
+      }
+      const next = normalizeTemplate({
+        name: patch.name === undefined ? draft.name : patch.name,
+        description: patch.description === undefined ? draft.description : patch.description,
+        nodes: patch.nodes === undefined ? draft.nodes : patch.nodes,
+      }, { id: draft.id, builtin: false, now: at })
+      return {
+        ...draft,
+        name: next.name,
+        description: next.description,
+        nodes: next.nodes,
+        revision: revision + 1,
+        versions: [...versions, {
+          revision,
+          at: draft.updatedAt,
+          by: draft.updatedBy ?? draft.createdBy ?? '',
+          name: draft.name,
+          description: draft.description,
+          nodes: draft.nodes,
+          summary: (draft.changes ?? []).find(entry => entry.revision === revision)?.summary ?? '',
+        }],
+        changes: [
+          ...(draft.changes ?? []),
+          { at, by: who.session, revision: revision + 1, summary: templateChangeSummary(draft, next) },
+        ].slice(-TEMPLATE_CHANGE_LIMIT),
+        updatedAt: at,
+        updatedBy: who.session,
+      }
+    })
+    const revision = currentTemplateRevision(stored)
+    const pinnedToOld = this.#requirementsBoundTo(id).filter(requirement => (requirement.templateRevision ?? 1) !== revision).length
+    return { ...templateView(stored), pinnedToOld }
+  }
+
+  /**
+   * Change a template's own name or description in place (`DESIGN.md` §11.5).
+   *
+   * This is the metadata side of the line §11.5 draws: the label a template shows
+   * changes no requirement's flow or progress, so it moves no `revision` and
+   * enters no history. Any node-array change goes through `reviseTemplate`
+   * instead. The panel is the only caller — the model renames through `revise`,
+   * which leaves a trace — and a built-in template refuses both. A historical
+   * version keeps the name the top level had when it was current, which is
+   * intentional: each version records what was true then.
+   *
+   * @param id - Template id.
+   * @param patch - `{ name?, description? }`.
+   * @param actor - `{ session, name }` of the caller.
+   * @returns the projected template.
+   */
+  async setTemplateMetadata(id, patch = {}, actor) {
+    const who = this.#actor(actor)
+    const at = nowIso()
+    const template = this.#template(id)
+    if (template.builtin) fail('invalid-transition', `the built-in template "${id}" cannot be edited; clone it first`, { id })
+    const name = patch.name === undefined ? template.name : asString(patch.name, 'name', { required: true, max: 120 })
+    const description = patch.description === undefined ? template.description : asString(patch.description, 'description', { max: 600 })
+    if (name === template.name && description === template.description) return templateView(template)
+    const stored = await this.#mutateTemplate(id, draft => ({ ...draft, name, description, updatedAt: at, updatedBy: who.session }))
+    return templateView(stored)
+  }
+
+  /**
+   * Move the requirements pinned to an older revision onto `revision` (§11.5).
+   *
+   * This is the only template-side operation that touches requirements (I4), and
+   * it stays separate from `reviseTemplate` so the caller must confirm the impact.
+   * That impact is computed before any write — one
+   * `{ id, nodeId, revision, next, clearedChecks }` per candidate — and is both the
+   * success receipt and the `in-use` detail a refusal carries, which is how a
+   * caller without a preview action (the model) judges the cost from failure alone.
+   *
+   * Omitting `requirementIds` means "every requirement still on an older
+   * revision", the bulk edit that must be confirmed with `force`; naming ids is the
+   * confirmed form. A requirement whose current node is absent from the target
+   * revision is normalized to that revision's first node (the same rule rebinding
+   * uses), a changed checklist length blanks that node's ticks through
+   * `recomputeNodes`, and every migrated requirement gains a `retemplate` history
+   * entry whose note starts `migrated to revision <n> from <m>` — the prefix that
+   * keeps it distinguishable from the rebinding path's `bound to template <id>`.
+   *
+   * @param id - Template id.
+   * @param revision - Target revision; defaults to the current one and must exist.
+   * @param options - `{ requirementIds }`; omitted means every requirement on an older revision.
+   * @param actor - `{ session, name }` of the caller.
+   * @param force - Required for the bulk form; recorded on each history entry.
+   * @returns `{ id, revision, affected, migrated }`.
+   */
+  async migrateRequirementsToRevision(id, revision, { requirementIds } = {}, actor, force = false) {
+    const who = this.#actor(actor)
+    const at = nowIso()
+    const template = this.#template(id)
+    if (template.archived === true) fail('invalid-transition', `template "${id}" is archived and cannot be migrated`, { id })
+    const requested = asRevision(revision, 'revision')
+    const targetRevision = requested ?? currentTemplateRevision(template)
+    const target = this.#atRevision(template, targetRevision)
+    const named = requirementIds === undefined || requirementIds === null
+      ? undefined
+      : asStringArray(requirementIds, 'requirementIds', { max: 500, itemMax: 64 })
+    if (named !== undefined) {
+      for (const requirementId of named) {
+        const requirement = this.#requirements.get(requirementId)
+        if (requirement === undefined) fail('not-found', `no requirement with id "${requirementId}"`, { id: requirementId })
+        if (requirement.templateId !== id) {
+          fail('invalid-argument', `requirement "${requirementId}" is not bound to template "${id}"`, { id: requirementId, templateId: requirement.templateId })
+        }
+      }
+    }
+    const candidates = (named === undefined ? this.#requirementsBoundTo(id) : named.map(requirementId => this.#requirements.get(requirementId)))
+      .filter(requirement => (requirement.templateRevision ?? 1) !== targetRevision)
+    const affected = this.#migrationImpact(candidates, target, targetRevision)
+    if (named === undefined && candidates.length > 0 && force !== true) {
+      fail('in-use', `${candidates.length} requirement(s) still run an older revision of "${id}"`, {
+        id,
+        revision: targetRevision,
+        requirements: candidates.map(requirement => requirement.id),
+        affected,
+      })
+    }
+    const migrated = []
+    for (const requirement of candidates) {
+      await this.#mutateRequirement(requirement.id, undefined, draft => {
+        const from = draft.templateRevision ?? 1
+        draft.templateRevision = targetRevision
+        if (nodeIndex(target, draft.nodeId) < 0) draft.nodeId = target.nodes[0].id
+        draft.nodes = recomputeNodes(draft, target, at)
+        draft.updatedAt = at
+        draft.updatedBy = who.session
+        draft.rev = (draft.rev ?? 0) + 1
+        draft.history.push(this.#retemplateEntry(draft, who, at, `migrated to revision ${targetRevision} from ${from}`, force === true))
+        return draft
+      }, who.session, at)
+      migrated.push(requirement.id)
+    }
+    // Each requirement write above bumps the revision; a migration that changed
+    // nothing must still tell the open panels something was asked, so the frame is
+    // published for the empty case too (§11.9).
+    if (migrated.length === 0) await this.#bumpRevision()
+    return { id, revision: targetRevision, affected, migrated }
+  }
+
+  /**
+   * What one migration would do to each candidate, computed before any write.
+   * @param candidates - Requirement records the migration would touch.
+   * @param target - Template resolved at the target revision.
+   * @param revision - Target revision number.
+   * @returns one `{ id, nodeId, revision, next, clearedChecks }` per candidate;
+   * `clearedChecks` is `true` when the target node's checklist length differs from
+   * what the requirement recorded, which is the condition `recomputeNodes` blanks
+   * the ticks under.
+   */
+  #migrationImpact(candidates, target, revision) {
+    return candidates.map(requirement => {
+      const next = nodeIndex(target, requirement.nodeId) < 0 ? target.nodes[0].id : requirement.nodeId
+      const node = target.nodes.find(candidate => candidate.id === next)
+      const checks = requirement.nodes?.[next]?.checks
+      return {
+        id: requirement.id,
+        nodeId: requirement.nodeId,
+        revision: requirement.templateRevision ?? 1,
+        next,
+        clearedChecks: checks?.length !== (node?.completion?.checklist ?? []).length,
+      }
+    })
+  }
+
+  /**
+   * Drop one historical version of a template (`DESIGN.md` §11.5).
+   *
+   * Panel-only: pruning is housekeeping rather than flow authorship, so the tool
+   * surface has no action for it. A version any requirement is pinned to is
+   * refused with `in-use` and those requirements' ids (I2) — that requirement's
+   * whole flow would become unresolvable. The judgment set is the one deletion
+   * uses: every requirement whose `templateId` matches, done and archived records
+   * included, because a shelved requirement is reopened against the same pin.
+   *
+   * @param id - Template id.
+   * @param revision - Historical revision to drop; must be below the current one and stored.
+   * @param actor - `{ session, name }` of the caller.
+   * @returns the projected template, with `pruned` naming the dropped revision.
+   */
+  async pruneTemplateVersion(id, revision, actor) {
+    const who = this.#actor(actor)
+    const at = nowIso()
+    const template = this.#template(id)
+    if (template.archived === true) fail('invalid-transition', `template "${id}" is archived and cannot be pruned`, { id })
+    const wanted = asRevision(revision, 'revision')
+    if (wanted === undefined) fail('invalid-argument', '"revision" is required')
+    // The revision's own validity is judged before the pin question: pruning the
+    // current or an unstored revision is an argument error whatever is pinned to
+    // it, and reporting `in-use` there would blame the requirements.
+    const current = currentTemplateRevision(template)
+    const versions = template.versions ?? []
+    if (!(wanted < current) || !versions.some(entry => entry.revision === wanted)) {
+      fail('invalid-argument', `template "${id}" has no historical revision ${wanted}`, { id, revision: wanted, current })
+    }
+    const pinned = this.#requirementsBoundTo(id).filter(requirement => (requirement.templateRevision ?? 1) === wanted)
+    if (pinned.length > 0) {
+      fail('in-use', `revision ${wanted} of template "${id}" is pinned by ${pinned.length} requirement(s)`, {
+        id,
+        revision: wanted,
+        requirements: pinned.map(requirement => requirement.id),
+      })
+    }
+    const stored = await this.#mutateTemplate(id, draft => {
+      const live = currentTemplateRevision(draft)
+      const liveVersions = draft.versions ?? []
+      if (!(wanted < live) || !liveVersions.some(entry => entry.revision === wanted)) {
+        fail('invalid-argument', `template "${id}" has no historical revision ${wanted}`, { id, revision: wanted, current: live })
+      }
+      return {
+        ...draft,
+        versions: liveVersions.filter(entry => entry.revision !== wanted),
+        changes: [
+          ...(draft.changes ?? []),
+          { at, by: who.session, revision: live, summary: `pruned revision ${wanted}` },
+        ].slice(-TEMPLATE_CHANGE_LIMIT),
+        updatedAt: at,
+        updatedBy: who.session,
+      }
+    })
+    return { ...templateView(stored), pruned: wanted }
+  }
+
+  /**
+   * Archive or restore a flow template (`DESIGN.md` §11.5).
+   *
+   * Archiving is the routine alternative to a hard delete: the template leaves the
+   * new-requirement selector and the default `listTemplates` but keeps serving
+   * every requirement already bound to it, because each of those runs its own
+   * pinned revision. A built-in template (I6) and the deployment's configured
+   * `defaultTemplateId` are refused with `invalid-transition`: the first cannot be
+   * edited at all, and the last is what a new requirement with no named template
+   * resolves to.
+   *
+   * @param id - Template id.
+   * @param input - `{ archived }`; defaults to `true`, i.e. archive rather than restore.
+   * @param actor - `{ session, name }` of the caller.
+   * @returns the projected template.
+   */
+  async archiveTemplate(id, input = {}, actor) {
+    const who = this.#actor(actor)
+    const at = nowIso()
+    const archived = asBoolean(input.archived, 'archived', true)
+    const template = this.#template(id)
+    if (template.builtin) fail('invalid-transition', `the built-in template "${id}" cannot be archived`, { id })
+    if (archived && id === this.#config.defaultTemplateId) {
+      fail('invalid-transition', `template "${id}" is this deployment's default template and cannot be archived`, { id })
+    }
+    if ((template.archived === true) === archived) return templateView(template)
+    const stored = await this.#mutateTemplate(id, draft => ({ ...draft, archived, updatedAt: at, updatedBy: who.session }))
+    return templateView(stored)
+  }
+
+  /**
+   * Copy a template's current version into a new custom template (§11.5).
+   *
+   * This is the supported way to change a built-in flow (I6): the copy is
+   * ordinary, editable, and records its origin in `supersedes`. It starts a fresh
+   * version line (`revision` 1, no history) with the caller's name and the
+   * source's current description and nodes, so revising the copy cannot disturb
+   * the source or any requirement pinned to it.
+   *
+   * @param id - Source template id.
+   * @param input - `{ name }`; required, because the name is how a person tells two templates apart.
+   * @param actor - `{ session, name }` of the caller.
+   * @returns the projected new template.
+   */
+  async cloneTemplate(id, input = {}, actor) {
+    const who = this.#actor(actor)
+    const at = nowIso()
+    const source = this.#template(id)
+    const name = asString(input.name, 'name', { required: true, max: 120 })
+    const clone = normalizeTemplate({ name, description: source.description, nodes: source.nodes }, { id: mintId('tpl'), builtin: false, now: at })
+    clone.createdBy = who.session
+    clone.supersedes = source.id
+    await this.#templates.put(clone.id, clone)
+    await this.#bumpRevision()
+    return templateView(clone)
+  }
+
+  /**
    * Delete a custom flow template.
    *
    * Non-transactional by construction: the platform serializes writes on one
    * chain but offers no multi-record transaction, so the bound requirements are
-   * rebound and the template removed as consecutive chain writes.
+   * rebound and the template removed as consecutive chain writes. Because that
+   * chain can fail halfway, the fallback is resolved before any write: an
+   * unresolvable default template fails with `invalid-config` and changes no
+   * requirement, and repeating the call is idempotent because already-rebound
+   * requirements no longer match the reference set.
+   *
+   * Every bound requirement — done and archived ones included — is rebound to the
+   * deployment's default template, its pin reset to that template's current
+   * revision, and a `retemplate` history entry records the move (`force: true`).
+   * The deployment's default template itself is refused, like a built-in one.
+   *
    * @param id - Template id.
    * @param input - `{ force }` to delete one still bound by requirements.
+   * @param actor - `{ session, name }` of the caller.
    * @returns `{ id, deleted: true }`.
    */
-  async deleteTemplate(id, input = {}) {
+  async deleteTemplate(id, input = {}, actor) {
+    const who = this.#actor(actor)
     const template = this.#template(id)
     if (template.builtin) fail('invalid-transition', `the built-in template "${id}" cannot be deleted`, { id })
-    const bound = [...this.#requirements.entries()].filter(([, requirement]) => requirement.templateId === id)
+    if (id === this.#config.defaultTemplateId) {
+      fail('invalid-transition', `template "${id}" is this deployment's default template and cannot be deleted`, { id })
+    }
+    const bound = this.#requirementsBoundTo(id)
     if (bound.length > 0 && input.force !== true) {
-      fail('in-use', `template "${id}" is bound by ${bound.length} requirement(s)`, { id, requirements: bound.map(([requirementId]) => requirementId) })
+      fail('in-use', `template "${id}" is bound by ${bound.length} requirement(s)`, { id, requirements: bound.map(requirement => requirement.id) })
     }
     if (bound.length > 0) {
-      const fallback = this.#template(this.#config.defaultTemplateId)
-      for (const [requirementId] of bound) {
+      const fallbackId = this.#config.defaultTemplateId
+      const fallback = this.#templates.get(fallbackId)
+      if (fallback === undefined) {
+        fail('invalid-config', `cannot rebind the requirements of "${id}": the default template "${fallbackId}" is not stored`, {
+          id,
+          defaultTemplateId: fallbackId,
+          known: [...this.#templates.keys()],
+        })
+      }
+      for (const requirement of bound) {
         const at = nowIso()
-        await this.#mutateRequirement(requirementId, undefined, draft => {
+        await this.#mutateRequirement(requirement.id, undefined, draft => {
           draft.templateId = fallback.id
+          draft.templateRevision = currentTemplateRevision(fallback)
           if (nodeIndex(fallback, draft.nodeId) < 0) draft.nodeId = fallback.nodes[0].id
           draft.nodes = recomputeNodes(draft, fallback, at)
+          draft.updatedAt = at
+          draft.updatedBy = who.session
           draft.rev = (draft.rev ?? 0) + 1
+          draft.history.push(this.#retemplateEntry(draft, who, at, `template ${id} deleted → ${fallback.id}`, true))
           return draft
         }, '', at)
       }
@@ -2746,6 +3310,34 @@ export class RequirementService {
     await this.#templates.delete(id)
     await this.#bumpRevision()
     return { id, deleted: true }
+  }
+
+  /**
+   * One `retemplate` history entry (I4/I5).
+   * @param draft - Requirement draft after its binding moved.
+   * @param who - `{ session, name }` of the caller.
+   * @param at - Instant of the move.
+   * @param note - Why the template changed, with the prefix that names the reason.
+   * @param force - Whether the move overrode a gate.
+   * @returns the history entry.
+   */
+  #retemplateEntry(draft, who, at, note, force) {
+    return {
+      id: mintId('evt'),
+      at,
+      by: who.session,
+      byName: who.name,
+      action: 'retemplate',
+      from: null,
+      fromName: '',
+      to: draft.nodeId,
+      toName: draft.nodeId,
+      fromStatus: draft.status,
+      toStatus: draft.status,
+      note,
+      force,
+      durationMs: null,
+    }
   }
 
   /**
@@ -2770,6 +3362,21 @@ export class RequirementService {
   }
 
   /**
+   * The panel's role catalogue: the role records plus the live preset roster.
+   *
+   * {@link listRoles} stays the synchronous record view every reader shares —
+   * the snapshot, the prompt's role line, the model's `requirement_role` tool —
+   * and its records are the same rows this returns. The preset half is
+   * asynchronous because the registry audits each preset's activation while it
+   * lists it, so it is read only where it is shown: when the role dialog opens.
+   * @returns `{ items, unregistered, presets }`; `presets` is
+   * `{ items, unavailable }` (`host/roles.js` `presetRoster`).
+   */
+  async listRoleCatalogue() {
+    return { ...this.#roles.list(), presets: await this.#roles.presetRoster() }
+  }
+
+  /**
    * Create or edit a role by hand. The panel is the only caller: the model has
    * `requirement_role{list}` and no management action.
    * @param input - Raw `{ roleId, roleName, duties }`.
@@ -2790,8 +3397,11 @@ export class RequirementService {
   }
 
   /**
-   * Clear the dangling references an interrupted write chain leaves behind.
-   * Mount-time work: it writes no history and reports what it removed.
+   * Clear the dangling references an interrupted write chain leaves behind, and
+   * normalize a template pin that names no stored version (§11.4).
+   * Mount-time work: the sweep itself writes no history and reports what it
+   * removed, while a repaired pin does leave the `retemplate` entry that explains
+   * why the requirement moved.
    *
    * The sweep detects them; settling a delegation is this service's own work,
    * because the write it needs is the one `revoke` and `agent/disposed` already
@@ -2799,7 +3409,7 @@ export class RequirementService {
    * registry no longer knows is gone, so its lock is marked `orphaned` and the
    * requirement becomes takeable, while a row whose role was merely missing may
    * belong to a live holder whose lock must not move.
-   * @returns `{ removedRoles, removedQueueItems, unboundLinks, dangledDelegations, settledDelegations, deferred }`.
+   * @returns `{ removedRoles, removedQueueItems, unboundLinks, dangledDelegations, settledDelegations, repairedPins, deferred }`.
    */
   async sweepDangling() {
     const swept = await this.#roles.sweep()
@@ -2811,7 +3421,49 @@ export class RequirementService {
       const settled = await this.#settleDelegation(id, { lock })
       if (settled.roleId !== '') settledDelegations.push({ id, roleId: settled.roleId })
     }
-    return { ...swept, settledDelegations }
+    const repairedPins = await this.#repairDanglingPins()
+    return { ...swept, settledDelegations, repairedPins }
+  }
+
+  /**
+   * Normalize the requirements whose pinned template revision no longer exists
+   * (`DESIGN.md` §11.4).
+   *
+   * The public write path cannot produce this state — `pruneTemplateVersion`
+   * refuses a pinned revision and `migrateRequirementsToRevision` validates its
+   * target — so it can only come from a medium edited outside this plugin. Healing
+   * it at open is what keeps `invalid-transition` from becoming a state a person
+   * sees: the pin moves to the template's current revision, the node is normalized
+   * by the same rule a rebinding uses (the target's first node, `checklist` ticks
+   * blanked when the length changed), and a `retemplate` entry records it with a
+   * `pinned revision <n> missing → <m>` note. A requirement with no pin at all is
+   * left alone: it reads as revision 1, and the design backfills nothing.
+   * @returns the ids of the requirements whose pin was repaired.
+   */
+  async #repairDanglingPins() {
+    const repaired = []
+    for (const requirement of this.#allRequirements()) {
+      const stored = this.#templates.get(requirement.templateId)
+      if (stored === undefined) continue
+      if (templateAtRevision(stored, requirement.templateRevision) !== null) continue
+      const at = nowIso()
+      const who = { session: '', name: '' }
+      await this.#mutateRequirement(requirement.id, undefined, draft => {
+        const template = this.#template(draft.templateId)
+        const revision = currentTemplateRevision(template)
+        const missing = draft.templateRevision ?? 1
+        draft.templateRevision = revision
+        if (nodeIndex(template, draft.nodeId) < 0) draft.nodeId = template.nodes[0].id
+        draft.nodes = recomputeNodes(draft, template, at)
+        draft.updatedAt = at
+        draft.updatedBy = ''
+        draft.rev = (draft.rev ?? 0) + 1
+        draft.history.push(this.#retemplateEntry(draft, who, at, `pinned revision ${missing} missing → ${revision}`, false))
+        return draft
+      }, '', at)
+      repaired.push(requirement.id)
+    }
+    return repaired
   }
 
   /**
@@ -2934,7 +3586,7 @@ export class RequirementService {
         const gate = { ...derived.index.get(requirement.id), children: derived.children.get(requirement.id) ?? [] }
         requirements.push(template === undefined
           ? summarize(requirement, { id: requirement.templateId, name: requirement.templateId, nodes: [] }, gate)
-          : summarize(requirement, template, gate))
+          : summarize(requirement, this.#atRevision(template, requirement.templateRevision), gate))
       }
       for (const entry of requirement.history ?? []) {
         if (String(entry.at) > cutoff) transitions.push({ requirementId: requirement.id, title: requirement.title, ...entry })
@@ -3020,7 +3672,11 @@ export class RequirementService {
       return `${gate?.effectivePriority ?? requirement.priority}${gate?.escalated === true ? '↑' : ''}`
     }
     const name = requirement => {
-      const template = this.#templates.get(requirement.templateId)
+      const stored = this.#templates.get(requirement.templateId)
+      // A requirement the board lists must resolve its pinned revision; the
+      // open-time sweep repairs a dangling pin before any step reads this, so a
+      // miss here is a loud failure rather than a silently substituted version.
+      const template = stored === undefined ? undefined : this.#atRevision(stored, requirement.templateRevision)
       const node = template?.nodes.find(candidate => candidate.id === requirement.nodeId)
       const index = template === undefined ? -1 : nodeIndex(template, requirement.nodeId)
       const total = template?.nodes.length ?? 0
