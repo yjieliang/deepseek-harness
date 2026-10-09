@@ -119,7 +119,7 @@ async function caseClaimAndRelease(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     const actor = { session: 'ses_A', name: 'A' }
-    const created = await service.createRequirement({ title: '抢锁' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '抢锁' }, actor)
     check('create leaves the requirement unlocked', created.lock === null)
 
     const claimed = await service.claim(created.id, {}, actor)
@@ -151,7 +151,7 @@ async function caseLockConflictAndRows(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const created = await service.createRequirement({ title: '互斥' }, a)
+    const created = await service.createRequirement({ summary: '测试简述', title: '互斥' }, a)
     await service.claim(created.id, {}, a)
     const refused = await reporter.rejects('another session cannot take a held lock', () => service.claim(created.id, {}, b), 'conflict')
     check('the refusal names the lock and its holder', refused.details?.reason === 'locked' && refused.details?.current?.session === 'ses_A' && refused.details?.current?.expired === false)
@@ -182,7 +182,7 @@ async function caseLockConflictAndRows(backend, name) {
     check('session-busy reports the held lock and no queue head', busy.details?.reason === 'session-busy' && busy.details?.current?.session === 'ses_A' && busy.details?.queueHead === null)
     check('the session may re-claim the requirement it already holds', judgeClaim({ record: held, session: 'ses_B', holding }).idempotent === true)
 
-    const second = await service.createRequirement({ title: '第二把' }, a)
+    const second = await service.createRequirement({ summary: '测试简述', title: '第二把' }, a)
     const busyReal = await reporter.rejects('the board refuses a second lock for one session', () => service.claim(second.id, {}, a), 'conflict')
     check('the board reports session-busy with a null queue head', busyReal.details?.reason === 'session-busy' && busyReal.details?.queueHead === null)
     check('the first lock is still idempotent', (await service.claim(created.id, {}, a)).lock.session === 'ses_A')
@@ -197,7 +197,7 @@ async function caseOrphanAndLease(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const created = await service.createRequirement({ title: '租约' }, a)
+    const created = await service.createRequirement({ summary: '测试简述', title: '租约' }, a)
     const record = () => board.domain.table('requirements').get(created.id)
 
     await seedLock(board.domain, created.id, { session: 'ses_dead', name: '', at: hoursAgo(1), touchedAt: hoursAgo(1), orphaned: true })
@@ -235,13 +235,13 @@ async function caseConfiguredLease(backend, name) {
 
     const actor = { session: 'ses_A', name: 'A' }
     const short = await openBoard({ backend, dir: tight, config: resolveConfig({ staleClaimHours: 0.25 }) })
-    const created = await short.service.createRequirement({ title: '短租约' }, actor)
+    const created = await short.service.createRequirement({ summary: '测试简述', title: '短租约' }, actor)
     await seedLock(short.domain, created.id, { session: 'ses_hold', name: '', at: hoursAgo(0.5), touchedAt: hoursAgo(0.5) })
     check('a lock idle past a quarter-hour lease is taken over', (await short.service.claim(created.id, {}, actor)).lock.session === 'ses_A')
     await short.close()
 
     const long = await openBoard({ backend, dir: loose })
-    const held = await long.service.createRequirement({ title: '默认租约' }, actor)
+    const held = await long.service.createRequirement({ summary: '测试简述', title: '默认租约' }, actor)
     await seedLock(long.domain, held.id, { session: 'ses_hold', name: '', at: hoursAgo(0.5), touchedAt: hoursAgo(0.5) })
     await reporter.rejects('the same idle lock survives the default lease', () => long.service.claim(held.id, {}, actor), 'conflict')
     await long.close()
@@ -258,7 +258,7 @@ async function caseLeaseRenewal(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const created = await service.createRequirement({ title: '长任务' }, a)
+    const created = await service.createRequirement({ summary: '测试简述', title: '长任务' }, a)
     const claimed = await service.claim(created.id, {}, a)
 
     await new Promise(resolve => setTimeout(resolve, 15))
@@ -287,7 +287,7 @@ async function caseConcurrentClaim(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const created = await service.createRequirement({ title: '并发' }, a)
+    const created = await service.createRequirement({ summary: '测试简述', title: '并发' }, a)
 
     const settled = await Promise.allSettled([
       service.claim(created.id, {}, a),
@@ -301,7 +301,7 @@ async function caseConcurrentClaim(backend, name) {
 
     const winner = winners[0].value.lock.session
     const loser = winner === 'ses_A' ? b : a
-    const third = await service.createRequirement({ title: '第三个' }, a)
+    const third = await service.createRequirement({ summary: '测试简述', title: '第三个' }, a)
     await reporter.rejects('the winner cannot take a second lock', () => service.claim(third.id, {}, winner === 'ses_A' ? a : b), 'conflict')
     check('the loser holds nothing and may claim the next requirement', (await service.claim(third.id, {}, loser)).lock.session === loser.session)
     await board.close()
@@ -315,8 +315,8 @@ async function caseSameContentDifferentIds(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const first = await service.createRequirement({ title: '同名任务', description: '同一段描述' }, a)
-    const second = await service.createRequirement({ title: '同名任务', description: '同一段描述' }, a)
+    const first = await service.createRequirement({ summary: '测试简述', title: '同名任务', description: '同一段描述' }, a)
+    const second = await service.createRequirement({ summary: '测试简述', title: '同名任务', description: '同一段描述' }, a)
     check('the two requirements share their content and differ by id', first.title === second.title && first.description === second.description && first.id !== second.id)
 
     const one = await service.claim(first.id, {}, a)
@@ -335,7 +335,7 @@ async function caseCompletionReleases(backend, name) {
     const ai = { session: 'ses_A', name: 'A' }
     const other = { session: 'ses_B', name: 'B' }
     const panel = { session: '', name: '面板' }
-    const created = await service.createRequirement({ title: '一次做完' }, ai)
+    const created = await service.createRequirement({ summary: '测试简述', title: '一次做完' }, ai)
     await service.claim(created.id, {}, ai)
 
     const done = await service.transitionRequirement(created.id, { action: 'complete', force: true }, ai)
@@ -350,10 +350,10 @@ async function caseCompletionReleases(backend, name) {
     check('the reopened requirement is claimable again', (await service.claim(created.id, {}, ai)).lock.session === 'ses_A')
     await service.release(created.id, {}, ai)
 
-    const next = await service.createRequirement({ title: '接着做' }, other)
+    const next = await service.createRequirement({ summary: '测试简述', title: '接着做' }, other)
     check('the session that finished can take the next task at once', (await service.claim(next.id, {}, ai)).lock.session === 'ses_A')
 
-    const byPanel = await service.createRequirement({ title: '面板收尾' }, other)
+    const byPanel = await service.createRequirement({ summary: '测试简述', title: '面板收尾' }, other)
     await service.claim(byPanel.id, {}, other)
     const panelDone = await service.transitionRequirement(byPanel.id, { action: 'complete', force: true }, panel)
     check('the panel completing a task drops its lock too', panelDone.status === 'done' && panelDone.lock === null)
@@ -368,7 +368,7 @@ async function caseStructuralGate(backend, name) {
     const service = board.service
     const ai = { session: 'ses_A', name: 'A' }
     const panel = { session: '', name: '面板' }
-    const main = await service.createRequirement({ title: '结构动作' }, ai)
+    const main = await service.createRequirement({ summary: '测试简述', title: '结构动作' }, ai)
 
     const refused = await reporter.rejects('an unlocked session cannot advance', () => service.transitionRequirement(main.id, { action: 'advance', force: true }, ai), 'forbidden')
     check('the refusal asks for the lock', refused.details?.reason === 'lock-required' && refused.details?.lock === null)
@@ -403,12 +403,12 @@ async function caseStructuralGate(backend, name) {
     check('a lock holder archives', (await service.setArchived(main.id, { archived: true }, ai)).status === 'archived')
     check('a lock holder releases', (await service.release(main.id, {}, ai)).lock === null)
 
-    const victim = await service.createRequirement({ title: '待删' }, ai)
+    const victim = await service.createRequirement({ summary: '测试简述', title: '待删' }, ai)
     await service.claim(victim.id, {}, ai)
     check('a lock holder deletes', (await service.deleteRequirement(victim.id, {}, ai)).deleted === true)
     check('the deleted requirement is gone', board.domain.table('requirements').get(victim.id) === undefined)
 
-    const cas = await service.createRequirement({ title: '竞态' }, ai)
+    const cas = await service.createRequirement({ summary: '测试简述', title: '竞态' }, ai)
     const stale = await service.getRequirement(cas.id)
     await service.updateRequirement(cas.id, { title: '竞态（先行）' }, panel)
     const unlocked = await reporter.rejects('a stale revision is refused before the lock gate', () => service.updateRequirement(cas.id, { role: 'art', expectedRev: stale.rev }, ai), 'conflict')
@@ -432,16 +432,16 @@ async function caseClaimableSingleSource(backend, name) {
     const other = { session: 'ses_other', name: 'Other' }
     const panel = { session: '', name: '面板' }
 
-    const open = await service.createRequirement({ title: '任意角色可接' }, other)
-    const routed = await service.createRequirement({ title: '美术任务' }, other)
+    const open = await service.createRequirement({ summary: '测试简述', title: '任意角色可接' }, other)
+    const routed = await service.createRequirement({ summary: '测试简述', title: '美术任务' }, other)
     await service.updateRequirement(routed.id, { role: 'art-role' }, panel)
-    const elsewhere = await service.createRequirement({ title: '待其他角色' }, other)
+    const elsewhere = await service.createRequirement({ summary: '测试简述', title: '待其他角色' }, other)
     await service.updateRequirement(elsewhere.id, { role: 'qa-role' }, panel)
-    const busy = await service.createRequirement({ title: 'QA 在做' }, other)
+    const busy = await service.createRequirement({ summary: '测试简述', title: 'QA 在做' }, other)
     await service.claim(busy.id, {}, qa)
-    const mine = await service.createRequirement({ title: '我已持锁' }, other)
+    const mine = await service.createRequirement({ summary: '测试简述', title: '我已持锁' }, other)
     await service.claim(mine.id, {}, art)
-    const finished = await service.createRequirement({ title: '已完成' }, other)
+    const finished = await service.createRequirement({ summary: '测试简述', title: '已完成' }, other)
     await service.transitionRequirement(finished.id, { action: 'complete', force: true }, panel)
 
     const expected = [open.id, mine.id, routed.id].sort()
@@ -513,7 +513,7 @@ async function casePanelCannotClaim(backend, name) {
     const service = board.service
     const panel = { session: '', name: '面板' }
     const ai = { session: 'ses_A', name: 'A' }
-    const created = await service.createRequirement({ title: '面板不认领' }, panel)
+    const created = await service.createRequirement({ summary: '测试简述', title: '面板不认领' }, panel)
 
     const refused = await reporter.rejects('the panel cannot claim', () => service.claim(created.id, {}, panel), 'invalid-argument')
     check('the refusal says a session is required', refused.details?.reason === 'session-required')
@@ -544,7 +544,7 @@ async function caseToolSurface(backend, name) {
     check('the board tool exposes the claimable filter', tool.parameters.properties.claimable?.type === 'boolean')
 
     const exec = { agent: { id: 'ses_art' } }
-    const created = await tool.execute({ action: 'create', title: '工具面' }, exec)
+    const created = await tool.execute({ action: 'create', summary: '测试简述', title: '工具面' }, exec)
     check('the tool creates through the same service', created.id.startsWith('req_') && created.lock === null)
     const claimed = await tool.execute({ action: 'claim', id: created.id }, exec)
     check('the tool claims with the calling session', claimed.lock?.session === 'ses_art')
@@ -563,7 +563,7 @@ async function caseValidationBounds(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     const actor = { session: 'ses_A', name: 'A' }
-    const created = await service.createRequirement({ title: '上界' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '上界' }, actor)
 
     check('a 60-character label is accepted', (await service.updateRequirement(created.id, { labels: ['x'.repeat(60)] }, actor)).labels[0].length === 60)
     await reporter.rejects('a 61-character label is refused', () => service.updateRequirement(created.id, { labels: ['x'.repeat(61)] }, actor), 'invalid-argument')
@@ -591,8 +591,8 @@ async function caseValidationBounds(backend, name) {
 
     const longRole = 'r'.repeat(33)
     await reporter.rejects('a 33-character role id is refused', () => service.putRole({ roleId: longRole }), 'invalid-role')
-    await reporter.rejects('a requirement cannot name a malformed role', () => service.createRequirement({ title: 'x', role: longRole }, actor), 'invalid-role')
-    check('a requirement may name the human role', (await service.createRequirement({ title: '拍板', role: 'human' }, actor)).role === 'human')
+    await reporter.rejects('a requirement cannot name a malformed role', () => service.createRequirement({ summary: '测试简述', title: 'x', role: longRole }, actor), 'invalid-role')
+    check('a requirement may name the human role', (await service.createRequirement({ summary: '测试简述', title: '拍板', role: 'human' }, actor)).role === 'human')
     await board.close()
   })
 }
@@ -615,7 +615,7 @@ async function caseImagesAreProse(backend, name) {
     const panel = { session: '', name: '面板' }
     const image = await service.storeImage({ bytes: imageFixture('image/webp', 7, 8), mediaType: 'image/webp', name: 'shot.webp' })
 
-    const decision = await service.createRequirement({ title: '拍板', kind: 'decision' }, panel)
+    const decision = await service.createRequirement({ summary: '测试简述', title: '拍板', kind: 'decision' }, panel)
     const attached = await service.updateRequirement(decision.id, { images: [image.id] }, ai)
     check('an agent may attach an image to a decision requirement', attached.images.length === 1 && attached.images[0].id === image.id)
     check('the attached ref keeps the encoded size', attached.images[0].width === 7 && attached.images[0].height === 8)
@@ -624,14 +624,14 @@ async function caseImagesAreProse(backend, name) {
     await reporter.rejects('a malformed image id is refused too', () => service.updateRequirement(decision.id, { images: ['../../etc/passwd'] }, ai), 'invalid-image')
     check('the refused attachment left the record untouched', service.getRequirement(decision.id).images.length === 0)
 
-    const work = await service.createRequirement({ title: '普通任务' }, panel)
+    const work = await service.createRequirement({ summary: '测试简述', title: '普通任务' }, panel)
     const unlocked = await service.updateRequirement(work.id, { images: [image.id] }, ai)
     check('attaching an image needs no lock', unlocked.images[0].id === image.id)
     const before = service.getRequirement(work.id)
     const same = await service.updateRequirement(work.id, { images: [image.id] }, ai)
     check('re-naming the stored ids writes nothing', same.rev === before.rev && same.images[0].id === image.id)
 
-    await reporter.rejects('an unknown id is refused on create as well', () => service.createRequirement({ title: '写不进去', images: ['nope'] }, ai), 'invalid-image')
+    await reporter.rejects('an unknown id is refused on create as well', () => service.createRequirement({ summary: '测试简述', title: '写不进去', images: ['nope'] }, ai), 'invalid-image')
     check('the refused create wrote no requirement', [...board.domain.table('requirements').entries()].every(([, record]) => record.title !== '写不进去'))
     await board.close()
   })

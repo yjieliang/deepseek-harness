@@ -454,6 +454,7 @@ const requirementHistory = [
 const requirement = {
   id: 'req_demo000001',
   title: '跨会话需求看板',
+  summary: '让多个会话看到同一份需求进度，一眼就知道每条要做什么。',
   description: '让多个会话共享同一份需求进度。',
   priority: 'high',
   owner: '张三',
@@ -942,6 +943,10 @@ check('the create dialog lists the templates', createDialog.html.includes('标�
 check('an empty title disables the create action', createDialog.collected.some(element => element.html === '创建' && element.props.disabled === true))
 const titleInput = createDialog.findInput(props => props.name === 'requirement.title')
 titleInput.props.onChange({ target: { value: '新需求' } })
+check('a title alone leaves the create action disabled: the brief is required',
+  renderPage().collected.some(element => element.html === '创建' && element.props.disabled === true))
+renderPage().findInput(props => props.name === 'requirement.summary')
+  .props.onChange({ target: { value: '给看板加简述，让人一眼看懂要做什么。' } })
 const filledDialog = renderPage()
 check('a filled title enables the create action', filledDialog.collected.some(element => element.html === '创建' && element.props.disabled === false))
 const prioritySelect = filledDialog.findInput(props => props.name === 'requirement.priority')
@@ -955,6 +960,7 @@ const createCall = requests.filter(request => String(request.url).includes('/com
   .find(body => body.action === 'create')
 check('submitting the form posts the create command', createCall?.requirement?.title === '新需求', JSON.stringify(createCall?.requirement))
 check('the form carries every edited field', createCall?.requirement?.priority === 'urgent' && Array.isArray(createCall?.requirement?.sessions) && createCall?.requirement?.templateId === 'tpl-standard', JSON.stringify(createCall?.requirement))
+check('the create command carries the brief', createCall?.requirement?.summary === '给看板加简述，让人一眼看懂要做什么。', JSON.stringify(createCall?.requirement?.summary))
 check('the dialog closes after a successful create', renderPage().html.includes('模板名称') === false)
 
 /* ----------------------------------------------------- template drawer */
@@ -2511,6 +2517,31 @@ await settle()
 const revisionCall = commandBodies().filter(body => body.action === 'transition').at(-1)
 check('a write after an execution-only change still targets the business revision',
   revisionCall?.expectedRev === requirement.rev && revisionCall?.id === requirement.id, JSON.stringify(revisionCall))
+
+// The brief is the panel's first reading: the card carries it under the title,
+// the detail leads with it, and the full description stays behind its fold
+// below. A record written before the field existed shows the placeholder in the
+// same frame rather than an empty gap.
+snapshotPayload = boardSnapshot({ requirements: [requirement] })
+await face.refresh()
+await settle()
+check('the card carries the brief under its title',
+  cardOf(renderPage(), requirement.title).html.includes(requirement.summary))
+cardOf(renderPage(), requirement.title).props.onClick()
+await settle()
+const briefDetail = renderPage()
+check('the detail leads with the brief, above the folded description',
+  briefDetail.collected.some(element => String(element.props.className ?? '').includes('rb-summary-text') && element.html.includes(requirement.summary))
+  && briefDetail.html.indexOf(requirement.summary) < briefDetail.html.indexOf(requirement.description))
+snapshotPayload = boardSnapshot({ requirements: [{ ...requirement, summary: '' }] })
+await face.refresh()
+await settle()
+cardOf(renderPage(), requirement.title).props.onClick()
+await settle()
+const legacyDetail = renderPage()
+check('a requirement written before the field existed shows the placeholder',
+  legacyDetail.html.includes(localeDicts.zh.summaryEmpty)
+  && legacyDetail.collected.some(element => String(element.props.className ?? '').includes('rb-summary-empty')))
 
 // A Host that reports none of these facts must not be dressed with them.
 snapshotPayload = boardSnapshot()

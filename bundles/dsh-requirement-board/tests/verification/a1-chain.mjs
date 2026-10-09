@@ -429,7 +429,7 @@ console.log('\n[3] 建档 store failure does not break the creation dispatch')
       warns.length === 1 && warns[0].text.includes('registering the role of session "sess-art" failed and was ignored so the session is still created'),
       JSON.stringify(logs.filter(entry => entry.type === 'warn')),
     )
-    const broken = await callTool(ctx, 'requirement_board', { action: 'create', title: 'sweep seed' }, 'a1-verify-broken-create')
+    const broken = await callTool(ctx, 'requirement_board', { action: 'create', summary: '测试简述', title: 'sweep seed' }, 'a1-verify-broken-create')
     check('the medium really is broken (the board tool reports the failed write)', broken.isError === true && broken.text.includes(BOARD_UNIT), JSON.stringify(broken))
     const listed = await listRoles(ctx)
     check('the board is still usable after the contained failure', Array.isArray(listed.items), JSON.stringify(listed))
@@ -548,10 +548,10 @@ console.log('\n[5] startup sweep of dangling references')
   let seeded = null
   {
     const { ctx } = await mountBoard({ root, agents })
-    const keeper = await callTool(ctx, 'requirement_board', { action: 'create', title: 'Sweep keeper requirement' }, 'a1-verify-sweep-keeper')
+    const keeper = await callTool(ctx, 'requirement_board', { action: 'create', summary: '测试简述', title: 'Sweep keeper requirement' }, 'a1-verify-sweep-keeper')
     const keeperParsed = JSON.parse(keeper.text)
     const keeperId = keeperParsed?.id ?? keeperParsed?.requirement?.id
-    const gated = await callTool(ctx, 'requirement_board', { action: 'create', title: 'Sweep gate owner' }, 'a1-verify-sweep-gated')
+    const gated = await callTool(ctx, 'requirement_board', { action: 'create', summary: '测试简述', title: 'Sweep gate owner' }, 'a1-verify-sweep-gated')
     const gatedParsed = JSON.parse(gated.text)
     const gatedId = gatedParsed?.id ?? gatedParsed?.requirement?.id
     check(

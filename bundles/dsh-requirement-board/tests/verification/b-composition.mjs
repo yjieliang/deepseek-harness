@@ -172,7 +172,7 @@ async function callTool(ctx, name, args, agent, callId) {
 
 /** Create one requirement through the tool as `session`. */
 async function createViaTool(ctx, session, title) {
-  const called = await callTool(ctx, 'requirement_board', { action: 'create', title }, session, `b-verify-create-${title}`)
+  const called = await callTool(ctx, 'requirement_board', { action: 'create', summary: '测试简述', title }, session, `b-verify-create-${title}`)
   return { called, id: JSON.parse(called.text).id }
 }
 

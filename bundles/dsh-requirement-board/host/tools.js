@@ -47,7 +47,11 @@ const BOARD_PARAMETERS = {
     },
     id: { type: 'string', description: 'Requirement id, e.g. `req_1a2b3c4d5e`. Required for every action except `create`, `list`, `stats`, and `changes`.' },
     title: { type: 'string', description: 'Requirement title. Required for `create`.' },
-    description: { type: 'string', description: 'Requirement detail. Used by `create` and `update`.' },
+    summary: {
+      type: 'string',
+      description: 'The requirement in one or two plain-language sentences for a reader who will not read `description`: what is wanted and why it matters, without implementation detail, at most 300 characters. Required for `create`; used by `update`.',
+    },
+    description: { type: 'string', description: 'Requirement detail: scope and boundaries, acceptance criteria, and where the deliverable lands. Used by `create` and `update`; `summary` is what a reader sees first.' },
     priority: { type: 'string', enum: PRIORITY_ENUM, description: 'Used by `create` and `update`. Defaults to `normal` on create.' },
     kind: {
       type: 'string',
@@ -207,6 +211,7 @@ async function runBoardAction(service, args, exec) {
     case 'create':
       return await service.createRequirement({
         title: args.title,
+        summary: args.summary,
         description: args.description,
         kind: args.kind,
         priority: args.priority,
@@ -245,6 +250,7 @@ async function runBoardAction(service, args, exec) {
       return await service.updateRequirement(args.id, {
         ...(args.kind === undefined ? {} : { kind: args.kind }),
         ...(args.title === undefined ? {} : { title: args.title }),
+        ...(args.summary === undefined ? {} : { summary: args.summary }),
         ...(args.description === undefined ? {} : { description: args.description }),
         ...(args.priority === undefined ? {} : { priority: args.priority }),
         ...(args.owner === undefined ? {} : { owner: args.owner }),
@@ -306,6 +312,7 @@ export function registerTools(ctx, service) {
     description: [
       'Read and change the shared cross-session requirement board.',
       'Requirements are visible to every session of this Harness process, so a change made here is what other sessions and their panels see.',
+      'Every requirement carries `summary`: one or two plain-language sentences a person reads instead of the full `description`, which the panel keeps behind a fold. `create` requires it — at most 300 characters, and no implementation detail, since a summary that needs the detail has become the description.',
       'Use action "list" to find work — with `claimable: true` for what this session may take now — "get" for one requirement\'s flow, full transition history, and your own queue, "claim" to take a requirement\'s execution lock, "release" to give it back, and "stats" for project completion and blockers.',
       'You hold one lock at a time: while you execute something, reserve your next requirement with "queue" (a soft reservation — no lock, no work started) and claim it once the current one is done. A requirement another session reserved is reported as reserved, and one it locked is refused; "unqueue" drops a reservation you no longer want.',
       'To hand one requirement to a sub-session you own, use "delegate": it mints a temporary role for that task, and the sub-session claims the requirement through that delegation. Delegate only after you created the sub-session, tell it the requirement id, and end the delegation with "delegate" and `revoke: true` when it should stop.',

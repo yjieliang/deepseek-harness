@@ -154,7 +154,7 @@ const queueRow = (world, session) => world.board.domain.table('queues').get(sess
 
 /** Create one task on the verification template. */
 async function task(world, title, extra = {}, actor = PANEL) {
-  const created = await world.service.createRequirement({ title, templateId: 'tpl-cd', ...extra }, actor)
+  const created = await world.service.createRequirement({ summary: '测试简述', title, templateId: 'tpl-cd', ...extra }, actor)
   return created.id
 }
 
@@ -176,8 +176,8 @@ console.log(`\n[1] kind immutability (service: ${SERVICE_PATH}, backend: ${BACKE
     await refuses('a decision cannot be turned back into a task', { code: 'invalid-argument', reason: 'kind-immutable' }, () => service.updateRequirement(decision, { kind: 'task' }, PANEL))
     check('the decision is still a decision', raw(world, decision).kind === 'decision', String(raw(world, decision).kind))
 
-    await refuses('an invalid kind is refused at create with the value received', { code: 'invalid-argument', field: { name: 'received', value: 'epic' } }, () => service.createRequirement({ title: '怪类型', kind: 'epic', templateId: 'tpl-cd' }, PANEL))
-    await refuses('an invalid kind is refused through the command path too', { code: 'invalid-argument', field: { name: 'received', value: 'epic' } }, () => dispatchBoardCommand(service, { action: 'create', session: '', name: '', requirement: { title: '怪类型', kind: 'epic', templateId: 'tpl-cd' } }))
+    await refuses('an invalid kind is refused at create with the value received', { code: 'invalid-argument', field: { name: 'received', value: 'epic' } }, () => service.createRequirement({ summary: '测试简述', title: '怪类型', kind: 'epic', templateId: 'tpl-cd' }, PANEL))
+    await refuses('an invalid kind is refused through the command path too', { code: 'invalid-argument', field: { name: 'received', value: 'epic' } }, () => dispatchBoardCommand(service, { action: 'create', session: '', name: '', requirement: { summary: '测试简述', title: '怪类型', kind: 'epic', templateId: 'tpl-cd' } }))
     await refuses('the kind filter refuses an unknown kind', { code: 'invalid-argument' }, () => service.listRequirements({ kind: 'epic' }, ''))
 
     // Bypass: straight into the table, past the service. This is a different

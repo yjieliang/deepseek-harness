@@ -24,7 +24,7 @@
 | # | 问题 | 证据 | 影响 | 级别 | 现状（代码锚点） |
 |---|---|---|---|---|---|
 | 1 | 存储层自研，整文件重写 + 文件戳 rebase | `host/store.js` `#rebaseIfReplaced()`、`size:mtimeMs` 戳；DESIGN 已知限制已承认跨进程只"尽力而为" | 每次写重写整个文档；两个 Host 进程共享同一文件时靠时间戳猜测，可能互相覆盖 | P0 | **已解决**：`host/store.js` 已删；`host/domain.js` 声明域表单，单行 UPDATE + 平台单域写链 |
-| 2 | 持久化记录**没有**逐条校验 | `#readDocument()` 只校验 `schemaVersion` 与整体可解析；没有 per-record 校验 | 手工改坏一条记录会让整份文档在后续读取时才炸，且报错位置不明确 | P0 | **已解决**：每表一个 zod schema，`open` 逐条校验，坏记录 → `invalid-record`（`host/domain.js:351-386`） |
+| 2 | 持久化记录**没有**逐条校验 | `#readDocument()` 只校验 `schemaVersion` 与整体可解析；没有 per-record 校验 | 手工改坏一条记录会让整份文档在后续读取时才炸，且报错位置不明确 | P0 | **已解决**：每表一个 zod schema，`open` 逐条校验，坏记录 → `invalid-record`（`host/domain.js:359-394`） |
 | 3 | 死代码 4 处 | `model.js` 的 `NODE_STATUSES`、`asIsoInstant`；`service.js` 的 `readiness(id)`；`http.js` 对 `ROUTE_PREFIX` 的多余 `export` | 读者要判断哪些是活的；`DESIGN.md` 接口表还在列 `readiness` | P1 | **已删**：四个符号在 `host/model.js`/`host/service.js`/`host/http.js` 中都不存在；`DESIGN.md` 不再列 `readiness` |
 | 4 | 空 `catch` 未命名错误 | `host/store.js` 约 167 行 `catch {` | 违反仓库 "an empty `catch` names the error and why" | P1 | **已命名**：`host/**`、`index.js`、`client.js` 内已无裸 `catch {` |
 | 5 | 图表只有 shim 级验证，无导出 | `tests/client-smoke.mjs` 从渲染几何反推，但没有浏览器截图回归；AI 只能拿到文本 | 视觉回归无人守；跨会话想让 AI 描述流程图时没有图 | P2 | **未做（取舍）**：仍是手写 SVG + 几何反推断言；真实浏览器验收走 `record-browser-gif`（阶段 G/R 人工项） |

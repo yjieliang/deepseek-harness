@@ -115,6 +115,9 @@ window.__ModuleLoader__.load({
         cancel: 'Cancel',
         close: 'Close',
         create: 'Create',
+        summary: 'Brief',
+        summaryHint: 'Say what is wanted and why it matters in one or two plain sentences — leave the implementation detail to the description.',
+        summaryEmpty: 'This requirement has no brief: it was written before the field existed.',
         description: 'Description',
         titleField: 'Title',
         projectProgress: 'Project progress',
@@ -498,6 +501,9 @@ window.__ModuleLoader__.load({
         cancel: '取消',
         close: '关闭',
         create: '创建',
+        summary: '简述',
+        summaryHint: '用一两句大白话说清楚要做什么、为什么值得做；实现细节留给下面的描述。',
+        summaryEmpty: '这条需求还没有简述：它写在简述字段出现之前。',
         description: '描述',
         titleField: '标题',
         projectProgress: '项目进度',
@@ -1894,6 +1900,24 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
   font-family:var(--rb-num); font-size:11px; color:var(--dsw-alias-label-tertiary); }
 
+/* ---------- The requirement's brief ---------- */
+/* The plain-language reading sits above the metadata grid, so it is the first
+   thing a reader meets after the title; the full description stays behind its
+   fold below. A record written before the field shows the placeholder in the
+   same frame rather than an empty gap. */
+.rb-summary { border:1px solid var(--dsw-alias-border-l1); border-radius:var(--rb-radius-md);
+  background:var(--dsw-alias-bg-layer-1); padding:12px 14px; margin-top:14px; }
+.rb-summary-tag { display:flex; align-items:center; gap:7px; margin-bottom:6px;
+  font-family:var(--rb-num); font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--dsw-alias-label-tertiary); }
+.rb-summary-text { margin:0; font-size:15px; line-height:1.6; overflow-wrap:anywhere;
+  color:var(--dsw-alias-label-primary); }
+.rb-summary-empty .rb-summary-text { color:var(--dsw-alias-label-tertiary); }
+.rb-card-summary { margin:0 0 6px; font-size:12px; line-height:1.45; overflow-wrap:anywhere;
+  color:var(--dsw-alias-label-secondary); display:-webkit-box; -webkit-line-clamp:2;
+  -webkit-box-orient:vertical; overflow:hidden; }
+.rb-textarea-brief { min-height:58px; }
+
 /* ---------- Adaptation ---------- */
 @media (max-width:1240px) {
   .rb-body { flex-direction:column; }
@@ -2786,6 +2810,7 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
     function CreateRequirementDialog({ templates, defaultTemplateId, onClose, onSubmit, onUpload, busy, t }) {
       const [form, setForm] = useState({
         title: '',
+        summary: '',
         description: '',
         priority: 'normal',
         owner: '',
@@ -2910,9 +2935,10 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
           h(Button, {
             variant: 'primary',
 key: 'ok',
-            disabled: busy || uploading || form.title.trim() === '',
+            disabled: busy || uploading || form.title.trim() === '' || form.summary.trim() === '',
             onClick: () => onSubmit({
               title: form.title.trim(),
+              summary: form.summary.trim(),
               description: form.description.trim(),
               priority: form.priority,
               owner: form.owner.trim(),
@@ -2928,6 +2954,15 @@ key: 'ok',
           value: form.title,
           onChange: event => set({ title: event.target.value }),
         })),
+        h(Field, { label: t('summary') },
+          h('textarea', {
+            className: 'rb-textarea rb-textarea-brief',
+            name: 'requirement.summary',
+            value: form.summary,
+            maxLength: 300,
+            onChange: event => set({ summary: event.target.value }),
+          }),
+          h('div', { className: 'rb-image-hint' }, t('summaryHint'))),
         h(Field, { label: t('description') },
           h('textarea', {
             className: 'rb-textarea',
@@ -4264,6 +4299,12 @@ disabled: busy,
 disabled: busy,
             onClick: () => setConfirmDelete(true),
             }, t('remove')))),
+        h('div', { className: `rb-summary${requirement.summary === '' ? ' rb-summary-empty' : ''}` },
+          h('div', { className: 'rb-summary-tag' },
+            h('span', null, t('summary')),
+            h('span', { className: 'rb-en' }, 'BRIEF')),
+          h('p', { className: 'rb-summary-text' },
+            requirement.summary === '' ? t('summaryEmpty') : requirement.summary)),
         editing
           ? h(EditFields, {
             requirement,
@@ -4963,6 +5004,7 @@ name: 'auth.recheck',
                   onClick: () => setSelectedId(item.id),
                 },
                   h('div', { className: 'rb-card-title' }, item.title),
+                  item.summary === undefined || item.summary === '' ? null : h('div', { className: 'rb-card-summary' }, item.summary),
                   h('div', { className: 'rb-card-meta' },
                     h(StatusBadge, { status: item.status, t }),
                     h(PriorityBadge, { priority: item.priority, t }),

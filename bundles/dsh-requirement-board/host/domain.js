@@ -181,7 +181,10 @@ const executionSyncSchema = z.object({
  * follows too: a record written before pasted images existed reads as one that
  * carries none, while the refs it does carry point at files outside the record
  * (see `host/images.js`). `templateRevision` follows: a record written before
- * template versions existed reads as one pinned to revision 1.
+ * template versions existed reads as one pinned to revision 1. `summary` follows
+ * the same rule: a record written before the plain-language summary existed
+ * reads as one carrying none, which is why the field is optional here while the
+ * write path refuses an empty one.
  *
  * A record this schema refuses stops the whole open, and that is the design rather
  * than an accident: `kind`, `status`, and `priority` are closed sets the write path
@@ -197,6 +200,11 @@ const executionSyncSchema = z.object({
 const requirementRecordSchema = z.object({
   id: z.string().min(1),
   title: z.string(),
+  // The plain-language reading of this requirement, written for a person rather
+  // than for its implementer. Absent on a record written before it existed, and
+  // such a record reads as one whose summary is empty; every write that carries
+  // the field requires a non-empty value.
+  summary: z.string().optional(),
   description: z.string(),
   kind: storedEnum('kind', REQ_KINDS).optional(),
   priority: storedEnum('priority', PRIORITIES),

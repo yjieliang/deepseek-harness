@@ -86,8 +86,8 @@ async function caseReserveWithoutLock(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
-    const first = await service.createRequirement({ title: '排队一' }, a)
-    const second = await service.createRequirement({ title: '排队二' }, a)
+    const first = await service.createRequirement({ summary: '测试简述', title: '排队一' }, a)
+    const second = await service.createRequirement({ summary: '测试简述', title: '排队二' }, a)
 
     const framesBefore = board.changes.length
     const receipt = await service.queue(first.id, {}, a)
@@ -144,12 +144,12 @@ async function caseQueueBound(backend, name) {
     const b = { session: 'ses_B', name: 'B' }
     const ids = []
     for (let index = 0; index < 5; index += 1) {
-      ids.push((await service.createRequirement({ title: `排队 ${index}` }, a)).id)
+      ids.push((await service.createRequirement({ summary: '测试简述', title: `排队 ${index}` }, a)).id)
     }
     for (const id of ids) await service.queue(id, {}, a)
     check('the queue accepts exactly the configured maximum', service.queueOf('ses_A').length === 5)
 
-    const sixth = (await service.createRequirement({ title: '第六' }, a)).id
+    const sixth = (await service.createRequirement({ summary: '测试简述', title: '第六' }, a)).id
     const refused = await reporter.rejects('one past the bound is refused', () => service.queue(sixth, {}, a), 'invalid-input')
     check('the refusal names the bound and its reason', refused.details?.reason === 'queue-full' && refused.details?.max === 5)
     check('the refused append reserved nothing', (await service.getRequirement(sixth)).reservedBy === null && service.queueOf('ses_A').length === 5)
@@ -168,7 +168,7 @@ async function caseReservationBlocksClaim(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const created = await service.createRequirement({ title: '预留' }, a)
+    const created = await service.createRequirement({ summary: '测试简述', title: '预留' }, a)
     await service.queue(created.id, {}, a)
 
     const refused = await reporter.rejects('another session cannot claim a reserved requirement', () => service.claim(created.id, {}, b), 'conflict')
@@ -196,8 +196,8 @@ async function caseUnqueueFrees(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const first = await service.createRequirement({ title: '放行一' }, a)
-    const second = await service.createRequirement({ title: '放行二' }, a)
+    const first = await service.createRequirement({ summary: '测试简述', title: '放行一' }, a)
+    const second = await service.createRequirement({ summary: '测试简述', title: '放行二' }, a)
     await service.queue(first.id, {}, a)
     await service.queue(second.id, {}, a)
 
@@ -230,20 +230,20 @@ async function caseQueueUsesClaimTable(backend, name) {
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
 
-    const routed = await service.createRequirement({ title: '美术活', role: 'art-role' }, a)
+    const routed = await service.createRequirement({ summary: '测试简述', title: '美术活', role: 'art-role' }, a)
     const mismatch = await reporter.rejects('a session without the role cannot queue it', () => service.queue(routed.id, {}, b), 'forbidden')
     check('the role refusal carries the claim-table row and its details', mismatch.details?.reason === 'role-mismatch' && mismatch.details?.role === 'art-role' && mismatch.details?.myRole === 'qa-role')
     check('the session wearing the role may queue it', (await service.queue(routed.id, {}, a)).changed === true)
 
-    const unrouted = await service.createRequirement({ title: '都能做' }, a)
-    const finished = await service.createRequirement({ title: '已完成' }, a)
+    const unrouted = await service.createRequirement({ summary: '测试简述', title: '都能做' }, a)
+    const finished = await service.createRequirement({ summary: '测试简述', title: '已完成' }, a)
     await service.claim(finished.id, {}, a)
     await service.transitionRequirement(finished.id, { action: 'complete' }, a)
     const doneQueue = await reporter.rejects('a finished requirement cannot be queued', () => service.queue(finished.id, {}, a), 'invalid-state')
     const doneClaim = await reporter.rejects('the same finished requirement cannot be claimed', () => service.claim(finished.id, {}, a), 'invalid-state')
     check('queue and claim refuse a finished requirement with one code and reason', doneQueue.code === doneClaim.code && doneQueue.details?.reason === doneClaim.details?.reason)
 
-    const held = await service.createRequirement({ title: '被占' }, a)
+    const held = await service.createRequirement({ summary: '测试简述', title: '被占' }, a)
     await service.claim(held.id, {}, a)
     const lockedQueue = await reporter.rejects('a requirement locked by another session cannot be queued', () => service.queue(held.id, {}, b), 'conflict')
     check('the locked refusal is the claim-table lock row', lockedQueue.details?.reason === 'locked' && lockedQueue.details?.current?.session === 'ses_A')
@@ -254,7 +254,7 @@ async function caseQueueUsesClaimTable(backend, name) {
     // path cannot produce this state — row 5 refuses any claimant while another
     // session reserves the requirement — so the lock is seeded directly, as a
     // restored document that carried a lock would.
-    const mine = await service.createRequirement({ title: '我排的' }, b)
+    const mine = await service.createRequirement({ summary: '测试简述', title: '我排的' }, b)
     await service.queue(mine.id, {}, b)
     await seedLock(board.domain, mine.id, { session: 'ses_A', name: 'A', at: hoursAgo(1), touchedAt: new Date().toISOString() })
     const headRefusal = await reporter.rejects('a queue head locked by another session cannot be claimed', () => service.claim(mine.id, {}, b), 'conflict')
@@ -285,8 +285,8 @@ async function caseRevivedLeaseRefusesQueuedClaim(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const task = await service.createRequirement({ title: '复活' }, a)
-    const control = await service.createRequirement({ title: '对照' }, a)
+    const task = await service.createRequirement({ summary: '测试简述', title: '复活' }, a)
+    const control = await service.createRequirement({ summary: '测试简述', title: '对照' }, a)
     const longAgo = hoursAgo(9)
 
     // A claimed nine hours ago and has written nothing since, so its lease is
@@ -326,9 +326,9 @@ async function caseReserveWhileExecuting(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
-    const running = await service.createRequirement({ title: '手上的活' }, a)
-    const next = await service.createRequirement({ title: '下一条' }, a)
-    const later = await service.createRequirement({ title: '再下一条' }, a)
+    const running = await service.createRequirement({ summary: '测试简述', title: '手上的活' }, a)
+    const next = await service.createRequirement({ summary: '测试简述', title: '下一条' }, a)
+    const later = await service.createRequirement({ summary: '测试简述', title: '再下一条' }, a)
     await service.claim(running.id, {}, a)
 
     const reserved = await service.queue(next.id, {}, a)
@@ -349,7 +349,7 @@ async function caseConcurrentReservation(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const created = await service.createRequirement({ title: '并发排队' }, a)
+    const created = await service.createRequirement({ summary: '测试简述', title: '并发排队' }, a)
 
     const [first, second] = await Promise.allSettled([
       service.queue(created.id, {}, a),
@@ -369,8 +369,8 @@ async function caseConcurrentReservation(backend, name) {
     // Two appends from one session for two requirements: the first writes the
     // session's whole row, so the session's own chain is what keeps both items.
     const c = { session: 'ses_C', name: 'C' }
-    const left = await service.createRequirement({ title: '同会话一' }, a)
-    const right = await service.createRequirement({ title: '同会话二' }, a)
+    const left = await service.createRequirement({ summary: '测试简述', title: '同会话一' }, a)
+    const right = await service.createRequirement({ summary: '测试简述', title: '同会话二' }, a)
     const [one, two] = await Promise.allSettled([service.queue(left.id, {}, c), service.queue(right.id, {}, c)])
     check('both concurrent appends from one session succeed', one.status === 'fulfilled' && two.status === 'fulfilled')
     check('the session row created by the first append holds both items', service.queueOf('ses_C').length === 2)
@@ -385,8 +385,8 @@ async function caseCompletionReleasesReservation(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
-    const first = await service.createRequirement({ title: '第一条' }, a)
-    const second = await service.createRequirement({ title: '第二条' }, a)
+    const first = await service.createRequirement({ summary: '测试简述', title: '第一条' }, a)
+    const second = await service.createRequirement({ summary: '测试简述', title: '第二条' }, a)
     await service.queue(first.id, {}, a)
     await service.queue(second.id, {}, a)
 
@@ -405,8 +405,8 @@ async function caseCompletionReleasesReservation(backend, name) {
     check('the emptied queue leaves no row behind', board.domain.table('queues').get('ses_A') === undefined && service.queueOf('ses_A').length === 0)
     check('a completion with an empty queue carries no head hint', finished.queueHead === undefined)
 
-    const third = await service.createRequirement({ title: '第三条' }, a)
-    const fourth = await service.createRequirement({ title: '第四条' }, a)
+    const third = await service.createRequirement({ summary: '测试简述', title: '第三条' }, a)
+    const fourth = await service.createRequirement({ summary: '测试简述', title: '第四条' }, a)
     await service.claim(third.id, {}, a)
     await service.queue(fourth.id, {}, a)
     const released = await service.release(third.id, {}, a)
@@ -423,14 +423,14 @@ async function caseArchiveAndDeleteRelease(backend, name) {
     const a = { session: 'ses_A', name: 'A' }
     const panel = { session: '', name: '面板' }
 
-    const reserved = await service.createRequirement({ title: '归档' }, a)
+    const reserved = await service.createRequirement({ summary: '测试简述', title: '归档' }, a)
     await service.queue(reserved.id, {}, a)
     const archived = await service.setArchived(reserved.id, { archived: true }, panel)
     check('archiving releases the reservation', archived.reservedBy === null && service.queueOf('ses_A').length === 0)
     const restored = await service.setArchived(reserved.id, { archived: false }, panel)
     check('restoring does not resurrect the reservation', restored.reservedBy === null && service.queueOf('ses_A').length === 0)
 
-    const doomed = await service.createRequirement({ title: '删除' }, a)
+    const doomed = await service.createRequirement({ summary: '测试简述', title: '删除' }, a)
     await service.queue(doomed.id, {}, a)
     const deleted = await service.deleteRequirement(doomed.id, {}, panel)
     check('a reserved requirement can be deleted', deleted.deleted === true)
@@ -448,8 +448,8 @@ async function caseDisposal(backend, name) {
     const service = board.service
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
-    const running = await service.createRequirement({ title: '在跑' }, a)
-    const waiting = await service.createRequirement({ title: '在等' }, a)
+    const running = await service.createRequirement({ summary: '测试简述', title: '在跑' }, a)
+    const waiting = await service.createRequirement({ summary: '测试简述', title: '在等' }, a)
     await service.claim(running.id, {}, a)
     await service.queue(waiting.id, {}, a)
     check('a live lock is not counted as orphaned', service.stats().orphanedLocks === 0)
@@ -508,8 +508,8 @@ async function caseWriteChainOrder(backend, name) {
     }
     const board = await openBoard({ backend, dir, ports: { agents: () => reentrant, presets: () => fakePresets() } })
     service = board.service
-    const inner = await service.createRequirement({ title: '重入的目标' }, a)
-    const outer = await service.createRequirement({ title: '重入的来源' }, a)
+    const inner = await service.createRequirement({ summary: '测试简述', title: '重入的目标' }, a)
+    const outer = await service.createRequirement({ summary: '测试简述', title: '重入的来源' }, a)
     armed = true
 
     const receipt = await service.queue(outer.id, {}, a)
@@ -538,7 +538,7 @@ async function casePanelClearsReservation(backend, name) {
     const a = { session: 'ses_A', name: 'A' }
     const b = { session: 'ses_B', name: 'B' }
     const panel = { session: '', name: '面板' }
-    const created = await service.createRequirement({ title: '人可清' }, a)
+    const created = await service.createRequirement({ summary: '测试简述', title: '人可清' }, a)
     await service.queue(created.id, {}, a)
 
     const crossSession = await reporter.rejects('a session may not clear another session\'s reservation', () => service.unqueue(created.id, { targetSession: 'ses_A' }, b), 'forbidden')
@@ -583,9 +583,9 @@ async function caseToolAndPromptSurface(backend, name) {
     check('the tool cannot name another session\'s reservation', tool.parameters.properties.targetSession === undefined)
     check('a queue append is not declared concurrency safe', tool.isConcurrencySafe({ action: 'queue' }) === false && tool.isConcurrencySafe({ action: 'unqueue' }) === false)
 
-    const first = await board.service.createRequirement({ title: '工具排队一' }, a)
-    const second = await board.service.createRequirement({ title: '工具排队二' }, a)
-    const spare = await board.service.createRequirement({ title: '可接的' }, a)
+    const first = await board.service.createRequirement({ summary: '测试简述', title: '工具排队一' }, a)
+    const second = await board.service.createRequirement({ summary: '测试简述', title: '工具排队二' }, a)
+    const spare = await board.service.createRequirement({ summary: '测试简述', title: '可接的' }, a)
     const queued = await tool.execute({ action: 'queue', id: first.id }, { agent: agents[0] })
     check('the tool queues for the calling session', queued.changed === true && queued.head.id === first.id && queued.session === 'ses_A')
     await board.service.queue(second.id, {}, a)
@@ -609,7 +609,7 @@ async function caseToolAndPromptSurface(backend, name) {
     check('the tool clears only the caller\'s own reservation', unqueued.changed === true && unqueued.length === 1 && board.service.queueOf('ses_A').head.id === second.id)
 
     // The mount's own `agent/disposed` listener settles the same service state.
-    const running = await board.service.createRequirement({ title: '挂载释放' }, a)
+    const running = await board.service.createRequirement({ summary: '测试简述', title: '挂载释放' }, a)
     await board.service.claim(running.id, {}, a)
     const settled = await Promise.all(mounted.dispatch('agent/disposed', { agent: agents[0] }))
     check('the mount\'s dispose listener settles the session through the service', settled.length === 1 && settled[0]?.session === 'ses_A' && settled[0]?.orphaned === 1)

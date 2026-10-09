@@ -44,11 +44,37 @@ try {
   check('declared list length is preserved', service.listTemplates().items.length === 2)
 
   console.log('\ncreate + flow binding')
-  const created = await service.createRequirement({ title: '跨会话看板', priority: 'high', owner: '张三', templateId: 'tpl-custom' }, actor)
+  const created = await service.createRequirement({ summary: '测试简述', title: '跨会话看板', priority: 'high', owner: '张三', templateId: 'tpl-custom' }, actor)
   check('requirement binds to the named template', created.templateId === 'tpl-custom')
   check('creator session is attached', created.sessions.includes('ses_A'))
   check('flow starts on the first node', created.flow[0].status === 'active' && created.flow[1].status === 'pending')
   check('progress is 0/3', created.progress.done === 0 && created.progress.total === 3)
+
+  console.log('\nthe brief')
+  // Every creation states the brief, and the refusal teaches the rule rather
+  // than restating the field name: a caller that omitted it learns what the
+  // field is for from the same message.
+  const refusedBrief = await rejects('a creation without a brief is refused', () => service.createRequirement({ title: '没有简述' }, actor), 'invalid-argument')
+  check('the refusal names the field and states what a brief is for',
+    refusedBrief?.details?.field === 'summary' && refusedBrief?.message.includes('plain-language'))
+  await rejects('a whitespace-only brief is refused the same way', () => service.createRequirement({ summary: '   ', title: '空简述' }, actor), 'invalid-argument')
+  const briefed = await service.createRequirement({ summary: '让多个会话看到同一份进度。', title: '带简述的需求' }, actor)
+  check('the brief is stored and read back', briefed.summary === '让多个会话看到同一份进度。'
+    && (await service.getRequirement(briefed.id)).summary === '让多个会话看到同一份进度。')
+  const searchedBrief = await service.listRequirements({ query: '同一份进度' }, actor.session)
+  check('a list row carries the brief, and search matches it',
+    searchedBrief.items.some(item => item.id === briefed.id && item.summary === '让多个会话看到同一份进度。'))
+  const rewrittenBrief = await service.updateRequirement(briefed.id, { summary: '换一句更直白的说法。' }, actor)
+  check('the brief is updatable', rewrittenBrief.summary === '换一句更直白的说法。')
+  await rejects('an update cannot empty the brief', () => service.updateRequirement(briefed.id, { summary: '' }, actor), 'invalid-argument')
+  // The rest of this scenario counts the requirements it creates, so the one
+  // this section added leaves before then: a second session takes the lock and
+  // deletes it, which also proves the brief travels with the removal.
+  const cleaner = { session: 'ses_B', name: 'B' }
+  await service.claim(briefed.id, {}, cleaner)
+  await service.deleteRequirement(briefed.id, {}, cleaner)
+  check('deleting the requirement this section added leaves the board as it was',
+    (await service.listRequirements({}, actor.session)).items.every(item => item.id !== briefed.id))
 
   // §5.1: `create` attaches the creator but leaves the work unlocked, and every
   // structural change — checklist, transition, block, archive — needs the lock.
@@ -59,7 +85,7 @@ try {
   // §5.3: one session holds one lock, so the next requirement is reserved with
   // `queue` — a soft reservation that takes no lock and starts nothing.
   console.log('\nqueueing the next requirement')
-  const next = await service.createRequirement({ title: '队列里的下一条' }, actor)
+  const next = await service.createRequirement({ summary: '测试简述', title: '队列里的下一条' }, actor)
   const reservedNext = await service.queue(next.id, {}, actor)
   check('queueing reserves the next requirement without locking it', reservedNext.changed === true && reservedNext.head.id === next.id)
   check('queueing writes no requirement and no execution unit', (await service.getRequirement(next.id)).lock === null && board.domain.table('requirements').get(next.id).rev === 1)
@@ -221,9 +247,9 @@ try {
 
   const viaCommand = await dispatchBoardCommand(service, { action: 'update', id: created.id, patch: { images: [ref.id] } })
   check('the command body accepts image ids under patch', viaCommand.images[0]?.id === ref.id)
-  const createdWithImage = await dispatchBoardCommand(service, { action: 'create', title: '面板新建', images: [ref.id], session: 'ses_A' })
+  const createdWithImage = await dispatchBoardCommand(service, { action: 'create', summary: '测试简述', title: '面板新建', images: [ref.id], session: 'ses_A' })
   check('the command body accepts image ids on create', createdWithImage.images.length === 1 && createdWithImage.images[0].id === ref.id)
-  await rejects('the command body refuses an unknown id', () => dispatchBoardCommand(service, { action: 'create', title: 'x', images: ['nope'], session: 'ses_A' }), 'invalid-image')
+  await rejects('the command body refuses an unknown id', () => dispatchBoardCommand(service, { action: 'create', summary: '测试简述', title: 'x', images: ['nope'], session: 'ses_A' }), 'invalid-image')
 
   console.log('\nprompt context')
   const mine = service.promptContext('ses_A', 12)

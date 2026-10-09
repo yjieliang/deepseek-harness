@@ -179,8 +179,8 @@ async function caseLinksAndHistory(backend, name) {
     const requirements = board.domain.table('requirements')
     await seedTemplates(service, panel)
 
-    const blocker = await service.createRequirement({ title: '阻塞者' }, a)
-    const blocked = await service.createRequirement({ title: '被阻塞', priority: 'high' }, a)
+    const blocker = await service.createRequirement({ summary: '测试简述', title: '阻塞者' }, a)
+    const blocked = await service.createRequirement({ summary: '测试简述', title: '被阻塞', priority: 'high' }, a)
 
     const unlocked = await reporter.rejects('an unlocked session cannot set a blocker', () => service.updateRequirement(blocked.id, { blocksOn: [blocker.id] }, a), 'forbidden')
     check('the refusal is the missing lock, not the link', unlocked.details?.reason === 'lock-required')
@@ -202,7 +202,7 @@ async function caseLinksAndHistory(backend, name) {
     await service.updateRequirement(blocked.id, { blocksOn: [blocker.id] }, a)
     check('rewriting the same gate adds no history', requirements.get(blocked.id).history.length === history.length)
 
-    const parent = await service.createRequirement({ title: '父需求', templateId: PLAIN_TEMPLATE.id }, a)
+    const parent = await service.createRequirement({ summary: '测试简述', title: '父需求', templateId: PLAIN_TEMPLATE.id }, a)
     const nested = await service.updateRequirement(blocked.id, { parentId: parent.id }, a)
     check('the holder sets the parent', nested.parentId === parent.id)
     check('the parent reads its children back', service.getRequirement(parent.id, a.session).children.includes(blocked.id))
@@ -213,7 +213,7 @@ async function caseLinksAndHistory(backend, name) {
     const cleared = await service.updateRequirement(blocked.id, { parentId: '' }, a)
     check('an empty parent clears the link and the child list', cleared.parentId === null && !service.getRequirement(parent.id, a.session).children.includes(blocked.id))
 
-    const legacy = await service.createRequirement({ title: '旧记录' }, a)
+    const legacy = await service.createRequirement({ summary: '测试简述', title: '旧记录' }, a)
     const stored = requirements.get(legacy.id)
     const { blocksOn: _links, parentId: _parent, ...withoutGates } = stored
     await requirements.put(legacy.id, withoutGates)
@@ -239,8 +239,8 @@ async function caseProgressIsGated(backend, name) {
     const requirements = board.domain.table('requirements')
     await seedTemplates(service, panel)
 
-    const blocker = await service.createRequirement({ title: '阻塞者' }, a)
-    const gated = await service.createRequirement({ title: '被阻塞', templateId: PLAIN_TEMPLATE.id, blocksOn: [blocker.id] }, a)
+    const blocker = await service.createRequirement({ summary: '测试简述', title: '阻塞者' }, a)
+    const gated = await service.createRequirement({ summary: '测试简述', title: '被阻塞', templateId: PLAIN_TEMPLATE.id, blocksOn: [blocker.id] }, a)
     await service.claim(gated.id, {}, a)
     const before = service.getRequirement(gated.id, a.session)
 
@@ -260,15 +260,15 @@ async function caseProgressIsGated(backend, name) {
     check('the history records the override and the blockers it overrode', forcedEntry.force === true
       && JSON.stringify(forcedEntry.blockedBy) === JSON.stringify([blocker.id]) && forcedEntry.action === 'complete')
 
-    const rework = await service.createRequirement({ title: '返工', templateId: PLAIN_TEMPLATE.id, blocksOn: [blocker.id] }, a)
+    const rework = await service.createRequirement({ summary: '测试简述', title: '返工', templateId: PLAIN_TEMPLATE.id, blocksOn: [blocker.id] }, a)
     await service.claim(rework.id, {}, a)
     await service.transitionRequirement(rework.id, { action: 'advance', force: true }, a)
     check('the forced advance moved it past the gate', service.getRequirement(rework.id).nodeId === 'p2')
     const back = await service.transitionRequirement(rework.id, { action: 'rollback', to: 'p1', note: '范围变了' }, a)
     check('rollback ignores the gate', back.nodeId === 'p1' && back.status === 'active')
 
-    const shelved = await service.createRequirement({ title: '搁置的阻塞者', templateId: PLAIN_TEMPLATE.id }, a)
-    const waits = await service.createRequirement({ title: '等待搁置者', templateId: PLAIN_TEMPLATE.id, blocksOn: [shelved.id] }, b)
+    const shelved = await service.createRequirement({ summary: '测试简述', title: '搁置的阻塞者', templateId: PLAIN_TEMPLATE.id }, a)
+    const waits = await service.createRequirement({ summary: '测试简述', title: '等待搁置者', templateId: PLAIN_TEMPLATE.id, blocksOn: [shelved.id] }, b)
     await service.claim(waits.id, {}, b)
     await service.setArchived(shelved.id, { archived: true }, panel)
     const presented = service.getRequirement(waits.id, b.session)
@@ -298,7 +298,7 @@ async function caseLinkValidation(backend, name) {
     const panel = { session: '', name: '面板' }
     await seedTemplates(service, panel)
 
-    const solo = await service.createRequirement({ title: '独自' }, soloActor)
+    const solo = await service.createRequirement({ summary: '测试简述', title: '独自' }, soloActor)
     await service.claim(solo.id, {}, soloActor)
     const selfBlock = await reporter.rejects('a requirement cannot block on itself', () => service.updateRequirement(solo.id, { blocksOn: [solo.id] }, soloActor), 'invalid-argument')
     check('the self-reference names the field it is in', selfBlock.details?.reason === 'self-reference' && selfBlock.details?.field === 'blocksOn')
@@ -309,9 +309,9 @@ async function caseLinkValidation(backend, name) {
     check('the missing target is named', missing.details?.reason === 'missing-target' && missing.details?.target === 'req_ghost')
     await reporter.rejects('a parent must exist', () => service.updateRequirement(solo.id, { parentId: 'req_ghost' }, soloActor), 'invalid-argument')
 
-    const x = await service.createRequirement({ title: 'X' }, xActor)
-    const y = await service.createRequirement({ title: 'Y' }, yActor)
-    const z = await service.createRequirement({ title: 'Z' }, zActor)
+    const x = await service.createRequirement({ summary: '测试简述', title: 'X' }, xActor)
+    const y = await service.createRequirement({ summary: '测试简述', title: 'Y' }, yActor)
+    const z = await service.createRequirement({ summary: '测试简述', title: 'Z' }, zActor)
     await service.claim(x.id, {}, xActor)
     await service.claim(y.id, {}, yActor)
     await service.claim(z.id, {}, zActor)
@@ -324,9 +324,9 @@ async function caseLinkValidation(backend, name) {
     check('the long cycle reports the whole path', longCycle.details?.reason === 'cycle' && (longCycle.details?.path ?? []).length === 4)
     check('the refused cycle left the stored links alone', (board.domain.table('requirements').get(z.id).blocksOn ?? []).length === 0)
 
-    const p1 = await service.createRequirement({ title: 'P1' }, p1Actor)
-    const p2 = await service.createRequirement({ title: 'P2' }, p2Actor)
-    const p3 = await service.createRequirement({ title: 'P3' }, p3Actor)
+    const p1 = await service.createRequirement({ summary: '测试简述', title: 'P1' }, p1Actor)
+    const p2 = await service.createRequirement({ summary: '测试简述', title: 'P2' }, p2Actor)
+    const p3 = await service.createRequirement({ summary: '测试简述', title: 'P3' }, p3Actor)
     await service.claim(p1.id, {}, p1Actor)
     await service.claim(p2.id, {}, p2Actor)
     await service.claim(p3.id, {}, p3Actor)
@@ -337,8 +337,8 @@ async function caseLinkValidation(backend, name) {
     await reporter.rejects('a longer parent chain cannot come back either', () => service.updateRequirement(p1.id, { parentId: p3.id }, p1Actor), 'invalid-argument')
 
     // The two graphs are separate: one may hold a link the other would call a cycle.
-    const g1 = await service.createRequirement({ title: 'G1' }, g1Actor)
-    const g2 = await service.createRequirement({ title: 'G2' }, g2Actor)
+    const g1 = await service.createRequirement({ summary: '测试简述', title: 'G1' }, g1Actor)
+    const g2 = await service.createRequirement({ summary: '测试简述', title: 'G2' }, g2Actor)
     await service.claim(g1.id, {}, g1Actor)
     await service.claim(g2.id, {}, g2Actor)
     const across = await service.updateRequirement(g2.id, { blocksOn: [g1.id] }, g2Actor)
@@ -349,8 +349,8 @@ async function caseLinkValidation(backend, name) {
     await reporter.rejects('and inside the parent graph', () => service.updateRequirement(g2.id, { parentId: g1.id }, g2Actor), 'invalid-argument')
 
     const many = []
-    for (let index = 0; index < 21; index += 1) many.push(await service.createRequirement({ title: `批量 ${index}` }, soloActor))
-    const wide = await service.createRequirement({ title: '宽门禁' }, wideActor)
+    for (let index = 0; index < 21; index += 1) many.push(await service.createRequirement({ summary: '测试简述', title: `批量 ${index}` }, soloActor))
+    const wide = await service.createRequirement({ summary: '测试简述', title: '宽门禁' }, wideActor)
     await service.claim(wide.id, {}, wideActor)
     const over = await reporter.rejects('more than twenty blockers is refused', () => service.updateRequirement(wide.id, { blocksOn: many.map(item => item.id) }, wideActor), 'invalid-argument')
     check('the bound refusal names the field', String(over.message).includes('blocksOn'))
@@ -374,8 +374,8 @@ async function caseTemplateBeforeGate(backend, name) {
     const requirements = board.domain.table('requirements')
     await seedTemplates(service, panel)
 
-    const blocker = await service.createRequirement({ title: '阻塞者' }, a)
-    const both = await service.createRequirement({ title: '两重门禁', templateId: FORWARD_TEMPLATE.id, blocksOn: [blocker.id] }, a)
+    const blocker = await service.createRequirement({ summary: '测试简述', title: '阻塞者' }, a)
+    const both = await service.createRequirement({ summary: '测试简述', title: '两重门禁', templateId: FORWARD_TEMPLATE.id, blocksOn: [blocker.id] }, a)
     await service.claim(both.id, {}, a)
 
     const template = await reporter.rejects('the template prerequisite is judged first', () => service.transitionRequirement(both.id, { action: 'advance' }, a), 'dependency-not-met')
@@ -390,7 +390,7 @@ async function caseTemplateBeforeGate(backend, name) {
     const atSecond = await reporter.rejects('on the next node the template is met and only the blocker gate is left', () => service.transitionRequirement(both.id, { action: 'advance' }, a), 'invalid-transition')
     check('the refusal is the blocker gate, not the template', atSecond.details?.reason === 'blocked-by' && JSON.stringify(atSecond.details?.blockedBy) === JSON.stringify([blocker.id]))
 
-    const alone = await service.createRequirement({ title: '只有模板门禁', templateId: FORWARD_TEMPLATE.id }, b)
+    const alone = await service.createRequirement({ summary: '测试简述', title: '只有模板门禁', templateId: FORWARD_TEMPLATE.id }, b)
     await service.claim(alone.id, {}, b)
     const aloneRefusal = await reporter.rejects('an ungated requirement still waits on the template', () => service.transitionRequirement(alone.id, { action: 'advance' }, b), 'dependency-not-met')
     check('the template refusal carries no blocker list', aloneRefusal.details?.blockedBy === undefined)
@@ -419,9 +419,9 @@ async function casePriorityInheritance(backend, name) {
     const requirements = board.domain.table('requirements')
     await seedTemplates(service, panel)
 
-    const far = await service.createRequirement({ title: '底层', priority: 'low', templateId: PLAIN_TEMPLATE.id }, a)
-    const mid = await service.createRequirement({ title: '中层', priority: 'normal', templateId: PLAIN_TEMPLATE.id, blocksOn: [far.id] }, a)
-    const top = await service.createRequirement({ title: '顶层', priority: 'high', templateId: PLAIN_TEMPLATE.id, blocksOn: [mid.id] }, a)
+    const far = await service.createRequirement({ summary: '测试简述', title: '底层', priority: 'low', templateId: PLAIN_TEMPLATE.id }, a)
+    const mid = await service.createRequirement({ summary: '测试简述', title: '中层', priority: 'normal', templateId: PLAIN_TEMPLATE.id, blocksOn: [far.id] }, a)
+    const top = await service.createRequirement({ summary: '测试简述', title: '顶层', priority: 'high', templateId: PLAIN_TEMPLATE.id, blocksOn: [mid.id] }, a)
     const read = id => service.getRequirement(id, a.session)
 
     check('the blocker is raised by what it holds up', read(far.id).effectivePriority === 'high' && read(far.id).escalated === true)
@@ -430,8 +430,8 @@ async function casePriorityInheritance(backend, name) {
     check('the raised value is never written back', requirements.get(far.id).priority === 'low' && (requirements.get(far.id).blocksOn ?? []).length === 0)
     check('the statistic counts the raised requirements, not the blocked ones', service.stats().criticalPath === 2)
 
-    const capBlocker = await service.createRequirement({ title: '封顶阻塞者', priority: 'low', templateId: PLAIN_TEMPLATE.id }, a)
-    const capHolder = await service.createRequirement({ title: '紧急等待者', priority: 'urgent', templateId: PLAIN_TEMPLATE.id, blocksOn: [capBlocker.id] }, a)
+    const capBlocker = await service.createRequirement({ summary: '测试简述', title: '封顶阻塞者', priority: 'low', templateId: PLAIN_TEMPLATE.id }, a)
+    const capHolder = await service.createRequirement({ summary: '测试简述', title: '紧急等待者', priority: 'urgent', templateId: PLAIN_TEMPLATE.id, blocksOn: [capBlocker.id] }, a)
     check('inheritance stops at the top of the ladder', read(capBlocker.id).effectivePriority === 'urgent' && read(capBlocker.id).escalated === true)
     check('the urgent end of the ladder is unchanged for its own holder', read(capHolder.id).effectivePriority === 'urgent' && read(capHolder.id).escalated === false)
     check('criticalPath counts every raised requirement once', service.stats().criticalPath === 3)
@@ -445,8 +445,8 @@ async function casePriorityInheritance(backend, name) {
     check('a finished blocker clears the requirement that waited on it', read(mid.id).gated === false && read(mid.id).blockedBy.length === 0)
     check('nothing is left raised for the cleared pair', service.stats().criticalPath === 1)
 
-    const held = await service.createRequirement({ title: '提示里的阻塞者', priority: 'normal', templateId: PLAIN_TEMPLATE.id }, a)
-    const urgent = await service.createRequirement({ title: '提示里的紧急者', priority: 'urgent', templateId: PLAIN_TEMPLATE.id, blocksOn: [held.id] }, a)
+    const held = await service.createRequirement({ summary: '测试简述', title: '提示里的阻塞者', priority: 'normal', templateId: PLAIN_TEMPLATE.id }, a)
+    const urgent = await service.createRequirement({ summary: '测试简述', title: '提示里的紧急者', priority: 'urgent', templateId: PLAIN_TEMPLATE.id, blocksOn: [held.id] }, a)
     const prompt = service.promptContext('ses_A', 12)
     const raisedLine = prompt.split('\n').find(line => line.includes(held.id)) ?? ''
     const waitingLine = prompt.split('\n').find(line => line.includes(urgent.id)) ?? ''
@@ -468,12 +468,12 @@ async function caseAdvanceableAgrees(backend, name) {
     await seedTemplates(service, panel)
     const held = async (id, title, input = {}) => {
       const actor = of(id)
-      const requirement = await service.createRequirement({ title, templateId: PLAIN_TEMPLATE.id, ...input }, actor)
+      const requirement = await service.createRequirement({ summary: '测试简述', title, templateId: PLAIN_TEMPLATE.id, ...input }, actor)
       await service.claim(requirement.id, {}, actor)
       return { actor, requirement }
     }
 
-    const free = await service.createRequirement({ title: '无人认领', templateId: PLAIN_TEMPLATE.id }, of('ses_A'))
+    const free = await service.createRequirement({ summary: '测试简述', title: '无人认领', templateId: PLAIN_TEMPLATE.id }, of('ses_A'))
     checkAgreement('free work is takeable but not advanceable', service.getRequirement(free.id, 'ses_A'), await advanceOnce(service, free.id, of('ses_A')))
 
     const mine = await held('ses_B', '已持有')
@@ -482,11 +482,11 @@ async function caseAdvanceableAgrees(backend, name) {
     const theirs = await held('ses_C', '别人持有')
     checkAgreement('another session\'s lock is not mine to advance', service.getRequirement(theirs.requirement.id, 'ses_A'), await advanceOnce(service, theirs.requirement.id, of('ses_A')))
 
-    const unfinished = await service.createRequirement({ title: '未完成' }, of('ses_D'))
+    const unfinished = await service.createRequirement({ summary: '测试简述', title: '未完成' }, of('ses_D'))
     const waiting = await held('ses_D', '等未完成', { blocksOn: [unfinished.id] })
     checkAgreement('work waiting on an unfinished blocker is not advanceable', service.getRequirement(waiting.requirement.id, 'ses_D'), await advanceOnce(service, waiting.requirement.id, waiting.actor))
 
-    const finished = await service.createRequirement({ title: '已完成', templateId: PLAIN_TEMPLATE.id }, of('ses_E'))
+    const finished = await service.createRequirement({ summary: '测试简述', title: '已完成', templateId: PLAIN_TEMPLATE.id }, of('ses_E'))
     await service.transitionRequirement(finished.id, { action: 'complete' }, panel)
     const unblocked = await held('ses_E', '等已完成', { blocksOn: [finished.id] })
     checkAgreement('a finished blocker is not a gate at all', service.getRequirement(unblocked.requirement.id, 'ses_E'), await advanceOnce(service, unblocked.requirement.id, unblocked.actor))
@@ -513,7 +513,7 @@ async function caseAdvanceableAgrees(backend, name) {
     check('the node\'s own completion condition is judged by the transition, not by the derived flag',
       service.getRequirement(checklist.requirement.id, 'ses_J').advanceable === true && checklistOutcome.code === 'completion-not-met')
 
-    const question = await service.createRequirement({ title: '要人回答', kind: 'decision', templateId: PLAIN_TEMPLATE.id }, of('ses_A'))
+    const question = await service.createRequirement({ summary: '测试简述', title: '要人回答', kind: 'decision', templateId: PLAIN_TEMPLATE.id }, of('ses_A'))
     const forSession = service.getRequirement(question.id, 'ses_A')
     checkAgreement('a decision is not a session\'s to advance', forSession, await advanceOnce(service, question.id, of('ses_A')))
     const forPanel = service.getRequirement(question.id, '')
@@ -523,7 +523,7 @@ async function caseAdvanceableAgrees(backend, name) {
     const twice = await held('ses_A', '两重门禁', { templateId: FORWARD_TEMPLATE.id, blocksOn: [unfinished.id] })
     checkAgreement('both gates unmet still answer false', service.getRequirement(twice.requirement.id, 'ses_A'), await advanceOnce(service, twice.requirement.id, twice.actor))
 
-    const reserved = await service.createRequirement({ title: '被预留', templateId: PLAIN_TEMPLATE.id }, of('ses_B'))
+    const reserved = await service.createRequirement({ summary: '测试简述', title: '被预留', templateId: PLAIN_TEMPLATE.id }, of('ses_B'))
     await service.queue(reserved.id, {}, of('ses_C'))
     checkAgreement('a reservation by another session is not advanceable either', service.getRequirement(reserved.id, 'ses_B'), await advanceOnce(service, reserved.id, of('ses_B')))
     await board.close()
@@ -540,9 +540,9 @@ async function caseReadersCarryGates(backend, name) {
     const panel = { session: '', name: '面板' }
     await seedTemplates(service, panel)
 
-    const blocker = await service.createRequirement({ title: '阻塞者', priority: 'low', templateId: PLAIN_TEMPLATE.id }, a)
-    const gated = await service.createRequirement({ title: '被阻塞', priority: 'urgent', templateId: PLAIN_TEMPLATE.id, blocksOn: [blocker.id] }, a)
-    const free = await service.createRequirement({ title: '自由', templateId: PLAIN_TEMPLATE.id }, a)
+    const blocker = await service.createRequirement({ summary: '测试简述', title: '阻塞者', priority: 'low', templateId: PLAIN_TEMPLATE.id }, a)
+    const gated = await service.createRequirement({ summary: '测试简述', title: '被阻塞', priority: 'urgent', templateId: PLAIN_TEMPLATE.id, blocksOn: [blocker.id] }, a)
+    const free = await service.createRequirement({ summary: '测试简述', title: '自由', templateId: PLAIN_TEMPLATE.id }, a)
     await service.claim(gated.id, {}, a)
 
     const snapshot = await requestRoute(service, '/snapshot')
@@ -590,11 +590,11 @@ async function caseDeleteUnbinds(backend, name) {
     const queues = board.domain.table('queues')
     await seedTemplates(service, panel)
 
-    const other = await service.createRequirement({ title: '留下的' }, a)
-    const target = await service.createRequirement({ title: '被删的目标' }, a)
-    const waits = await service.createRequirement({ title: '等待被删者', templateId: PLAIN_TEMPLATE.id, blocksOn: [target.id] }, a)
-    const child = await service.createRequirement({ title: '被删者的子', templateId: PLAIN_TEMPLATE.id, parentId: target.id }, a)
-    const mixed = await service.createRequirement({ title: '另一条链接', templateId: PLAIN_TEMPLATE.id, blocksOn: [other.id, target.id] }, a)
+    const other = await service.createRequirement({ summary: '测试简述', title: '留下的' }, a)
+    const target = await service.createRequirement({ summary: '测试简述', title: '被删的目标' }, a)
+    const waits = await service.createRequirement({ summary: '测试简述', title: '等待被删者', templateId: PLAIN_TEMPLATE.id, blocksOn: [target.id] }, a)
+    const child = await service.createRequirement({ summary: '测试简述', title: '被删者的子', templateId: PLAIN_TEMPLATE.id, parentId: target.id }, a)
+    const mixed = await service.createRequirement({ summary: '测试简述', title: '另一条链接', templateId: PLAIN_TEMPLATE.id, blocksOn: [other.id, target.id] }, a)
     await service.queue(target.id, {}, b)
     check('the fixture really reserved the doomed requirement', service.queueOf('ses_B').items.some(item => item.id === target.id))
 
@@ -612,7 +612,7 @@ async function caseDeleteUnbinds(backend, name) {
 
     const freed = await service.claim(waits.id, {}, a)
     check('the gate really opened for the waiter', freed.gated === false)
-    const lonely = await service.createRequirement({ title: '无人引用' }, a)
+    const lonely = await service.createRequirement({ summary: '测试简述', title: '无人引用' }, a)
     const lonelyReceipt = await service.deleteRequirement(lonely.id, {}, panel)
     check('a delete with nothing to unbind reports an empty list', Array.isArray(lonelyReceipt.unbound) && lonelyReceipt.unbound.length === 0)
     await board.close()
@@ -629,7 +629,7 @@ async function caseSweepUnbinds(backend, name) {
     const requirements = board.domain.table('requirements')
     await seedTemplates(service, panel)
 
-    const ghosted = await service.createRequirement({ title: '残留引用', templateId: PLAIN_TEMPLATE.id }, a)
+    const ghosted = await service.createRequirement({ summary: '测试简述', title: '残留引用', templateId: PLAIN_TEMPLATE.id }, a)
     const stored = requirements.get(ghosted.id)
     await requirements.put(ghosted.id, { ...stored, blocksOn: ['req_ghost'], parentId: 'req_missing' })
     const before = service.getRequirement(ghosted.id, a.session)

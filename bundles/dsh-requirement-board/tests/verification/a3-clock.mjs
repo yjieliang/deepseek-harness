@@ -122,19 +122,19 @@ const actor = { session: 'ses_art', name: 'A' }
 console.log('\n[0] the injected clock is the one the service reads')
 {
   const before = reads
-  const created = await service.createRequirement({ title: 'Clock probe', sessions: ['ses_art'] }, panel)
+  const created = await service.createRequirement({ summary: '测试简述', title: 'Clock probe', sessions: ['ses_art'] }, panel)
   const used = reads - before
   check('creating a requirement reads the clock once', used === 1, String(used))
   check('the creation stamps both fields with that one instant', created.createdAt === created.updatedAt && created.createdAt === instant(), `${created.createdAt} vs ${instant()}`)
-  const second = await service.createRequirement({ title: 'Clock probe 2' }, panel)
+  const second = await service.createRequirement({ summary: '测试简述', title: 'Clock probe 2' }, panel)
   check('a later chain gets a later instant, so a second read inside one chain is visible', second.createdAt !== created.createdAt, `${created.createdAt} vs ${second.createdAt}`)
   note(`the fake clock advances ${STEP_MS} ms per counted read, so any intra-chain second read shows up as a jump`)
 }
 
 console.log('\n[1] one read per write chain, and the stamps agree')
 {
-  const task = await service.createRequirement({ title: 'Locked task', sessions: ['ses_art'] }, panel)
-  const next = await service.createRequirement({ title: 'Queued task', sessions: ['ses_art'] }, panel)
+  const task = await service.createRequirement({ summary: '测试简述', title: 'Locked task', sessions: ['ses_art'] }, panel)
+  const next = await service.createRequirement({ summary: '测试简述', title: 'Queued task', sessions: ['ses_art'] }, panel)
 
   const claim = await counted(() => service.claim(task.id, {}, actor))
   check('claim reads the clock once', claim.reads === 1, String(claim.reads))
@@ -191,7 +191,7 @@ console.log('\n[1] one read per write chain, and the stamps agree')
    * reservation cleanup), so it may read once per write — but the requirement's
    * own stamps must still come from the transition's single instant. */
   await service.claim(next.id, {}, actor)
-  const queuedTwo = await service.createRequirement({ title: 'Reserved by A', sessions: ['ses_art'] }, panel)
+  const queuedTwo = await service.createRequirement({ summary: '测试简述', title: 'Reserved by A', sessions: ['ses_art'] }, panel)
   await service.queue(queuedTwo.id, {}, actor)
   const completing = await counted(() => service.transitionRequirement(next.id, { action: 'complete' }, actor))
   check('completing a requirement with a live reservation reads once per write, not once per stamp', completing.reads === 2, String(completing.reads))
@@ -216,9 +216,9 @@ console.log('\n[1] one read per write chain, and the stamps agree')
     JSON.stringify({ reads: removed.reads, unbound: removed.value.unbound }),
   )
 
-  const pinned = await service.createRequirement({ title: 'Gate target', sessions: ['ses_art'] }, panel)
-  const gateLeft = await service.createRequirement({ title: 'Gate A', sessions: ['ses_art'] }, panel)
-  const gateRight = await service.createRequirement({ title: 'Gate B', sessions: ['ses_art'] }, panel)
+  const pinned = await service.createRequirement({ summary: '测试简述', title: 'Gate target', sessions: ['ses_art'] }, panel)
+  const gateLeft = await service.createRequirement({ summary: '测试简述', title: 'Gate A', sessions: ['ses_art'] }, panel)
+  const gateRight = await service.createRequirement({ summary: '测试简述', title: 'Gate B', sessions: ['ses_art'] }, panel)
   const gatedAt = instant()
   for (const gate of [gateLeft, gateRight]) {
     const record = world.domain.table('requirements').get(gate.id)
@@ -240,7 +240,7 @@ console.log('\n[1] one read per write chain, and the stamps agree')
 
 console.log('\n[2] the whole record agrees after a claim (the old flake shape)')
 {
-  const task = await service.createRequirement({ title: 'Flake probe', sessions: ['ses_art'] }, panel)
+  const task = await service.createRequirement({ summary: '测试简述', title: 'Flake probe', sessions: ['ses_art'] }, panel)
   const claimed = await service.claim(task.id, {}, actor)
   const stored = world.domain.table('requirements').get(task.id)
   const timestamps = [stored.createdAt, stored.updatedAt, stored.lock.at, stored.lock.touchedAt, ...stored.history.map(entry => entry.at)]
@@ -254,7 +254,7 @@ console.log('\n[2] the whole record agrees after a claim (the old flake shape)')
 if (RED) {
   console.log('\n[3] RED CONTROL: the pre-fix behaviour asserts two reads in one chain')
   const redActor = { session: 'ses_red', name: 'R' }
-  const task = await service.createRequirement({ title: 'Red probe', sessions: ['ses_red'] }, panel)
+  const task = await service.createRequirement({ summary: '测试简述', title: 'Red probe', sessions: ['ses_red'] }, panel)
   const red = await counted(() => service.claim(task.id, {}, redActor))
   check('RED CONTROL: claim reads the clock twice (pre-fix behaviour)', red.reads === 2, String(red.reads))
   check('RED CONTROL: the second read moved touchedAt past lock.at (pre-fix behaviour)', red.value.lock.touchedAt > red.value.lock.at, JSON.stringify(red.value.lock))

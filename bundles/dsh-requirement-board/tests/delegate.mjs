@@ -153,7 +153,7 @@ async function caseMintAndBind(backend, name) {
     const service = board.service
     const parent = { session: 'ses_parent', name: '甲' }
     const child = { session: 'ses_child', name: '乙' }
-    const created = await service.createRequirement({ title: '切图' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '切图' }, parent)
     const before = board.domain.table('requirements').get(created.id)
 
     const receipt = await service.delegate(created.id, { session: child.session, duties: ['切图', '导出'] }, parent)
@@ -181,11 +181,11 @@ async function caseMintAndBind(backend, name) {
     const stats = service.stats()
     check('statistics observe the pending delegation', stats.pendingDelegations === 1)
 
-    const named = await service.createRequirement({ title: '命名角色' }, parent)
+    const named = await service.createRequirement({ summary: '测试简述', title: '命名角色' }, parent)
     const namedReceipt = await service.delegate(named.id, { session: child.session, roleName: '临时美术' }, parent)
     check('a named temporary role keeps the delegator\'s name', roleRow(service, namedReceipt.roleId)?.name === '临时美术')
 
-    const bounded = await service.createRequirement({ title: '边界' }, parent)
+    const bounded = await service.createRequirement({ summary: '测试简述', title: '边界' }, parent)
     const atMax = await service.delegate(bounded.id, { session: child.session, duties: Array.from({ length: 12 }, (_, index) => `duty ${index}`) }, parent)
     check('twelve duties are accepted', roleRow(service, atMax.roleId)?.duties.length === 12)
     await reporter.rejects('a thirteenth duty is refused', () => service.delegate(bounded.id, { session: child.session, duties: Array.from({ length: 13 }, (_, index) => `duty ${index}`) }, parent), 'invalid-argument')
@@ -217,38 +217,38 @@ async function casePreconditions(backend, name) {
     const child = { session: 'ses_child', name: '丙' }
     const changesBefore = board.changes.length
 
-    const routed = await service.createRequirement({ title: '别人的角色任务', role: 'qa-role' }, parent)
+    const routed = await service.createRequirement({ summary: '测试简述', title: '别人的角色任务', role: 'qa-role' }, parent)
     const mismatch = await reporter.rejects('a caller that cannot take the task itself cannot delegate it', () => service.delegate(routed.id, { session: child.session }, parent), 'forbidden')
     check('the refusal is the claim table\'s role row', mismatch.details?.reason === 'role-mismatch' && mismatch.details?.role === 'qa-role' && mismatch.details?.myRole === 'art-role')
 
-    const strangerTask = await service.createRequirement({ title: '别人的任务' }, other)
+    const strangerTask = await service.createRequirement({ summary: '测试简述', title: '别人的任务' }, other)
     const unrelated = await reporter.rejects('a caller unrelated to the requirement cannot delegate it', () => service.delegate(strangerTask.id, { session: child.session }, parent), 'forbidden')
     check('the refusal names the missing relation', unrelated.details?.reason === 'not-related')
 
-    const own = await service.createRequirement({ title: '自己的任务' }, parent)
+    const own = await service.createRequirement({ summary: '测试简述', title: '自己的任务' }, parent)
     const self = await reporter.rejects('a session cannot delegate a requirement to itself', () => service.delegate(own.id, { session: parent.session }, parent), 'invalid-input')
     check('delegating to self names the reason and points at claim', self.details?.reason === 'delegate-to-self' && String(self.message).includes('claim it instead'))
 
     const targetless = await reporter.rejects('a delegation names a target session', () => service.delegate(own.id, {}, parent), 'invalid-argument')
     check('the missing target is an argument failure', targetless !== undefined)
 
-    const done = await service.createRequirement({ title: '已完成' }, parent)
+    const done = await service.createRequirement({ summary: '测试简述', title: '已完成' }, parent)
     await service.claim(done.id, {}, parent)
     await service.transitionRequirement(done.id, { action: 'complete' }, parent)
     const finished = await reporter.rejects('a finished requirement cannot be delegated', () => service.delegate(done.id, { session: child.session }, parent), 'invalid-state')
     check('the state refusal is the claim table\'s first row', finished.details?.reason === 'invalid-state' && finished.details?.status === 'done')
 
-    const archived = await service.createRequirement({ title: '已归档' }, parent)
+    const archived = await service.createRequirement({ summary: '测试简述', title: '已归档' }, parent)
     await service.setArchived(archived.id, { archived: true }, { session: '', name: '' })
     const gone = await reporter.rejects('an archived requirement cannot be delegated', () => service.delegate(archived.id, { session: child.session }, parent), 'invalid-state')
     check('the archived refusal names its state', gone.details?.reason === 'invalid-state' && gone.details?.status === 'archived')
 
-    const held = await service.createRequirement({ title: '别人锁着' }, parent)
+    const held = await service.createRequirement({ summary: '测试简述', title: '别人锁着' }, parent)
     await seedLock(board.domain, held.id, { session: 'ses_other', name: '', at: hoursAgo(1), touchedAt: hoursAgo(1) })
     const locked = await reporter.rejects('a live holder other than the target refuses the delegation', () => service.delegate(held.id, { session: child.session }, parent), 'conflict')
     check('the lock refusal keeps the claim table\'s reason and the current holder', locked.details?.reason === 'locked' && locked.details?.current?.session === 'ses_other')
 
-    const dead = await service.createRequirement({ title: '死会话锁着' }, parent)
+    const dead = await service.createRequirement({ summary: '测试简述', title: '死会话锁着' }, parent)
     await seedLock(board.domain, dead.id, { session: 'ses_dead', name: '', at: hoursAgo(1), touchedAt: hoursAgo(1), orphaned: true })
     const adopted = await service.delegate(dead.id, { session: child.session }, parent)
     check('an orphaned lock does not block a delegation: the task is takeable', adopted.delegatedTo?.session === 'ses_child' && adopted.lock?.orphaned === true)
@@ -268,7 +268,7 @@ async function caseAdoption(backend, name) {
     const service = board.service
     const parent = { session: 'ses_parent', name: '甲' }
     const child = { session: 'ses_child', name: '乙' }
-    const created = await service.createRequirement({ title: '先接后派' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '先接后派' }, parent)
 
     const claimed = await service.claim(created.id, {}, child)
     check('a sub-session inheriting the parent role may claim before the delegation', claimed.lock?.session === 'ses_child')
@@ -295,7 +295,7 @@ async function caseDesignatedClaim(backend, name) {
     const parent = { session: 'ses_parent', name: '甲' }
     const child = { session: 'ses_child', name: '乙' }
     const other = { session: 'ses_other', name: '丙' }
-    const created = await service.createRequirement({ title: '被指派' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '被指派' }, parent)
     await service.delegate(created.id, { session: child.session }, parent)
 
     check('the designated session is in its own claimable list', service.listRequirements({ claimable: true }, child.session).items.some(item => item.id === created.id))
@@ -326,7 +326,7 @@ async function caseRoleBeforeIsCurrent(backend, name) {
     const service = board.service
     const parent = { session: 'ses_parent', name: '甲' }
     const child = { session: 'ses_child', name: '乙' }
-    const created = await service.createRequirement({ title: '改过角色', role: 'art-role' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '改过角色', role: 'art-role' }, parent)
     check('the record starts routed to the creation value', created.role === 'art-role')
 
     // A legal `update{role}` after creation: the creator claims, reroutes, releases.
@@ -368,7 +368,7 @@ async function caseRepeatDelegate(backend, name) {
     const parent = { session: 'ses_parent', name: '甲' }
     const first = { session: 'ses_a', name: 'A' }
     const second = { session: 'ses_b', name: 'B' }
-    const created = await service.createRequirement({ title: '换人重派' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '换人重派' }, parent)
     const roleId = `tmp-${created.id}`
 
     await service.delegate(created.id, { session: first.session, duties: ['第一棒'] }, parent)
@@ -404,7 +404,7 @@ async function caseRevoke(backend, name) {
     const parent = { session: 'ses_parent', name: '甲' }
     const child = { session: 'ses_child', name: '乙' }
     const stranger = { session: 'ses_stranger', name: '丁' }
-    const created = await service.createRequirement({ title: '撤销' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '撤销' }, parent)
     const roleId = `tmp-${created.id}`
     await service.delegate(created.id, { session: child.session }, parent)
     await service.claim(created.id, {}, child)
@@ -456,7 +456,7 @@ async function caseDisposeSettles(backend, name) {
     const parent = { session: 'ses_parent', name: '甲' }
     const child = { session: 'ses_child', name: '乙' }
     const next = { session: 'ses_next', name: '丙' }
-    const created = await service.createRequirement({ title: '会话没了' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '会话没了' }, parent)
     const roleId = `tmp-${created.id}`
     await service.delegate(created.id, { session: child.session }, parent)
     await service.claim(created.id, {}, child)
@@ -491,7 +491,7 @@ async function caseCompleteArchiveDelete(backend, name) {
     const child = { session: 'ses_child', name: '乙' }
     const panel = { session: '', name: '' }
 
-    const finished = await service.createRequirement({ title: '做完' }, parent)
+    const finished = await service.createRequirement({ summary: '测试简述', title: '做完' }, parent)
     await service.delegate(finished.id, { session: child.session }, parent)
     await service.claim(finished.id, {}, child)
     const done = await service.transitionRequirement(finished.id, { action: 'complete' }, child)
@@ -499,7 +499,7 @@ async function caseCompleteArchiveDelete(backend, name) {
     check('completing deletes the temporary role', board.domain.table('roles').get(`tmp-${finished.id}`) === undefined)
     check('completion writes no separate delegation end', done.history.filter(entry => entry.action === 'revoke-delegation').length === 0)
 
-    const archived = await service.createRequirement({ title: '归档' }, parent)
+    const archived = await service.createRequirement({ summary: '测试简述', title: '归档' }, parent)
     await service.delegate(archived.id, { session: child.session }, parent)
     await service.claim(archived.id, {}, child)
     const gone = await service.setArchived(archived.id, { archived: true }, panel)
@@ -507,7 +507,7 @@ async function caseCompleteArchiveDelete(backend, name) {
     check('archiving releases the delegated lock', gone.lock === null)
     check('archiving deletes the temporary role', board.domain.table('roles').get(`tmp-${archived.id}`) === undefined)
 
-    const deleted = await service.createRequirement({ title: '删除' }, parent)
+    const deleted = await service.createRequirement({ summary: '测试简述', title: '删除' }, parent)
     await service.delegate(deleted.id, { session: child.session }, parent)
     await service.claim(deleted.id, {}, child)
     await service.deleteRequirement(deleted.id, {}, panel)
@@ -538,7 +538,7 @@ async function caseRerouteDuringDelegate(backend, name) {
     const service = board.service
     const parent = { session: 'ses_parent', name: '甲' }
     const child = { session: 'ses_child', name: '乙' }
-    const created = await service.createRequirement({ title: '派发期间改角色', role: 'art-role' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '派发期间改角色', role: 'art-role' }, parent)
     const delegated = await service.delegate(created.id, { session: child.session }, parent)
     check('the requirement routes to the temporary role', delegated.role === `tmp-${created.id}`)
     await service.claim(created.id, {}, child)
@@ -574,7 +574,7 @@ async function caseRefusedWriteTakesRoleBack(backend, name) {
     })
     const service = board.service
     const parent = { session: 'ses_parent', name: '甲' }
-    const created = await service.createRequirement({ title: '写失败的派发' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '写失败的派发' }, parent)
     await reporter.rejects('a stale revision refuses the delegation', () => service.delegate(created.id, { session: 'ses_child', expectedRev: (created.rev ?? 1) - 1 }, parent), 'conflict')
     check('the refused delegation left no temporary role', board.domain.table('roles').size === 0)
     check('no temporary role is listed either', service.listRoles().items.every(item => !item.id.startsWith('tmp-'))
@@ -599,11 +599,11 @@ async function caseOwnership(backend, name) {
       owns: fakeOwnership([['ses_child', 'ses_parent']]),
     })
     const parent = { session: 'ses_parent', name: '甲' }
-    const own = await owned.service.createRequirement({ title: '自己的孩子' }, parent)
+    const own = await owned.service.createRequirement({ summary: '测试简述', title: '自己的孩子' }, parent)
     const accepted = await owned.service.delegate(own.id, { session: 'ses_child' }, parent)
     check('a session may delegate to its own sub-session', accepted.delegatedTo?.session === 'ses_child')
 
-    const alien = await owned.service.createRequirement({ title: '别人的孩子' }, parent)
+    const alien = await owned.service.createRequirement({ summary: '测试简述', title: '别人的孩子' }, parent)
     const refused = await reporter.rejects('a session cannot delegate to another session\'s child', () => owned.service.delegate(alien.id, { session: 'ses_alien' }, parent), 'forbidden')
     check('the refusal names the ownership check and both sessions', refused.details?.reason === 'not-owned' && refused.details?.target === 'ses_alien' && refused.details?.owner === 'ses_parent')
     check('the refused delegation wrote neither record', owned.domain.table('requirements').get(alien.id).delegatedTo === null
@@ -616,11 +616,11 @@ async function caseOwnership(backend, name) {
     // The port is the board's own contract: ids in, a verdict out. An absent port
     // and an undecidable one both skip the check, and say so once.
     const missing = await openDelegationBoard({ backend, dir, agents: fakeAgents([agentOf('ses_parent', 'art-role')]) })
-    const loose = await missing.service.createRequirement({ title: '没有归属端口' }, parent)
+    const loose = await missing.service.createRequirement({ summary: '测试简述', title: '没有归属端口' }, parent)
     const allowed = await missing.service.delegate(loose.id, { session: 'ses_anyone' }, parent)
     check('a composition without the ownership port delegates instead of guessing', allowed.delegatedTo?.session === 'ses_anyone')
     check('the missing port is reported once and named', missing.logger.lines.warn.filter(line => line.includes('no ownership port')).length === 1, missing.logger.lines.warn.join(' | '))
-    const again = await missing.service.createRequirement({ title: '再一次' }, parent)
+    const again = await missing.service.createRequirement({ summary: '测试简述', title: '再一次' }, parent)
     await missing.service.delegate(again.id, { session: 'ses_anyone' }, parent)
     check('a second delegation does not repeat the report', missing.logger.lines.warn.filter(line => line.includes('no ownership port')).length === 1)
     await missing.close()
@@ -631,7 +631,7 @@ async function caseOwnership(backend, name) {
       agents: fakeAgents([agentOf('ses_parent', 'art-role')]),
       owns: fakeOwnership([], true),
     })
-    const unknown = await undecided.service.createRequirement({ title: '注册表答不了' }, parent)
+    const unknown = await undecided.service.createRequirement({ summary: '测试简述', title: '注册表答不了' }, parent)
     const taken = await undecided.service.delegate(unknown.id, { session: 'ses_anyone' }, parent)
     check('an undecidable relation delegates instead of refusing', taken.delegatedTo?.session === 'ses_anyone')
     check('the undecidable relation is reported once with its reason', undecided.logger.lines.warn.filter(line => line.includes('cannot say whose sub-session')).length === 1, undecided.logger.lines.warn.join(' | '))
@@ -698,10 +698,10 @@ async function caseOwnershipAdapter(backend, name) {
     await applyBoardPlugin(mounted.ctx, resolveConfig({ promptMaxItems: 12 }))
     const tool = mounted.records.tools[0]
     const parent = { session: 'ses_parent', name: '甲' }
-    const viaTool = await board.service.createRequirement({ title: '真组合通道' }, parent)
+    const viaTool = await board.service.createRequirement({ summary: '测试简述', title: '真组合通道' }, parent)
     const delegated = await tool.execute({ action: 'delegate', id: viaTool.id, session: 'ses_child' }, { agent: parentAgent })
     check('the tool delegates through the adapter to the caller\'s own child', delegated.delegatedTo?.session === 'ses_child' && delegated.roleId === `tmp-${viaTool.id}`)
-    const stranger = await board.service.createRequirement({ title: '陌生会话' }, parent)
+    const stranger = await board.service.createRequirement({ summary: '测试简述', title: '陌生会话' }, parent)
     const denied = await reporter.rejects('the tool refuses another session\'s child through the same adapter', () => tool.execute({ action: 'delegate', id: stranger.id, session: 'ses_alien' }, { agent: parentAgent }), 'forbidden')
     check('the refusal is the ownership one', denied.details?.reason === 'not-owned' && denied.details?.target === 'ses_alien')
     check('every platform call carried the parent Agent object', registry.calls.every(call => typeof call.owner === 'object' && call.owner !== null))
@@ -731,7 +731,7 @@ async function caseDelegationReservation(backend, name) {
     const child = { session: 'ses_child', name: '小画家' }
     const third = { session: 'ses_third', name: '丙' }
 
-    const contested = await service.createRequirement({ title: '被第三方预留' }, parent)
+    const contested = await service.createRequirement({ summary: '测试简述', title: '被第三方预留' }, parent)
     await service.queue(contested.id, {}, third)
     const refused = await reporter.rejects('a third session\'s reservation refuses the delegation', () => service.delegate(contested.id, { session: 'ses_child' }, parent), 'conflict')
     check('the refusal is the reservation, not the ownership or the lock', refused.details?.reason === 'reserved' && refused.details?.reservedBy === 'ses_third')
@@ -743,7 +743,7 @@ async function caseDelegationReservation(backend, name) {
     // One lock per session: give this one back before the next requirement.
     await service.release(contested.id, {}, child)
 
-    const adopted = await service.createRequirement({ title: '目标自己预留' }, parent)
+    const adopted = await service.createRequirement({ summary: '测试简述', title: '目标自己预留' }, parent)
     await service.queue(adopted.id, {}, child)
     const given = await service.delegate(adopted.id, { session: 'ses_child' }, parent)
     check('the target\'s own reservation is not a refusal', given.delegatedTo?.session === 'ses_child')
@@ -761,7 +761,7 @@ async function caseDelegationReservation(backend, name) {
 // it would block the session that was just named — the same state the third-party
 // refusal prevents. The reservation is not moved into the target's queue; that
 // session's own queue is its business.
-    const selfQueued = await service.createRequirement({ title: '调用方自己预留' }, parent)
+    const selfQueued = await service.createRequirement({ summary: '测试简述', title: '调用方自己预留' }, parent)
     await service.queue(selfQueued.id, {}, parent)
     const beforeHandoff = service.stats().reserved
     check('the caller holds the reservation before handing the requirement on', (await service.getRequirement(selfQueued.id)).reservedBy === 'ses_parent')
@@ -776,7 +776,7 @@ async function caseDelegationReservation(backend, name) {
 
     // A refused delegation must not release anything: the reservation is the
     // caller's promise, and it survives until the hand-off actually lands.
-    const refusedHandoff = await service.createRequirement({ title: '被拒的交接' }, parent)
+    const refusedHandoff = await service.createRequirement({ summary: '测试简述', title: '被拒的交接' }, parent)
     await service.queue(refusedHandoff.id, {}, parent)
     await reporter.rejects('the caller cannot delegate to itself', () => service.delegate(refusedHandoff.id, { session: parent.session }, parent), 'invalid-input')
     check('the refused delegation left the caller\'s reservation standing', (await service.getRequirement(refusedHandoff.id)).reservedBy === 'ses_parent'
@@ -811,7 +811,7 @@ async function caseChainedRedelegation(backend, name) {
     const parent = { session: 'ses_parent', name: '甲' }
     const child = { session: 'ses_child', name: '小画家' }
     const grandchild = { session: 'ses_grandchild', name: '小助手' }
-    const created = await service.createRequirement({ title: '链式再派发', role: 'art-role' }, parent)
+    const created = await service.createRequirement({ summary: '测试简述', title: '链式再派发', role: 'art-role' }, parent)
     const roleId = `tmp-${created.id}`
 
     const first = await service.delegate(created.id, { session: child.session, duties: ['初稿'] }, parent)
@@ -833,7 +833,7 @@ async function caseChainedRedelegation(backend, name) {
     const claimed = await service.claim(created.id, {}, grandchild)
     check('the grandchild claims through the delegation it was named by', claimed.lock?.session === 'ses_grandchild')
 
-    const alientarget = await service.createRequirement({ title: '跨链派给别人的孩子' }, parent)
+    const alientarget = await service.createRequirement({ summary: '测试简述', title: '跨链派给别人的孩子' }, parent)
     await service.delegate(alientarget.id, { session: child.session }, parent)
     const crossChain = await reporter.rejects('a delegated session may not delegate to a session it does not own', () => service.delegate(alientarget.id, { session: 'ses_alien' }, child), 'forbidden')
     check('the ownership check still applies down the chain', crossChain.details?.reason === 'not-owned')
@@ -870,8 +870,8 @@ async function caseToolHttpAndPrompt(backend, name) {
     check('the tool keeps one session parameter for filter and target', tool.parameters.properties.targetSession === undefined)
 
     const parent = { session: 'ses_parent', name: '甲' }
-    const created = await board.service.createRequirement({ title: '工具派发' }, parent)
-    const spare = await board.service.createRequirement({ title: '公共任务' }, parent)
+    const created = await board.service.createRequirement({ summary: '测试简述', title: '工具派发' }, parent)
+    const spare = await board.service.createRequirement({ summary: '测试简述', title: '公共任务' }, parent)
     const delegateTool = await tool.execute({ action: 'delegate', id: created.id, session: 'ses_child', duties: ['按图切'] }, { agent })
     check('the tool delegates as its own session', delegateTool.delegatedTo?.session === 'ses_child' && delegateTool.roleId === `tmp-${created.id}`)
 
@@ -897,7 +897,7 @@ async function caseToolHttpAndPrompt(backend, name) {
       && board.domain.table('roles').get(`tmp-${created.id}`) === undefined)
 
     // A named delegating session is named by its display name in the section.
-    const named = await board.service.createRequirement({ title: '具名派发' }, parent)
+    const named = await board.service.createRequirement({ summary: '测试简述', title: '具名派发' }, parent)
     await board.service.delegate(named.id, { session: 'ses_child' }, { session: 'ses_parent', name: '甲' })
     const namedPrompt = String(mounted.records.promptContexts[0].text({ scope: { id: 'ses_child' } }))
     check('the section names a delegating session through its display name', promptSection(namedPrompt, 'Delegated to you').some(line => line.includes('delegated by 甲 (ses_parent)')), namedPrompt)
@@ -905,7 +905,7 @@ async function caseToolHttpAndPrompt(backend, name) {
     check('revoking the named delegation removes it from the section too', !String(mounted.records.promptContexts[0].text({ scope: { id: 'ses_child' } })).includes('Delegated to you'))
 
     // The mount's own `agent/disposed` listener settles the same state.
-    const running = await board.service.createRequirement({ title: '挂载收尾' }, parent)
+    const running = await board.service.createRequirement({ summary: '测试简述', title: '挂载收尾' }, parent)
     await board.service.delegate(running.id, { session: 'ses_child' }, parent)
     await board.service.claim(running.id, {}, { session: 'ses_child', name: '' })
     const settled = await Promise.all(mounted.dispatch('agent/disposed', { agent: agentOf('ses_child', 'art-role') }))
@@ -928,9 +928,9 @@ async function caseSweepDeadSession(backend, name) {
 
     // A live delegation (its session is in the registry) and a dangling one whose
     // session is gone, each seeded the way an interrupted chain would leave it.
-    const alive = await service.createRequirement({ title: '还在' }, parent)
+    const alive = await service.createRequirement({ summary: '测试简述', title: '还在' }, parent)
     await service.delegate(alive.id, { session: 'ses_alive' }, parent)
-    const dead = await service.createRequirement({ title: '会话没了' }, parent)
+    const dead = await service.createRequirement({ summary: '测试简述', title: '会话没了' }, parent)
     const deadRole = `tmp-${dead.id}`
     await roles.put(deadRole, { id: deadRole, name: deadRole, duties: [], source: 'delegated', ephemeral: true, boundSession: 'ses_gone', boundTask: dead.id, createdAt: at, updatedAt: at })
     await requirements.put(dead.id, {

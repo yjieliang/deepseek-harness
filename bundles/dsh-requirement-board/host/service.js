@@ -48,7 +48,35 @@ import { nextRevision } from './domain.js'
 import { RoleRegistry } from './roles.js'
 
 /** Fields a caller may change through `updateRequirement`. */
-const UPDATABLE = ['title', 'description', 'priority', 'owner', 'labels', 'sessions', 'templateId', 'role', 'parentId', 'blocksOn', 'images']
+const UPDATABLE = ['title', 'summary', 'description', 'priority', 'owner', 'labels', 'sessions', 'templateId', 'role', 'parentId', 'blocksOn', 'images']
+
+/**
+ * Longest plain-language summary a requirement carries.
+ *
+ * The field is a reader's entry point, not a second description: a summary that
+ * needs more than this has grown into the detail the description holds, so the
+ * bound is what keeps the two from converging.
+ */
+const SUMMARY_MAX = 300
+
+/**
+ * Read the plain-language summary a write carries, refusing an empty one.
+ *
+ * The refusal states what the field is for instead of restating its name: a
+ * caller that omitted the summary learns the rule from the same message. The
+ * field is required because the panel reads it first — a requirement without one
+ * shows its reader the description, which is what the summary exists to spare
+ * them.
+ * @param value - Raw `summary` value.
+ * @returns the validated summary.
+ */
+function asSummary(value) {
+  const text = asString(value, 'summary', { max: SUMMARY_MAX })
+  if (text === '') {
+    fail('invalid-argument', '"summary" is required: state the requirement in one or two plain-language sentences a person can read without the technical detail', { field: 'summary', max: SUMMARY_MAX })
+  }
+  return text
+}
 
 /** Most `blocksOn` links one requirement may carry (§4.2). */
 const BLOCKS_ON_MAX = 20
@@ -132,7 +160,7 @@ function asRevision(value, field) {
  * show it, who shares it — and loses the routing, the flow, and the state changes
  * that would let it answer the question itself.
  */
-const DECISION_UPDATABLE = ['title', 'description', 'priority', 'labels', 'sessions', 'images']
+const DECISION_UPDATABLE = ['title', 'summary', 'description', 'priority', 'labels', 'sessions', 'images']
 
 /**
  * The fields whose change redefines the work: who may run it, which flow it
@@ -271,6 +299,10 @@ function summarize(requirement, template, derived = {}) {
   return {
     id: requirement.id,
     title: requirement.title,
+    // The plain-language reading travels with the summary so a list, the panel's
+    // cards, and `get` all show the same sentence. A record written before the
+    // field existed reads as one carrying none.
+    summary: requirement.summary ?? '',
     priority: requirement.priority,
     kind: requirement.kind ?? 'task',
     requestedBy: requirement.requestedBy ?? '',
@@ -714,6 +746,10 @@ export class RequirementService {
     presented.roleUnregistered = (requirement.role ?? '') !== '' && !this.#roles.has(requirement.role)
     presented.kind = requirement.kind ?? 'task'
     presented.requestedBy = requirement.requestedBy ?? ''
+    // A record written before the plain-language summary existed validates
+    // without the field, so every reader gets the empty string it means rather
+    // than an absent key the panel would have to test for.
+    presented.summary = requirement.summary ?? ''
     // A record written before template versions existed validates without the
     // field, so every reader gets the revision it runs on rather than an absent key.
     presented.templateRevision = requirement.templateRevision ?? 1
@@ -1412,7 +1448,7 @@ export class RequirementService {
       if (templateId !== '' && requirement.templateId !== templateId) continue
       if (session !== '' && !(requirement.sessions ?? []).includes(session)) continue
       if (role !== '' && (requirement.role ?? '') !== role) continue
-      if (query !== '' && !`${requirement.title}\n${requirement.description}\n${requirement.id}`.toLowerCase().includes(query)) continue
+      if (query !== '' && !`${requirement.title}\n${requirement.summary ?? ''}\n${requirement.description}\n${requirement.id}`.toLowerCase().includes(query)) continue
       if (claimableOnly && !claimable(requirement, me, myRole, { reservedBy: this.#reservationOf(requirement.id) })) continue
       items.push(requirement)
     }
@@ -1525,7 +1561,7 @@ export class RequirementService {
    * is the whole of the decision queue's "who is waiting for you". A tool call
    * carries no display name, so without the registry step every agent-created
    * decision would read as a bare session id.
-   * @param input - `title`, `description`, `kind`, `priority`, `owner`, `sessions`, `labels`, `templateId`, `parentId`, `blocksOn`, `images`, `note`.
+   * @param input - `title`, `summary`, `description`, `kind`, `priority`, `owner`, `sessions`, `labels`, `templateId`, `parentId`, `blocksOn`, `images`, `note`.
    * @param actor - `{ session, name }` of the caller.
    * @returns the presented requirement.
    */
@@ -1553,6 +1589,7 @@ export class RequirementService {
     const requirement = {
       id,
       title,
+      summary: asSummary(input.summary),
       description: asString(input.description, 'description', { max: 8000 }),
       kind: asEnum(input.kind, REQ_KINDS, 'kind', 'task'),
       priority: asEnum(input.priority, PRIORITIES, 'priority', 'normal'),
@@ -2419,6 +2456,7 @@ export class RequirementService {
       changed = true
     }
     if (patch.title !== undefined) assign('title', asString(patch.title, 'title', { required: true, max: 200 }))
+    if (patch.summary !== undefined) assign('summary', asSummary(patch.summary))
     if (patch.description !== undefined) assign('description', asString(patch.description, 'description', { max: 8000 }))
     if (patch.priority !== undefined) assign('priority', asEnum(patch.priority, PRIORITIES, 'priority'))
     if (patch.owner !== undefined) assign('owner', asString(patch.owner, 'owner', { max: 120 }))

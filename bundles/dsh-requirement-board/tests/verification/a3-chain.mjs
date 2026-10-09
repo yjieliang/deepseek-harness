@@ -224,11 +224,11 @@ try {
   const panel = { session: '', name: '面板' }
 
   await service.createTemplate({ id: 'tpl-one', name: 'One node', nodes: [{ id: 'only', name: 'Only' }] }, panel)
-  const rA = await service.createRequirement({ title: 'Alpha 美术', owner: 'ann', priority: 'high', sessions: ['ses_A'] }, panel)
-  const rB = await service.createRequirement({ title: 'Beta 引擎', owner: 'bob', priority: 'low', sessions: ['ses_B'] }, panel)
-  const rC = await service.createRequirement({ title: 'Gamma 美术', owner: 'bob', priority: 'urgent', sessions: ['ses_A', 'ses_B'] }, panel)
-  const rD = await service.createRequirement({ title: 'Delta 评审', owner: 'ann', priority: 'normal', sessions: ['ses_A'], templateId: 'tpl-one' }, panel)
-  const rE = await service.createRequirement({ title: 'Epsilon 角色任务', owner: 'ann', priority: 'normal', sessions: ['ses_A'], role: 'art' }, panel)
+  const rA = await service.createRequirement({ summary: '测试简述', title: 'Alpha 美术', owner: 'ann', priority: 'high', sessions: ['ses_A'] }, panel)
+  const rB = await service.createRequirement({ summary: '测试简述', title: 'Beta 引擎', owner: 'bob', priority: 'low', sessions: ['ses_B'] }, panel)
+  const rC = await service.createRequirement({ summary: '测试简述', title: 'Gamma 美术', owner: 'bob', priority: 'urgent', sessions: ['ses_A', 'ses_B'] }, panel)
+  const rD = await service.createRequirement({ summary: '测试简述', title: 'Delta 评审', owner: 'ann', priority: 'normal', sessions: ['ses_A'], templateId: 'tpl-one' }, panel)
+  const rE = await service.createRequirement({ summary: '测试简述', title: 'Epsilon 角色任务', owner: 'ann', priority: 'normal', sessions: ['ses_A'], role: 'art' }, panel)
   await service.transitionRequirement(rC.id, { action: 'complete' }, panel)
 
   const all = [rA.id, rB.id, rC.id, rD.id, rE.id]
@@ -319,8 +319,8 @@ try {
   /* ----------------------------------------------------- [4] complete release */
 
   console.log('\n[3] complete releases the lock and ends its own reservation')
-  const one = await service.createRequirement({ title: 'One node task', sessions: ['ses_A'] }, panel)
-  const next = await service.createRequirement({ title: 'Next task', sessions: ['ses_A'] }, panel)
+  const one = await service.createRequirement({ summary: '测试简述', title: 'One node task', sessions: ['ses_A'] }, panel)
+  const next = await service.createRequirement({ summary: '测试简述', title: 'Next task', sessions: ['ses_A'] }, panel)
   const held = await service.claim(one.id, {}, { session: 'ses_A', name: 'A' })
   check('claim installs the lock with one instant', held.lock?.at === held.lock?.touchedAt && held.lock?.at === held.updatedAt, JSON.stringify(held.lock))
   await expectFail('a session already executing something else cannot claim another', 'conflict', () => service.claim(next.id, {}, { session: 'ses_A', name: 'A' }), 'session-busy')
@@ -347,11 +347,11 @@ try {
   await expectFail('completing an already-done requirement is refused', 'invalid-transition', () => service.transitionRequirement(one.id, { action: 'complete' }, panel))
 
   console.log('\n[3b] archive and delete keep their own reservation semantics')
-  const archivable = await service.createRequirement({ title: 'Archive me', sessions: [] }, panel)
+  const archivable = await service.createRequirement({ summary: '测试简述', title: 'Archive me', sessions: [] }, panel)
   await service.queue(archivable.id, {}, { session: 'ses_other', name: 'other' })
   const archived = await service.setArchived(archivable.id, { archived: true }, panel)
   check('archiving releases the reservation on that requirement', archived.status === 'archived' && reservations(world1).get(archivable.id) === undefined, JSON.stringify([...reservations(world1)]))
-  const deletable = await service.createRequirement({ title: 'Delete me', sessions: [] }, panel)
+  const deletable = await service.createRequirement({ summary: '测试简述', title: 'Delete me', sessions: [] }, panel)
   await service.queue(deletable.id, {}, { session: 'ses_other', name: 'other' })
   const deleted = await service.deleteRequirement(deletable.id, {}, panel)
   check('deleting releases the reservation and removes the record', deleted.deleted === true && rawRequirement(world1, deletable.id) === undefined && reservations(world1).get(deletable.id) === undefined, JSON.stringify(deleted))
@@ -369,7 +369,7 @@ try {
   const panel = { session: '', name: '面板' }
   const queued = []
   for (let index = 1; index <= 6; index += 1) {
-    queued.push(await service.createRequirement({ title: `Queue ${index}`, priority: 'low' }, panel))
+    queued.push(await service.createRequirement({ summary: '测试简述', title: `Queue ${index}`, priority: 'low' }, panel))
   }
   /** Frames from here on belong to the queue section, never to the creations. */
   const queueMarker = world2.changes.length
@@ -420,7 +420,7 @@ console.log('\n[4b] two sessions queueing one requirement: exactly one reservati
 const world3 = await openWorld()
 try {
   const { service } = world3
-  const target = await service.createRequirement({ title: 'Contested', priority: 'low' }, { session: '', name: '面板' })
+  const target = await service.createRequirement({ summary: '测试简述', title: 'Contested', priority: 'low' }, { session: '', name: '面板' })
   const settled = await Promise.allSettled([
     service.queue(target.id, {}, { session: 'ses_art', name: 'A' }),
     service.queue(target.id, {}, { session: 'ses_eng', name: 'E' }),
@@ -445,8 +445,8 @@ console.log('\n[5] the queue-head hint and the queued flag: which paths can reac
   // head in the refusal, so it can go straight to the queue.
   const world4 = await openWorld()
   try {
-    const held = await world4.service.createRequirement({ title: 'Executing' }, panel)
-    const head = await world4.service.createRequirement({ title: 'Queue head' }, panel)
+    const held = await world4.service.createRequirement({ summary: '测试简述', title: 'Executing' }, panel)
+    const head = await world4.service.createRequirement({ summary: '测试简述', title: 'Queue head' }, panel)
     await world4.service.claim(held.id, {}, { session: 'ses_art', name: 'A' })
     await world4.service.queue(head.id, {}, { session: 'ses_art', name: 'A' })
     const busy = await capture(() => world4.service.claim(head.id, {}, { session: 'ses_art', name: 'A' }))
@@ -459,7 +459,7 @@ console.log('\n[5] the queue-head hint and the queued flag: which paths can reac
   // Ordering one: the reservation exists first, so nobody else can lock it.
   const world5 = await openWorld()
   try {
-    const target = await world5.service.createRequirement({ title: 'Reserved first' }, panel)
+    const target = await world5.service.createRequirement({ summary: '测试简述', title: 'Reserved first' }, panel)
     await world5.service.queue(target.id, {}, { session: 'ses_art', name: 'A' })
     const other = await capture(() => world5.service.claim(target.id, {}, { session: 'ses_eng', name: 'E' }))
     check('a reservation blocks the other session before the lock is ever consulted', other?.details?.reason === 'reserved', `${other?.code}/${other?.details?.reason}`)
@@ -472,7 +472,7 @@ console.log('\n[5] the queue-head hint and the queued flag: which paths can reac
   // not name the requirement yet.
   const world6 = await openWorld()
   try {
-    const target = await world6.service.createRequirement({ title: 'Locked first' }, panel)
+    const target = await world6.service.createRequirement({ summary: '测试简述', title: 'Locked first' }, panel)
     await world6.service.claim(target.id, {}, { session: 'ses_eng', name: 'E' })
     const late = await capture(() => world6.service.queue(target.id, {}, { session: 'ses_art', name: 'A' }))
     check('a locked requirement cannot be queued either', late?.code === 'conflict' && late?.details?.reason === 'locked', `${late?.code}/${late?.details?.reason}`)
@@ -486,7 +486,7 @@ console.log('\n[5] the queue-head hint and the queued flag: which paths can reac
   // fixture). It behaves as documented, it simply has no public producer.
   const world7 = await openWorld()
   try {
-    const target = await world7.service.createRequirement({ title: 'Fixture state' }, panel)
+    const target = await world7.service.createRequirement({ summary: '测试简述', title: 'Fixture state' }, panel)
     await world7.service.queue(target.id, {}, { session: 'ses_art', name: 'A' })
     const raw = rawRequirement(world7, target.id)
     const stamp = new Date().toISOString()
@@ -506,8 +506,8 @@ console.log('\n[6] disposing a session orphans its locks instead of deleting the
   const panel = { session: '', name: '面板' }
   const world8 = await openWorld()
   try {
-    const held = await world8.service.createRequirement({ title: 'Held at disposal' }, panel)
-    const waiting = await world8.service.createRequirement({ title: 'Queued at disposal' }, panel)
+    const held = await world8.service.createRequirement({ summary: '测试简述', title: 'Held at disposal' }, panel)
+    const waiting = await world8.service.createRequirement({ summary: '测试简述', title: 'Queued at disposal' }, panel)
     await world8.service.claim(held.id, {}, { session: 'ses_art', name: 'A' })
     await world8.service.queue(waiting.id, {}, { session: 'ses_art', name: 'A' })
     const before = rawRequirement(world8, held.id).lock

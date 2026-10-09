@@ -135,10 +135,10 @@ async function casePinnedVersionGoverns(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate({ id: 'tpl-pin', name: '钉住解析', nodes: pinnedV1() }, actor)
-    const last = await service.createRequirement({ title: '钉住最后一节点', templateId: 'tpl-pin' }, actor)
-    const completed = await service.createRequirement({ title: '钉住并完成', templateId: 'tpl-pin' }, actor)
-    const read = await service.createRequirement({ title: '钉住并读取', templateId: 'tpl-pin' }, actor)
-    const dangling = await service.createRequirement({ title: '钉子悬空', templateId: 'tpl-pin' }, actor)
+    const last = await service.createRequirement({ summary: '测试简述', title: '钉住最后一节点', templateId: 'tpl-pin' }, actor)
+    const completed = await service.createRequirement({ summary: '测试简述', title: '钉住并完成', templateId: 'tpl-pin' }, actor)
+    const read = await service.createRequirement({ summary: '测试简述', title: '钉住并读取', templateId: 'tpl-pin' }, actor)
+    const dangling = await service.createRequirement({ summary: '测试简述', title: '钉子悬空', templateId: 'tpl-pin' }, actor)
     const lastActor = actorFor('ses_last')
     const completedActor = actorFor('ses_complete')
     const readActor = actorFor('ses_read')
@@ -204,9 +204,9 @@ async function caseMigrationBoundaries(backend, name) {
       { id: 'a', name: '甲', completion: { type: 'checklist', checklist: ['一', '二'] } },
       { id: 'b', name: '乙', dependsOn: ['a'], completion: { type: 'manual' } },
     ] }, actor)
-    const kept = await service.createRequirement({ title: '清单长度不变', templateId: 'tpl-mig' }, actor)
-    const done = await service.createRequirement({ title: '已完成', templateId: 'tpl-mig' }, actor)
-    const shelved = await service.createRequirement({ title: '已归档', templateId: 'tpl-mig' }, actor)
+    const kept = await service.createRequirement({ summary: '测试简述', title: '清单长度不变', templateId: 'tpl-mig' }, actor)
+    const done = await service.createRequirement({ summary: '测试简述', title: '已完成', templateId: 'tpl-mig' }, actor)
+    const shelved = await service.createRequirement({ summary: '测试简述', title: '已归档', templateId: 'tpl-mig' }, actor)
     const keptActor = actorFor('ses_kept')
     const doneActor = actorFor('ses_done')
     const shelvedActor = actorFor('ses_shelved')
@@ -275,8 +275,8 @@ async function caseArchiveBoundaries(backend, name) {
       { id: 'next', name: '后续', dependsOn: ['only'] },
     ] }, actor)
     await service.createTemplate({ id: 'tpl-other', name: '另一模板', nodes: [{ id: 'solo', name: '独' }] }, actor)
-    const bound = await service.createRequirement({ title: '已绑需求', templateId: 'tpl-arch' }, actor)
-    const rebind = await service.createRequirement({ title: '待改绑', templateId: 'tpl-other' }, actor)
+    const bound = await service.createRequirement({ summary: '测试简述', title: '已绑需求', templateId: 'tpl-arch' }, actor)
+    const rebind = await service.createRequirement({ summary: '测试简述', title: '待改绑', templateId: 'tpl-other' }, actor)
     const boundActor = actorFor('ses_bound')
     const rebindActor = actorFor('ses_rebind')
     await service.claim(bound.id, {}, boundActor)
@@ -325,7 +325,7 @@ async function caseLegacyRecordOnlyForward(backend, name) {
     await service.createTemplate({ id: 'tpl-old', name: '存量模板', nodes: [
       { id: 'a', name: '甲' }, { id: 'b', name: '乙', dependsOn: ['a'] },
     ] }, actor)
-    const created = await service.createRequirement({ title: '存量需求', templateId: 'tpl-old' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '存量需求', templateId: 'tpl-old' }, actor)
     await service.claim(created.id, {}, actor)
     await service.reviseTemplate('tpl-old', { nodes: [
       { id: 'a', name: '甲' }, { id: 'b', name: '乙', dependsOn: ['a'] }, { id: 'c', name: '丙', dependsOn: ['b'] },
@@ -370,7 +370,7 @@ async function caseLegacyRecordOnlyForward(backend, name) {
   await onBackend(backend, `${name} (undeclared requirement field)`, async dir => {
     const board = await openBoard({ backend, dir })
     await board.service.createTemplate({ id: 'tpl-old', name: '存量模板', nodes: [{ id: 'a', name: '甲' }] }, actor)
-    const created = await board.service.createRequirement({ title: '存量需求', templateId: 'tpl-old' }, actor)
+    const created = await board.service.createRequirement({ summary: '测试简述', title: '存量需求', templateId: 'tpl-old' }, actor)
     const record = recordOf(board, created.id)
     await board.domain.table('requirements').put(created.id, { ...record, templateRevision_: 2 })
     await board.close()
@@ -381,7 +381,7 @@ async function caseLegacyRecordOnlyForward(backend, name) {
   await onBackend(backend, `${name} (non-positive pin)`, async dir => {
     const board = await openBoard({ backend, dir })
     await board.service.createTemplate({ id: 'tpl-old', name: '存量模板', nodes: [{ id: 'a', name: '甲' }] }, actor)
-    const created = await board.service.createRequirement({ title: '存量需求', templateId: 'tpl-old' }, actor)
+    const created = await board.service.createRequirement({ summary: '测试简述', title: '存量需求', templateId: 'tpl-old' }, actor)
     const record = recordOf(board, created.id)
     await board.domain.table('requirements').put(created.id, { ...record, templateRevision: 0 })
     await board.close()
@@ -404,8 +404,8 @@ async function casePinHeldByDoneOrArchived(backend, name) {
       { id: 'a', name: '甲', completion: { type: 'checklist', checklist: ['一'] } },
       { id: 'b', name: '乙', dependsOn: ['a'], completion: { type: 'manual' } },
     ] }, actor)
-    const finished = await service.createRequirement({ title: '已完成但钉住', templateId: 'tpl-pins' }, actor)
-    const shelved = await service.createRequirement({ title: '已归档但钉住', templateId: 'tpl-pins' }, actor)
+    const finished = await service.createRequirement({ summary: '测试简述', title: '已完成但钉住', templateId: 'tpl-pins' }, actor)
+    const shelved = await service.createRequirement({ summary: '测试简述', title: '已归档但钉住', templateId: 'tpl-pins' }, actor)
     const finishedActor = actorFor('ses_finished')
     const shelvedActor = actorFor('ses_shelved_pin')
     await service.claim(finished.id, {}, finishedActor)
@@ -490,7 +490,7 @@ async function caseProjectionAndChangeFeed(backend, name) {
       { id: 'a', name: '甲', completion: { type: 'checklist', checklist: ['一', '二'] } },
       { id: 'b', name: '乙', dependsOn: ['a'], completion: { type: 'manual' } },
     ] }, actor)
-    const created = await service.createRequirement({ title: '可见性需求', templateId: 'tpl-feed' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '可见性需求', templateId: 'tpl-feed' }, actor)
     await service.claim(created.id, {}, actor)
     await service.reviseTemplate('tpl-feed', { description: '第二版' }, actor)
     await service.migrateRequirementsToRevision('tpl-feed', 2, { requirementIds: [created.id] }, actor)

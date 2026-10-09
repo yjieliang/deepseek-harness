@@ -376,7 +376,7 @@ function openStream(mounted) {
 
 /** Create a requirement and take its lock with session A. */
 async function lockedRequirement(board, title) {
-  const requirement = await board.service.createRequirement({ title }, A)
+  const requirement = await board.service.createRequirement({ summary: '测试简述', title }, A)
   await board.service.claim(requirement.id, {}, A)
   return requirement
 }
@@ -594,7 +594,7 @@ async function caseClaimReconciles(backend, name) {
       jobView({ id: 'pwsh-9', owner: B.session, status: 'running' }),
     ])
     const board = await openBoard({ backend, dir, config: resolveConfig({}), ports: portsFor({ jobs }) })
-    const requirement = await board.service.createRequirement({ title: '对账' }, A)
+    const requirement = await board.service.createRequirement({ summary: '测试简述', title: '对账' }, A)
     const claimed = await board.service.claim(requirement.id, {}, A)
     check('claim reports the session\'s jobs it filled in', claimed.executions.length === 2)
     check('a live job arrives as running with its progress', claimed.executions.some(unit => unit.ref === 'pwsh-7' && unit.status === 'running' && unit.progress === '2/4'))
@@ -616,7 +616,7 @@ async function caseClaimReconciles(backend, name) {
 
     const brokenDir = await makeTempDir('requirement-board-broken-')
     const broken = await openBoard({ backend, dir: brokenDir, config: resolveConfig({}), ports: portsFor({ jobs: brokenJobs() }) })
-    const target = await broken.service.createRequirement({ title: '坏注册表' }, A)
+    const target = await broken.service.createRequirement({ summary: '测试简述', title: '坏注册表' }, A)
     const survived = await broken.service.claim(target.id, {}, A)
     check('a claim still succeeds when the registry fails', survived.lock?.session === A.session)
     check('the registry failure is counted as a gap, not silently dropped', broken.service.getRequirement(target.id, A.session).sync.gap === true && broken.service.stats().execSync.gaps >= 1)
@@ -636,7 +636,7 @@ async function caseMissingRegistry(backend, name) {
     // only place the case can pass one.
     const logger = createRecordingLogger()
     const service = new RequirementService({ domain: board.domain, config: resolveConfig({}), ports: {}, logger })
-    const requirement = await service.createRequirement({ title: '缺注册表' }, A)
+    const requirement = await service.createRequirement({ summary: '测试简述', title: '缺注册表' }, A)
     await service.claim(requirement.id, {}, A)
     const gapsBefore = service.stats().execSync.gaps
     const missing = service.assertExecutionPorts()
@@ -657,7 +657,7 @@ async function caseMissingRegistry(backend, name) {
     await applyBoardPlugin(mounted.ctx, resolveConfig({ executionSync: false }))
     check('switching sync off registers no producer listener', mounted.records.listeners.every(entry => !entry.event.startsWith('subagent/')))
     check('switching sync off warns about nothing and counts no gap', quietLogger.lines.warn.length === 0 && quiet.service.stats().execSync.gaps === 0)
-    const idle = await quiet.service.createRequirement({ title: '关闭同步' }, A)
+    const idle = await quiet.service.createRequirement({ summary: '测试简述', title: '关闭同步' }, A)
     const view = quiet.service.getRequirement(idle.id, A.session)
     check('switching sync off says so instead of pretending it synced', view.sync.enabled === false && view.sync.reason === 'execution-sync-disabled' && view.executions.length === 0)
     await quiet.close()
@@ -683,7 +683,7 @@ async function caseSettledOnLifecycleEnd(backend, name) {
     const delegatedDir = await makeTempDir('requirement-board-delegate-')
     const next = await openBoard({ backend, dir: delegatedDir, config: resolveConfig({}), ports: portsFor() })
     const child = { session: 'ses_child', name: '' }
-    const delegated = await next.service.createRequirement({ title: '撤销派发' }, A)
+    const delegated = await next.service.createRequirement({ summary: '测试简述', title: '撤销派发' }, A)
     await next.service.claim(delegated.id, {}, child)
     await next.service.observeSubagent({ id: 'ses_child', provider: 'in-process' }, 'start')
     await next.service.delegate(delegated.id, { session: child.session, duties: ['跑'] }, A)
@@ -705,7 +705,7 @@ async function caseReadAmplification(backend, name) {
       config: resolveConfig({ sseCoalesceMs: 200 }),
       services: { agents: permissiveAgents() },
     })
-    const created = await callTool(mounted, { action: 'create', title: '读放大' })
+    const created = await callTool(mounted, { action: 'create', summary: '测试简述', title: '读放大' })
     await callTool(mounted, { action: 'claim', id: created.id })
     const stream = openStream(mounted)
     check('the stream opens on the board route and reports its revision', stream.status === 200)
@@ -726,7 +726,7 @@ async function caseReadAmplification(backend, name) {
 
     const directDir = await makeTempDir('requirement-board-direct-')
     const direct = await openLiveBoard(backend, directDir, { config: resolveConfig({ sseCoalesceMs: 0 }), services: { agents: permissiveAgents() } })
-    const directCreated = await callTool(direct, { action: 'create', title: '对照' })
+    const directCreated = await callTool(direct, { action: 'create', summary: '测试简述', title: '对照' })
     await callTool(direct, { action: 'claim', id: directCreated.id })
     const directStream = openStream(direct)
     for (let count = 0; count < 10; count += 1) {
@@ -747,7 +747,7 @@ async function caseMountWiringAndHmr(backend, name) {
       config: resolveConfig({ executionSync: true }),
       services: { jobs, agents: fakeAgents({ [A.session]: ['ses_child', 'ses_child-2'] }) },
     })
-    const requirement = await callTool(mounted, { action: 'create', title: '挂载接线' })
+    const requirement = await callTool(mounted, { action: 'create', summary: '测试简述', title: '挂载接线' })
     await callTool(mounted, { action: 'claim', id: requirement.id })
     const storedRecord = () => mounted.domain.table('requirements').get(requirement.id)
 
@@ -803,7 +803,7 @@ async function caseExecutionGate(backend, name) {
     const background = await gate.handler({ name: 'pwsh', agent: { id: A.session } }, next)
     check('a background-job tool is refused the same way', background.kind === 'deny' && nexted === 0)
 
-    const requirement = await callTool(mounted, { action: 'create', title: '门禁放行' })
+    const requirement = await callTool(mounted, { action: 'create', summary: '测试简述', title: '门禁放行' })
     await callTool(mounted, { action: 'claim', id: requirement.id })
     const allowed = await gate.handler({ name: 'pwsh', agent: { id: A.session } }, next)
     check('the same call is allowed once the session holds a lock', nexted === 1 && allowed.kind === 'allow')
@@ -833,8 +833,8 @@ async function caseExecutionGate(backend, name) {
 async function caseIllegalKind(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir, config: resolveConfig({}), ports: portsFor() })
-    const requirement = await board.service.createRequirement({ title: '非法 kind' }, A)
-    const legal = await board.service.createRequirement({ title: '合法任务' }, A)
+    const requirement = await board.service.createRequirement({ summary: '测试简述', title: '非法 kind' }, A)
+    const legal = await board.service.createRequirement({ summary: '测试简述', title: '合法任务' }, A)
     const records = board.domain.table('requirements')
     await records.put(requirement.id, { ...records.get(requirement.id), kind: 'epic' })
 
@@ -862,7 +862,7 @@ async function caseIllegalKind(backend, name) {
 async function caseDelegatedDecision(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir, config: resolveConfig({}), ports: portsFor() })
-    const question = await board.service.createRequirement({ title: '谁来决定', kind: 'decision' }, A)
+    const question = await board.service.createRequirement({ summary: '测试简述', title: '谁来决定', kind: 'decision' }, A)
     await board.service.delegate(question.id, { session: B.session, duties: ['答'] }, { session: '', name: '面板' })
     const prompt = board.service.promptContext(B.session, 12)
     check('a delegated decision is not put in "Delegated to you"', !prompt.includes('Delegated to you'))
@@ -915,10 +915,10 @@ async function caseRoleFilter(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir, config: resolveConfig({}), ports: {} })
     const service = board.service
-    await service.createRequirement({ title: '无角色' }, A)
-    const art = await service.createRequirement({ title: '美术', role: 'art' }, A)
-    const human = await service.createRequirement({ title: '等人的问题', kind: 'decision', role: 'human' }, A)
-    const delegated = await service.createRequirement({ title: '派发中' }, A)
+    await service.createRequirement({ summary: '测试简述', title: '无角色' }, A)
+    const art = await service.createRequirement({ summary: '测试简述', title: '美术', role: 'art' }, A)
+    const human = await service.createRequirement({ summary: '测试简述', title: '等人的问题', kind: 'decision', role: 'human' }, A)
+    const delegated = await service.createRequirement({ summary: '测试简述', title: '派发中' }, A)
     await service.claim(delegated.id, {}, A)
     await service.release(delegated.id, {}, A)
     await service.delegate(delegated.id, { session: B.session, duties: ['跑'] }, A)
@@ -956,9 +956,9 @@ async function caseQueueView(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir, config: resolveConfig({}), ports: {} })
     const service = board.service
-    const first = await service.createRequirement({ title: '第一个' }, A)
-    const second = await service.createRequirement({ title: '第二个' }, A)
-    const other = await service.createRequirement({ title: '别人的' }, B)
+    const first = await service.createRequirement({ summary: '测试简述', title: '第一个' }, A)
+    const second = await service.createRequirement({ summary: '测试简述', title: '第二个' }, A)
+    const other = await service.createRequirement({ summary: '测试简述', title: '别人的' }, B)
 
     const queuedFirst = await service.queue(first.id, {}, A)
     await service.queue(second.id, {}, A)
@@ -1040,7 +1040,7 @@ async function casePromptExecutionSection(backend, name) {
 
     const offDir = await makeTempDir('requirement-board-promptoff-')
     const off = await openBoard({ backend, dir: offDir, config: resolveConfig({ executionSync: false }), ports: {} })
-    const other = await off.service.createRequirement({ title: '关闭' }, A)
+    const other = await off.service.createRequirement({ summary: '测试简述', title: '关闭' }, A)
     await off.service.claim(other.id, {}, A)
     check('a switched-off synchronizer says the lock is all that is known', off.service.promptContext(A.session, 12).includes('execution sync is off'))
     await off.close()

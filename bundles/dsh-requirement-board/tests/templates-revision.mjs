@@ -123,7 +123,7 @@ async function caseReviseLeavesRequirements(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '在跑需求', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '在跑需求', templateId: 'tpl-custom' }, actor)
     await service.claim(created.id, {}, actor)
     await tickCurrentChecklist(service, created.id, actor)
     await service.transitionRequirement(created.id, { action: 'advance' }, actor)
@@ -163,7 +163,7 @@ async function casePinnedRevisionDerives(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '钉在第一版', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '钉在第一版', templateId: 'tpl-custom' }, actor)
     check('a new requirement is pinned to the template current revision', created.templateRevision === 1)
     await service.claim(created.id, {}, actor)
     await tickCurrentChecklist(service, created.id, actor)
@@ -188,7 +188,7 @@ async function casePinnedRevisionDerives(backend, name) {
     check('advance follows the pinned version', (await service.getRequirement(created.id)).nodeId === 'close')
     check('the pin is still revision 1', board.domain.table('requirements').get(created.id).templateRevision === 1)
 
-    const fresh = await service.createRequirement({ title: '改版后新建', templateId: 'tpl-custom' }, actor)
+    const fresh = await service.createRequirement({ summary: '测试简述', title: '改版后新建', templateId: 'tpl-custom' }, actor)
     check('a requirement created after the revision pins the current one', fresh.templateRevision === 2)
     check('and starts on that revision first node', fresh.flow.length === 4 && fresh.flow[0].id === 'draft')
     await board.close()
@@ -206,7 +206,7 @@ async function caseRebindResetsPin(backend, name) {
     await service.createTemplate({ id: 'tpl-c', name: '第三个', nodes: [{ id: 'solo', name: '单' }] }, actor)
     await service.reviseTemplate('tpl-c', { nodes: [{ id: 'solo', name: '单' }, { id: 'next', name: '后续', dependsOn: ['solo'] }] }, actor)
 
-    const created = await service.createRequirement({ title: '改绑', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '改绑', templateId: 'tpl-custom' }, actor)
     await service.claim(created.id, {}, actor)
     check('the requirement starts pinned to revision 1', board.domain.table('requirements').get(created.id).templateRevision === 1)
 
@@ -281,7 +281,7 @@ async function casePrune(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '钉住第一版', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '钉住第一版', templateId: 'tpl-custom' }, actor)
     await service.reviseTemplate('tpl-custom', { nodes: growingNodes() }, actor)
     const templateBefore = JSON.stringify(service.getTemplate('tpl-custom'))
     const requirementBefore = JSON.stringify(board.domain.table('requirements').get(created.id))
@@ -309,7 +309,7 @@ async function caseMigrate(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '待迁移', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '待迁移', templateId: 'tpl-custom' }, actor)
     await service.claim(created.id, {}, actor)
     await service.setChecklist(created.id, { index: 0, checked: true }, actor)
     await service.reviseTemplate('tpl-custom', {
@@ -343,7 +343,7 @@ async function caseMigrate(backend, name) {
     // A node the target revision no longer has is normalized to its first node,
     // and the note stays distinguishable from the rebinding path's.
     await service.createTemplate({ id: 'tpl-shrink', name: '收缩', nodes: [{ id: 'a', name: '甲' }, { id: 'b', name: '乙', dependsOn: ['a'] }] }, actor)
-    const shrink = await service.createRequirement({ title: '节点被删', templateId: 'tpl-shrink' }, actor)
+    const shrink = await service.createRequirement({ summary: '测试简述', title: '节点被删', templateId: 'tpl-shrink' }, actor)
     await service.claim(shrink.id, {}, other)
     await service.transitionRequirement(shrink.id, { action: 'advance' }, other)
     await service.reviseTemplate('tpl-shrink', { nodes: [{ id: 'a', name: '甲' }] }, actor)
@@ -362,7 +362,7 @@ async function caseArchive(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '归档前的需求', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '归档前的需求', templateId: 'tpl-custom' }, actor)
 
     await service.archiveTemplate('tpl-custom', {}, actor)
     check('an archived template leaves the default list', !service.listTemplates().items.some(item => item.id === 'tpl-custom'))
@@ -370,7 +370,7 @@ async function caseArchive(backend, name) {
     check('getTemplate still reads it', service.getTemplate('tpl-custom').archived === true)
     check('the requirement bound to it still resolves its flow', (await service.getRequirement(created.id)).progress.total === 3)
     check('the snapshot hides it too', !service.snapshot().templates.some(item => item.id === 'tpl-custom'))
-    await rejects('a new requirement cannot bind an archived template', () => service.createRequirement({ title: '新', templateId: 'tpl-custom' }, actor), 'invalid-transition')
+    await rejects('a new requirement cannot bind an archived template', () => service.createRequirement({ summary: '测试简述', title: '新', templateId: 'tpl-custom' }, actor), 'invalid-transition')
 
     await service.archiveTemplate('tpl-custom', { archived: true }, actor)
     check('archiving an archived template is a no-op', service.getTemplate('tpl-custom').archived === true)
@@ -416,7 +416,7 @@ async function caseMetadata(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '改名前后的需求', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '改名前后的需求', templateId: 'tpl-custom' }, actor)
     const derivedBefore = JSON.stringify(await service.getRequirement(created.id))
     const derivation = view => ({ nodeId: view.nodeId, flow: view.flow, progress: view.progress, templateRevision: view.templateRevision })
     const before = service.getTemplate('tpl-custom')
@@ -468,7 +468,7 @@ async function caseLegacyRecord(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '存量需求', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '存量需求', templateId: 'tpl-custom' }, actor)
     // Strip the field a record written before template versions carries: the
     // medium is not re-validated on write, and this is exactly the stored form
     // the older build produced.
@@ -519,7 +519,7 @@ async function caseSweepRepairsPin(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '钉子悬空', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '钉子悬空', templateId: 'tpl-custom' }, actor)
     await service.reviseTemplate('tpl-custom', { nodes: growingNodes() }, actor)
     // Only a medium edited outside the plugin can produce this: prune refuses a
     // pinned revision and migrate validates its target.
@@ -545,7 +545,7 @@ async function caseToolSurface(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '工具面', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '工具面', templateId: 'tpl-custom' }, actor)
     await service.reviseTemplate('tpl-custom', { nodes: growingNodes() }, actor)
     const boardItems = service.listRequirements({}).items
     check('the requirement list carries the pinned revision', boardItems.every(item => item.templateRevision >= 1))
@@ -654,7 +654,7 @@ async function caseHttpCommands(backend, name) {
     const board = await openBoard({ backend, dir })
     const service = board.service
     await service.createTemplate(templateInput(), actor)
-    const created = await service.createRequirement({ title: '面板命令', templateId: 'tpl-custom' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '面板命令', templateId: 'tpl-custom' }, actor)
 
     const listed = await dispatchBoardCommand(service, { action: 'template.list', includeArchived: true })
     check('template.list answers the archived filter', listed.items.some(item => item.id === 'tpl-custom'))

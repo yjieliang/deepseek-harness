@@ -193,7 +193,7 @@ async function caseManualOutranksPreset(backend, name) {
         presets: () => fakePresets({ [agent.id]: declarationOf(agent) }),
       },
     })
-    const routed = await live.service.createRequirement({ title: '美术任务' }, { session: '', name: '面板' })
+    const routed = await live.service.createRequirement({ summary: '测试简述', title: '美术任务' }, { session: '', name: '面板' })
     await live.service.updateRequirement(routed.id, { role: 'art' }, { session: '', name: '面板' })
     const forArt = live.service.listRequirements({ claimable: true }, agent.id)
     check('a session with no role record still claims by the chain id', forArt.items.map(item => item.id).join(',') === routed.id, forArt.items.map(item => item.id).join(','))
@@ -314,9 +314,9 @@ async function caseReservedRoleIds(backend, name) {
 async function caseSweep(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir })
-    const live = await board.service.createRequirement({ title: '活着的任务' }, { session: 'ses_a', name: '' })
-    const stale = await board.service.createRequirement({ title: '换了角色的任务' }, { session: 'ses_a', name: '' })
-    const dangled = await board.service.createRequirement({ title: '指向死会话的任务' }, { session: 'ses_a', name: '' })
+    const live = await board.service.createRequirement({ summary: '测试简述', title: '活着的任务' }, { session: 'ses_a', name: '' })
+    const stale = await board.service.createRequirement({ summary: '测试简述', title: '换了角色的任务' }, { session: 'ses_a', name: '' })
+    const dangled = await board.service.createRequirement({ summary: '测试简述', title: '指向死会话的任务' }, { session: 'ses_a', name: '' })
     const roles = board.domain.table('roles')
     const queues = board.domain.table('queues')
     const requirements = board.domain.table('requirements')
@@ -619,13 +619,13 @@ async function caseReferencedRole(backend, name) {
       },
     })
     const panel = { session: '', name: '面板' }
-    const ghost = await board.service.createRequirement({ title: '拼错的角色', role: 'artt' }, panel)
+    const ghost = await board.service.createRequirement({ summary: '测试简述', title: '拼错的角色', role: 'artt' }, panel)
     check('an unrecorded role id is accepted at creation', ghost.role === 'artt')
     check('the receipt reports the routing as unrecorded', ghost.roleUnregistered === true)
     await board.service.putRole({ roleId: 'art', roleName: '美术', duties: ART_DUTIES })
-    const known = await board.service.createRequirement({ title: '登记过的角色', role: 'art' }, panel)
+    const known = await board.service.createRequirement({ summary: '测试简述', title: '登记过的角色', role: 'art' }, panel)
     check('a recorded role is not reported as unrecorded', known.roleUnregistered === false)
-    const anyRole = await board.service.createRequirement({ title: '不限角色' }, panel)
+    const anyRole = await board.service.createRequirement({ summary: '测试简述', title: '不限角色' }, panel)
     check('a requirement routed to no role is not reported either', anyRole.roleUnregistered === false)
 
     const listed = board.service.listRoles()

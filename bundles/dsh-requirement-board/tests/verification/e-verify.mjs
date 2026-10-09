@@ -175,7 +175,7 @@ async function closeWorld(world) {
 
 /** Create one requirement on the verification template. */
 async function task(world, title, extra = {}, actor = PANEL) {
-  const created = await world.service.createRequirement({ title, templateId: 'tpl-e', ...extra }, actor)
+  const created = await world.service.createRequirement({ summary: '测试简述', title, templateId: 'tpl-e', ...extra }, actor)
   return created.id
 }
 
@@ -625,7 +625,7 @@ console.log('\n[9] F3 decision diagnostics and F4 zero-write updates')
 {
   const world = await openWorld()
   try {
-    const decision = (await world.service.createRequirement({ title: '要拍板', kind: 'decision' }, PANEL)).id
+    const decision = (await world.service.createRequirement({ summary: '测试简述', title: '要拍板', kind: 'decision' }, PANEL)).id
     await refuses('checklist on a decision is refused as a decision', { code: 'forbidden', reason: 'decision-task' }, () => world.service.setChecklist(decision, { index: 0, checked: true }, AI))
     await refuses('block on a decision is refused as a decision', { code: 'forbidden', reason: 'decision-task' }, () => world.service.blockRequirement(decision, { reason: 'x' }, AI))
     await refuses('unblock on a decision is refused as a decision', { code: 'forbidden', reason: 'decision-task' }, () => world.service.unblockRequirement(decision, {}, AI))

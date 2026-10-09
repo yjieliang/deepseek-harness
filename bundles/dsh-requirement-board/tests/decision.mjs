@@ -141,17 +141,17 @@ async function caseKindAtCreate(backend, name) {
     const a = { session: 'ses_A', name: '' }
     const requirements = board.domain.table('requirements')
 
-    const plain = await service.createRequirement({ title: '普通任务' }, a)
+    const plain = await service.createRequirement({ summary: '测试简述', title: '普通任务' }, a)
     check('kind defaults to a task', plain.kind === 'task' && requirements.get(plain.id).kind === 'task')
-    check('an empty kind is the default, not a refusal', (await service.createRequirement({ title: '空 kind', kind: '' }, a)).kind === 'task')
+    check('an empty kind is the default, not a refusal', (await service.createRequirement({ summary: '测试简述', title: '空 kind', kind: '' }, a)).kind === 'task')
 
-    const question = await service.createRequirement({ title: '要不要上色', kind: 'decision' }, a)
+    const question = await service.createRequirement({ summary: '测试简述', title: '要不要上色', kind: 'decision' }, a)
     check('an explicit decision is stored and presented', question.kind === 'decision' && requirements.get(question.id).kind === 'decision')
     const listed = await service.listRequirements({}, '')
     check('a decision lists beside tasks by default', listed.items.some(item => item.id === question.id) && listed.items.some(item => item.id === plain.id))
 
     const before = requirements.size
-    const refused = await reporter.rejects('an unknown kind is refused', () => service.createRequirement({ title: 'x', kind: 'epic' }, a), 'invalid-argument')
+    const refused = await reporter.rejects('an unknown kind is refused', () => service.createRequirement({ summary: '测试简述', title: 'x', kind: 'epic' }, a), 'invalid-argument')
     check('the refusal carries the value it received', refused.details?.received === 'epic')
     check('the refused creation wrote nothing', requirements.size === before)
 
@@ -175,7 +175,7 @@ async function caseKindImmutable(backend, name) {
     const service = board.service
     const agent = agentOf('ses_A', 'art-role', '小画家')
     const a = { session: 'ses_A', name: '小画家' }
-    const question = await service.createRequirement({ title: '不可改', kind: 'decision' }, a)
+    const question = await service.createRequirement({ summary: '测试简述', title: '不可改', kind: 'decision' }, a)
     const before = board.domain.table('requirements').get(question.id)
 
     const viaService = await reporter.rejects('the service refuses a kind change', () => service.updateRequirement(question.id, { kind: 'task' }, a), 'invalid-argument')
@@ -204,7 +204,7 @@ async function caseDecisionRefusals(backend, name) {
     const board = await openDecisionBoard({ backend, dir })
     const service = board.service
     const agent = agentOf('ses_A', 'art-role', '小画家')
-    const question = await service.createRequirement({ title: '谁来决定', kind: 'decision' }, { session: 'ses_A', name: '小画家' })
+    const question = await service.createRequirement({ summary: '测试简述', title: '谁来决定', kind: 'decision' }, { session: 'ses_A', name: '小画家' })
     const before = board.domain.table('requirements').get(question.id)
 
     // The agent's own entry point: the tool, where the actor is the calling session.
@@ -280,7 +280,7 @@ async function casePanelAdvances(backend, name) {
     const board = await openDecisionBoard({ backend, dir })
     const service = board.service
     const panel = { session: '', name: '面板' }
-    const ask = title => service.createRequirement({ title, kind: 'decision' }, { session: 'ses_A', name: '小画家' })
+    const ask = title => service.createRequirement({ summary: '测试简述', title, kind: 'decision' }, { session: 'ses_A', name: '小画家' })
 
     const answered = await ask('人拍板：完成')
     const done = await dispatchBoardCommand(service, { action: 'transition', id: answered.id, transition: 'complete', session: '', name: '面板' })
@@ -326,15 +326,16 @@ async function caseDecisionUpdateBoundary(backend, name) {
     const service = board.service
     const agent = agentOf('ses_A', 'art-role', '小画家')
     const a = { session: 'ses_A', name: '小画家' }
-    const question = await service.createRequirement({ title: '边界', kind: 'decision' }, a)
+    const question = await service.createRequirement({ summary: '测试简述', title: '边界', kind: 'decision' }, a)
 
     const refused = await reporter.rejects('an agent cannot re-route a decision', () => board.tool.execute({ action: 'update', id: question.id, role: 'art-role' }, { agent }), 'forbidden')
-    // `images` is on the allowed list with the rest of the readable side: a
-    // picture attached to the description is context for the person answering,
-    // like the wording and the labels, not a change to who may answer or how.
+    // `summary` and `images` are on the allowed list with the rest of the
+    // readable side: the brief a person reads first and a picture attached to
+    // the description are context for the person answering, like the wording and
+    // the labels, not a change to who may answer or how.
     check('the refusal names the refused field and the allowed list', refused.details?.reason === 'decision-task'
       && refused.details?.fields.join(',') === 'role'
-      && refused.details?.allowed.join(',') === 'title,description,priority,labels,sessions,images')
+      && refused.details?.allowed.join(',') === 'title,summary,description,priority,labels,sessions,images')
     const templateRefused = await reporter.rejects('and cannot rebind its flow', () => board.tool.execute({ action: 'update', id: question.id, templateId: 'tpl-standard' }, { agent }), 'forbidden')
     check('the template field is refused the same way', templateRefused.details?.fields.join(',') === 'templateId')
     check('neither refused update wrote anything', board.domain.table('requirements').get(question.id).role === '' && board.domain.table('requirements').get(question.id).kind === 'decision')
@@ -343,12 +344,13 @@ async function caseDecisionUpdateBoundary(backend, name) {
       action: 'update',
       id: question.id,
       title: '新的问法',
+      summary: '要不要上色，请人拍板。',
       description: '两个选项',
       priority: 'high',
       labels: ['等待拍板'],
       sessions: ['ses_A', 'ses_child'],
     }, { agent })
-    check('every allowed field goes through', updated.title === '新的问法' && updated.description === '两个选项' && updated.priority === 'high'
+    check('every allowed field goes through', updated.title === '新的问法' && updated.summary === '要不要上色，请人拍板。' && updated.description === '两个选项' && updated.priority === 'high'
       && updated.labels.join(',') === '等待拍板' && updated.sessions.includes('ses_child'))
     check('the kind is untouched by all of it', updated.kind === 'decision' && board.domain.table('requirements').get(question.id).kind === 'decision')
 
@@ -369,8 +371,8 @@ async function caseKindFilterSurfaces(backend, name) {
     const service = board.service
     const agent = agentOf('ses_A', 'art-role', '小画家')
     const a = { session: 'ses_A', name: '小画家' }
-    const task = await service.createRequirement({ title: '普通任务' }, a)
-    const question = await service.createRequirement({ title: '决策项', kind: 'decision' }, a)
+    const task = await service.createRequirement({ summary: '测试简述', title: '普通任务' }, a)
+    const question = await service.createRequirement({ summary: '测试简述', title: '决策项', kind: 'decision' }, a)
 
     const decisions = await service.listRequirements({ kind: 'decision' }, '')
     check('the service filter keeps decisions', decisions.items.length === 1 && decisions.items[0].id === question.id)
@@ -403,9 +405,9 @@ async function caseDecisionPoolAndPrompt(backend, name) {
     const service = board.service
     const agent = agentOf('ses_A', 'art-role', '小画家')
     const a = { session: 'ses_A', name: '小画家' }
-    const mine = await service.createRequirement({ title: '我能做的' }, a)
-    const blocked = await service.createRequirement({ title: '第二个问题', kind: 'decision', priority: 'high' }, a)
-    const question = await service.createRequirement({ title: '需要人拍板', kind: 'decision' }, a)
+    const mine = await service.createRequirement({ summary: '测试简述', title: '我能做的' }, a)
+    const blocked = await service.createRequirement({ summary: '测试简述', title: '第二个问题', kind: 'decision', priority: 'high' }, a)
+    const question = await service.createRequirement({ summary: '测试简述', title: '需要人拍板', kind: 'decision' }, a)
     await dispatchBoardCommand(service, { action: 'block', id: blocked.id, reason: '等预算', session: '', name: '面板' })
 
     check('the decision is not in this session\'s claim pool', !service.listRequirements({ claimable: true }, 'ses_A').items.some(item => item.id === question.id))
@@ -432,7 +434,7 @@ async function caseDecisionPoolAndPrompt(backend, name) {
       && tight.includes('- … 1 more waiting on the human'))
     check('the budget never drops the header', tight.includes('Waiting on the human (2)'))
 
-    const stranger = await service.createRequirement({ title: '无名会话' }, { session: 'ses_ghost', name: '' })
+    const stranger = await service.createRequirement({ summary: '测试简述', title: '无名会话' }, { session: 'ses_ghost', name: '' })
     check('a requester with no live agent falls back to its session id', (await service.getRequirement(stranger.id)).requestedBy === 'ses_ghost')
 
     await dispatchBoardCommand(service, { action: 'transition', id: question.id, transition: 'complete', session: '', name: '面板' })
@@ -447,10 +449,10 @@ async function caseDecisionStats(backend, name) {
     const board = await openDecisionBoard({ backend, dir })
     const service = board.service
     const a = { session: 'ses_A', name: '小画家' }
-    const open = await service.createRequirement({ title: '无角色任务' }, a)
-    const routed = await service.createRequirement({ title: '有角色任务', role: 'art-role' }, a)
-    const waiting = await service.createRequirement({ title: '等待的问题', kind: 'decision' }, a)
-    const answered = await service.createRequirement({ title: '已答的问题', kind: 'decision' }, a)
+    const open = await service.createRequirement({ summary: '测试简述', title: '无角色任务' }, a)
+    const routed = await service.createRequirement({ summary: '测试简述', title: '有角色任务', role: 'art-role' }, a)
+    const waiting = await service.createRequirement({ summary: '测试简述', title: '等待的问题', kind: 'decision' }, a)
+    const answered = await service.createRequirement({ summary: '测试简述', title: '已答的问题', kind: 'decision' }, a)
     await dispatchBoardCommand(service, { action: 'transition', id: answered.id, transition: 'complete', session: '', name: '面板' })
 
     const stats = service.stats()

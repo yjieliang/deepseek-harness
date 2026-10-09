@@ -292,7 +292,7 @@ const wrote = await page.evaluate(async title => {
   const response = await fetch('/api/requirement-board/command', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ action: 'create', requirement: { title } }),
+    body: JSON.stringify({ action: 'create', requirement: { summary: '面板渲染探针', title } }),
   })
   const body = await response.json().catch(() => null)
   return { ok: body?.ok === true, id: body?.data?.id ?? null, message: body?.error?.message ?? '' }
@@ -341,7 +341,7 @@ const prepared = await page.evaluate(async name => {
   const cloned = await post({ action: 'template.clone', id: source.id, name })
   const id = cloned?.data?.id
   if (id === undefined) return { error: `clone refused: ${String(cloned?.error?.message ?? '')}` }
-  const created = await post({ action: 'create', requirement: { title: name, templateId: id } })
+  const created = await post({ action: 'create', requirement: { summary: '测试简述', title: name, templateId: id } })
   const requirementId = created?.data?.id
   if (requirementId === undefined) return { id, error: `create refused: ${String(created?.error?.message ?? '')}` }
   const nodes = (cloned.data.nodes ?? []).map(node => ({ ...node, name: `${node.name} · v2` }))

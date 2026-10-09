@@ -52,7 +52,7 @@ for (let index = 0; index < N; index += 1) {
   // One session per claim: a session holds one lock at a time, so reusing a
   // session would refuse the claim instead of exercising it.
   const session = `ses_mutation_${index}`
-  const created = await service.createRequirement({ title: `Mutation ${index}` }, { session: '', name: '面板' })
+  const created = await service.createRequirement({ summary: '测试简述', title: `Mutation ${index}` }, { session: '', name: '面板' })
   const claimed = await service.claim(created.id, {}, { session, name: 'M' })
   const lock = claimed.lock
   if (lock.at !== lock.touchedAt) {

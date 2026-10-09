@@ -264,7 +264,7 @@ const callTool = (ctx, args, agent, callId) => callNamed(ctx, 'requirement_board
 
 /** Create one requirement through the tool and hand back its id. */
 async function createViaTool(ctx, agent, callId, args) {
-  const result = await callTool(ctx, { action: 'create', templateId: TEMPLATE, ...args }, agent, callId)
+  const result = await callTool(ctx, { action: 'create', summary: '测试简述', templateId: TEMPLATE, ...args }, agent, callId)
   return result.isError ? { error: result.text, id: null } : { error: null, id: JSON.parse(result.text).id }
 }
 

@@ -68,8 +68,8 @@ const post = async body => {
   return { status: response.status, ok: parsed?.ok === true, data: parsed?.data, error: parsed?.error }
 }
 
-const blocker = await post({ action: 'create', requirement: { title: TITLE_BLOCKER, priority: 'high' }, name: 'UI shots' })
-const blocked = await post({ action: 'create', requirement: { title: TITLE_BLOCKED }, name: 'UI shots' })
+const blocker = await post({ action: 'create', requirement: { summary: '测试简述', title: TITLE_BLOCKER, priority: 'high' }, name: 'UI shots' })
+const blocked = await post({ action: 'create', requirement: { summary: '测试简述', title: TITLE_BLOCKED }, name: 'UI shots' })
 check('the dev board accepted two seeded requirements', blocker.ok && blocked.ok, { blocker: blocker.error, blocked: blocked.error })
 const blockerId = blocker.data?.id ?? blocker.data?.requirement?.id
 const blockedId = blocked.data?.id ?? blocked.data?.requirement?.id

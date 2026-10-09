@@ -89,7 +89,7 @@ try {
   // re-runs the configuration while Node's ESM cache serves the old module. Every
   // assertion below reads the current source's contract, so a stale process would
   // report a dozen unrelated failures. Detect that once, loudly, and stop.
-  const preflight = await command('create', { requirement: { title: 'Live probe preflight (deleted immediately)' } })
+  const preflight = await command('create', { requirement: { summary: '测试简述', title: 'Live probe preflight (deleted immediately)' } })
   if (preflight.body?.ok === true) {
     const fresh = Object.hasOwn(preflight.body.data, 'lastTransition')
     await command('delete', { id: preflight.body.data.id })
@@ -104,7 +104,7 @@ try {
 
   /* ------------------------------------------------------------ commands */
 
-  const created1 = await command('create', { requirement: { title: 'Live probe (deleted at the end)', owner: 'probe', priority: 'high', templateId: 'tpl-standard' } })
+  const created1 = await command('create', { requirement: { summary: '测试简述', title: 'Live probe (deleted at the end)', owner: 'probe', priority: 'high', templateId: 'tpl-standard' } })
   check('create succeeds', created1.body?.ok === true, JSON.stringify(created1.body?.error))
   probe = created1.body?.data
   if (probe === null || probe === undefined) throw new Error('cannot continue without a created requirement')
@@ -180,7 +180,7 @@ try {
     return seen.includes(needle)
   }
   check('the stream sends a ready event', await readFor('event: ready', 5000), JSON.stringify(seen.slice(0, 200)))
-  const trigger = await command('create', { requirement: { title: 'Live probe SSE trigger (deleted at the end)' } })
+  const trigger = await command('create', { requirement: { summary: '测试简述', title: 'Live probe SSE trigger (deleted at the end)' } })
   if (trigger.body?.ok === true) created.push(trigger.body.data.id)
   check('a committed change pushes a changed event to the open stream', await readFor('event: changed', 8000), JSON.stringify(seen.slice(0, 400)))
   streamController.abort()

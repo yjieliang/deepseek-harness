@@ -69,7 +69,7 @@ function unroutableFacility() {
 async function caseInvalidRecord(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir })
-    const created = await board.service.createRequirement({ title: '合法记录' }, actor)
+    const created = await board.service.createRequirement({ summary: '测试简述', title: '合法记录' }, actor)
     // Writes are not re-validated by the platform, so a truncated record can be
     // stored; the next open is what refuses it.
     const stored = board.domain.table('requirements').get(created.id)
@@ -93,7 +93,7 @@ async function caseInvalidRecord(backend, name) {
 async function caseUnknownKindDiagnostic(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir })
-    const created = await board.service.createRequirement({ title: '未知 kind' }, actor)
+    const created = await board.service.createRequirement({ summary: '测试简述', title: '未知 kind' }, actor)
     const table = board.domain.table('requirements')
     await table.put(created.id, { ...table.get(created.id), kind: 'epic' })
     await board.close()
@@ -151,7 +151,7 @@ async function reopenThroughPlugin(backend, dir) {
 async function caseUndeclaredFields(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir })
-    const created = await board.service.createRequirement({ title: '派生字段' }, actor)
+    const created = await board.service.createRequirement({ summary: '测试简述', title: '派生字段' }, actor)
     const stored = board.domain.table('requirements').get(created.id)
     // `flow`/`progress` are derived views and must never reach the medium.
     await board.domain.table('requirements').put(created.id, { ...stored, flow: [], progress: {} })
@@ -164,7 +164,7 @@ async function caseUndeclaredFields(backend, name) {
 async function caseExpectedRev(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir })
-    const created = await board.service.createRequirement({ title: '并发' }, actor)
+    const created = await board.service.createRequirement({ summary: '测试简述', title: '并发' }, actor)
     const stale = created.rev
     await board.service.updateRequirement(created.id, { owner: '甲' }, actor)
     await reporter.rejects('a stale expectedRev is refused', () => board.service.updateRequirement(created.id, { owner: '乙', expectedRev: stale }, actor), 'conflict')
@@ -189,7 +189,7 @@ async function caseImportOnce(backend, name) {
     const sourceDir = await makeTempDir(`rb-${backend}-src-`)
     try {
       const source = await openBoard({ backend, dir: sourceDir })
-      const created = await source.service.createRequirement({ title: '迁移前需求' }, actor)
+      const created = await source.service.createRequirement({ summary: '测试简述', title: '迁移前需求' }, actor)
       await source.service.createTemplate({ id: 'tpl-custom', name: '自定义', nodes: [{ name: '唯一' }] }, actor)
       const document = exportLegacyDocument(source.domain)
       await source.close()
@@ -247,7 +247,7 @@ async function caseImportWithoutReceipt(backend, name) {
   await onBackend(backend, name, async dir => {
     const legacyPath = join(dir, 'requirement-board.json')
     const first = await openBoard({ backend, dir })
-    await first.service.createRequirement({ title: '半导入的看板' }, actor)
+    await first.service.createRequirement({ summary: '测试简述', title: '半导入的看板' }, actor)
     await first.close()
     await writeFile(legacyPath, JSON.stringify({ schemaVersion: 1, revision: 0, templates: {}, requirements: {} }))
 
@@ -267,8 +267,8 @@ async function caseImportWithoutReceipt(backend, name) {
 async function caseRevisionHealing(backend, name) {
   await onBackend(backend, name, async dir => {
     const board = await openBoard({ backend, dir })
-    const first = await board.service.createRequirement({ title: 'a' }, actor)
-    const second = await board.service.createRequirement({ title: 'b' }, actor)
+    const first = await board.service.createRequirement({ summary: '测试简述', title: 'a' }, actor)
+    const second = await board.service.createRequirement({ summary: '测试简述', title: 'b' }, actor)
     await board.service.updateRequirement(second.id, { owner: 'x' }, actor)
     // Fresh records carry rev 1 and one update makes 2; the document revision is
     // ahead at 3 because every committed write advanced it.
@@ -296,7 +296,7 @@ async function caseChangeForwarding(backend, name) {
     const board = await openBoard({ backend, dir })
     const frames = []
     const unsubscribe = board.service.subscribe(frame => frames.push(frame))
-    const created = await board.service.createRequirement({ title: '事件' }, actor)
+    const created = await board.service.createRequirement({ summary: '测试简述', title: '事件' }, actor)
     check('a committed write emitted a domain change', board.changes.length > 0)
     check('the change names this domain', board.changes.every(change => change.domain === requirementBoardDomain.name))
 
@@ -356,8 +356,8 @@ async function caseImagesAreAdditive(backend, name) {
     const service = board.service
     const first = await service.storeImage({ bytes: imageFixture('image/png', 2, 3), mediaType: 'image/png', name: 'a.png' })
     const second = await service.storeImage({ bytes: imageFixture('image/gif', 4, 5), mediaType: 'image/gif' })
-    const created = await service.createRequirement({ title: '带图需求', images: [first.id, second.id] }, actor)
-    const plain = await service.createRequirement({ title: '无图需求' }, actor)
+    const created = await service.createRequirement({ summary: '测试简述', title: '带图需求', images: [first.id, second.id] }, actor)
+    const plain = await service.createRequirement({ summary: '测试简述', title: '无图需求' }, actor)
 
     check('an upload records the encoded size and the original name', first.width === 2 && first.height === 3 && first.name === 'a.png' && first.byteLength > 0, JSON.stringify(first))
     check('an unnamed upload stores an empty name and its media type', second.name === '' && second.mediaType === 'image/gif')
@@ -391,6 +391,39 @@ async function caseImagesAreAdditive(backend, name) {
   })
 }
 
+/**
+ * The brief joined the record the way `images` did: an optional read, because
+ * every board written before it carries no such key, while the write path
+ * requires a value. This case deletes the key from a stored record and reopens
+ * the board, which is exactly what an earlier build left on disk.
+ */
+async function caseSummaryIsAdditive(backend, name) {
+  await onBackend(backend, name, async dir => {
+    const board = await openBoard({ backend, dir })
+    const service = board.service
+    const plain = await service.createRequirement({ summary: '先写一条带简述的需求。', title: '无简述需求' }, actor)
+    const table = board.domain.table('requirements')
+    const { summary, ...older } = table.get(plain.id)
+    void summary
+    await table.put(plain.id, older)
+    check('the stored record was seeded without the summary key', table.get(plain.id).summary === undefined)
+    check('the version stamp stays 2 for this additive field', board.domain.global.get().schemaVersion === 2)
+    await board.close()
+
+    const reopened = await openBoard({ backend, dir })
+    const olderRead = await reopened.service.getRequirement(plain.id)
+    check('a record written before the brief existed still opens', olderRead.title === '无简述需求' && olderRead.summary === '')
+    check('the listed requirement reads the same empty brief',
+      reopened.service.listRequirements({}, '').items.find(item => item.id === plain.id)?.summary === '')
+    // A write that carries the field still states one, so an older record can be
+    // filled in but never cleared back to the empty reading.
+    await reporter.rejects('an update cannot empty the brief', () => reopened.service.updateRequirement(plain.id, { summary: '' }, actor), 'invalid-argument')
+    const filled = await reopened.service.updateRequirement(plain.id, { summary: '补一句大白话。' }, actor)
+    check('an older record accepts a brief it never had', filled.summary === '补一句大白话。')
+    await reopened.close()
+  })
+}
+
 for (const backend of BACKENDS) {
   await caseInvalidRecord(backend, 'schema enforcement at open')
   await caseUnknownKindDiagnostic(backend, 'an unreadable kind names the field it broke on')
@@ -403,6 +436,7 @@ for (const backend of BACKENDS) {
   await caseRevisionHealing(backend, 'document revision self-heals')
   await caseChangeForwarding(backend, 'domain change forwarding')
   await caseImagesAreAdditive(backend, 'pasted images are additive at the durable read')
+  await caseSummaryIsAdditive(backend, 'the brief is additive at the durable read')
 }
 
 await caseLoudMountFailure()

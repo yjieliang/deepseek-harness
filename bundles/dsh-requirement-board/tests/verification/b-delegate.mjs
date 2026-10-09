@@ -207,7 +207,7 @@ const CHILD2 = { session: 'ses_child2', name: '子二' }
 
 /** Delegate one requirement to `target` from the parent through a working port. */
 async function delegated(world, target = 'ses_child') {
-  const created = await world.service.createRequirement({ title: '派发的任务' }, PARENT)
+  const created = await world.service.createRequirement({ summary: '测试简述', title: '派发的任务' }, PARENT)
   const receipt = await world.service.delegate(created.id, { session: target, duties: ['画贴图'], roleName: '临时画师' }, PARENT)
   return { id: created.id, receipt, tmpId: `tmp-${created.id}` }
 }
@@ -222,13 +222,13 @@ console.log(`\n[1] the ownership port: the id-shaped contract and the boundary a
   const registry = platformRegistry(ALL_AGENTS, OWNERS)
   const owns = ownsViaPlatform(registry)
   const world = await openWorld({ registry, owns })
-  const own = await world.service.createRequirement({ title: '自己的孩子' }, PARENT)
+  const own = await world.service.createRequirement({ summary: '测试简述', title: '自己的孩子' }, PARENT)
   const attemptResult = await attempt(() => world.service.delegate(own.id, { session: 'ses_child' }, PARENT))
   check('a session delegating to its own sub-session succeeds (spec §5.5 / D17)', attemptResult.error === null, `${attemptResult.error?.code}/${attemptResult.error?.details?.reason}: ${attemptResult.error?.message ?? ''}`)
   check('the binding was written', raw(world, own.id).delegatedTo?.session === 'ses_child', JSON.stringify(raw(world, own.id).delegatedTo))
   check('the adapter asked the platform with the caller resolved to its Agent', registry.recorded.length >= 1 && typeof registry.recorded[0][1] === 'object' && registry.recorded[0][1]?.id === 'ses_parent', JSON.stringify(registry.recorded.map(([, owner]) => (typeof owner === 'object' ? `Agent(${owner?.id})` : `${typeof owner}:${String(owner)}`))))
   check('the platform predicate answers true for the owning Agent', registry.isOwnedBy('ses_child', registry.get('ses_parent')) === true, 'platform predicate')
-  const alien = await world.service.createRequirement({ title: '别人的孩子' }, PARENT)
+  const alien = await world.service.createRequirement({ summary: '测试简述', title: '别人的孩子' }, PARENT)
   await refuses('another session\'s child is refused as not-owned', { code: 'forbidden', reason: 'not-owned', field: { name: 'owner', value: 'ses_parent' } }, () => world.service.delegate(alien.id, { session: 'ses_alien' }, PARENT))
   const panel = await world.service.delegate(alien.id, { session: 'ses_alien' }, { session: '', name: '' })
   check('the panel delegates to any session', panel.delegatedTo?.session === 'ses_alien', JSON.stringify(panel.delegatedTo))
@@ -239,7 +239,7 @@ console.log(`\n[1] the ownership port: the id-shaped contract and the boundary a
   //     red, and the refusal must name the caller as the owner.
   const miswired = platformRegistry(ALL_AGENTS, OWNERS)
   const anchorWorld = await openWorld({ registry: miswired, owns: (target, caller) => miswired.isOwnedBy(target, caller) })
-  const anchorOwn = await anchorWorld.service.createRequirement({ title: '自己的孩子' }, PARENT)
+  const anchorOwn = await anchorWorld.service.createRequirement({ summary: '测试简述', title: '自己的孩子' }, PARENT)
   const anchor = await attempt(() => anchorWorld.service.delegate(anchorOwn.id, { session: 'ses_child' }, PARENT))
   const anchorArgs = miswired.recorded.at(-1) ?? []
   check('ANCHOR: an id passed in the Agent slot refuses the caller\'s own child', anchor.error?.code === 'forbidden' && anchor.error?.details?.reason === 'not-owned', `${anchor.error?.code}/${anchor.error?.details?.reason}`)
@@ -253,12 +253,12 @@ console.log(`\n[1] the ownership port: the id-shaped contract and the boundary a
 
   // (c) No ownership port at all: allow, and report the reason exactly once.
   const degraded = await openWorld({ registry })
-  const loose = await degraded.service.createRequirement({ title: '没有归属信息' }, PARENT)
+  const loose = await degraded.service.createRequirement({ summary: '测试简述', title: '没有归属信息' }, PARENT)
   const allowed = await degraded.service.delegate(loose.id, { session: 'ses_anyone' }, PARENT)
   check('a composition without an ownership port allows the delegation instead of guessing', allowed.delegatedTo?.session === 'ses_anyone', JSON.stringify(allowed.delegatedTo?.session))
   const warnings = () => degraded.logger.lines.warn.filter(line => line.includes('delegation cannot check')).length
   check('the degradation is reported exactly once', warnings() === 1, `${warnings()}: ${degraded.logger.lines.warn.join(' | ')}`)
-  const second = await degraded.service.createRequirement({ title: '再一次' }, PARENT)
+  const second = await degraded.service.createRequirement({ summary: '测试简述', title: '再一次' }, PARENT)
   await degraded.service.delegate(second.id, { session: 'ses_anyone2' }, PARENT)
   check('a later delegation does not repeat the report', warnings() === 1, String(warnings()))
   check('the report names the missing port as the reason', degraded.logger.lines.warn.some(line => line.includes('injects no ownership port')), degraded.logger.lines.warn.join(' | '))
@@ -266,7 +266,7 @@ console.log(`\n[1] the ownership port: the id-shaped contract and the boundary a
 
   // (d) A port that answers "cannot decide": distinct from "not mine".
   const undecided = await openWorld({ registry, owns: () => undefined })
-  const unsure = await undecided.service.createRequirement({ title: '无法判断' }, PARENT)
+  const unsure = await undecided.service.createRequirement({ summary: '测试简述', title: '无法判断' }, PARENT)
   const unsureAllowed = await undecided.service.delegate(unsure.id, { session: 'ses_anyone' }, PARENT)
   check('an undecidable port allows the delegation and says why', unsureAllowed.delegatedTo?.session === 'ses_anyone' && undecided.logger.lines.warn.some(line => line.includes('cannot say whose sub-session')), undecided.logger.lines.warn.join(' | '))
   await closeWorld(undecided)
@@ -302,7 +302,7 @@ console.log('\n[3] `roleBefore` is the role at delegation time, never a temporar
   const world = await openWorld(ownershipWorld())
   const { service } = world
   const panel = { session: '', name: '面板' }
-  const created = await service.createRequirement({ title: '先改角色再派发' }, PARENT)
+  const created = await service.createRequirement({ summary: '测试简述', title: '先改角色再派发' }, PARENT)
   await service.claim(created.id, {}, PARENT)
   await service.updateRequirement(created.id, { role: 'art' }, PARENT)
   const done = await service.transitionRequirement(created.id, { action: 'complete' }, PARENT)
@@ -325,7 +325,7 @@ console.log('\n[3] `roleBefore` is the role at delegation time, never a temporar
   check('only one temporary row exists for the task', [...world.board.domain.table('roles').entries()].filter(([key]) => key.startsWith('tmp-')).length === 1, JSON.stringify([...world.board.domain.table('roles').keys()]))
   // The adversarial reading of "settled role": who else can re-delegate while a
   // delegation is live? The check measures the caller against `roleBefore`.
-  const third = await service.createRequirement({ title: '第三方再派发', owner: 'ses_child', sessions: ['ses_stranger'] }, PARENT)
+  const third = await service.createRequirement({ summary: '测试简述', title: '第三方再派发', owner: 'ses_child', sessions: ['ses_stranger'] }, PARENT)
   await service.delegate(third.id, { session: 'ses_child2' }, PARENT)
   const byOwnerChild = await attempt(() => service.delegate(third.id, { session: 'ses_grand' }, CHILD))
   note(`the delegated session (also the owner) re-delegating to its own child: ${byOwnerChild.error === null ? 'ACCEPTED' : `${byOwnerChild.error.code}/${byOwnerChild.error.details?.reason}`}`)
@@ -341,7 +341,7 @@ console.log('\n[4] a session that claimed first is adopted idempotently')
 {
   const world = await openWorld(ownershipWorld())
   const { service } = world
-  const created = await service.createRequirement({ title: '子会话先接' }, PARENT)
+  const created = await service.createRequirement({ summary: '测试简述', title: '子会话先接' }, PARENT)
   const held = await service.claim(created.id, {}, CHILD)
   const receipt = await service.delegate(created.id, { session: 'ses_child' }, PARENT)
   const record = raw(world, created.id)
@@ -365,7 +365,7 @@ console.log('\n[5] claim eligibility through the delegation (row 3 of the table)
   const claimed = await service.claim(id, {}, CHILD)
   check('the named session claims a temporary-role requirement', claimed.lock?.session === 'ses_child', JSON.stringify(claimed.lock))
   await refuses('a session that is not named is refused as role-mismatch', { code: 'forbidden', reason: 'role-mismatch' }, () => service.claim(id, {}, { session: 'ses_stranger', name: '旁人' }))
-  const other = await service.createRequirement({ title: '没被指名的活' }, PARENT)
+  const other = await service.createRequirement({ summary: '测试简述', title: '没被指名的活' }, PARENT)
   await refuses('a session with another lock cannot claim', { code: 'conflict', reason: 'session-busy' }, () => service.claim(other.id, {}, CHILD))
   const idempotent = await service.claim(id, {}, CHILD)
   check('the named session claiming twice is idempotent', idempotent.lock.at === claimed.lock.at, JSON.stringify(idempotent.lock))
@@ -379,7 +379,7 @@ console.log('\n[6] revoke, disposal and replacement settle the same state')
   /** Identical starting state for each path: routed role art, delegated, claimed. */
   async function seeded() {
     const world = await openWorld(ownershipWorld())
-    const created = await world.service.createRequirement({ title: '派发的任务' }, PARENT)
+    const created = await world.service.createRequirement({ summary: '测试简述', title: '派发的任务' }, PARENT)
     await world.service.claim(created.id, {}, PARENT)
     await world.service.updateRequirement(created.id, { role: 'art' }, PARENT)
     await world.service.release(created.id, {}, PARENT)
@@ -418,7 +418,7 @@ console.log('\n[6] revoke, disposal and replacement settle the same state')
   // already judged this a C-stage defect).
   const reserved = await openWorld(ownershipWorld())
   const { id } = await delegated(reserved)
-  const waiting = await reserved.service.createRequirement({ title: '另一条' }, PARENT)
+  const waiting = await reserved.service.createRequirement({ summary: '测试简述', title: '另一条' }, PARENT)
   await reserved.service.queue(waiting.id, {}, CHILD)
   await reserved.service.delegate(id, { revoke: true }, PARENT)
   const row = reserved.board.domain.table('queues').get('ses_child')
@@ -480,7 +480,7 @@ console.log('\n[8] the prompt sections a delegated session sees')
 {
   const world = await openWorld(ownershipWorld())
   const { id, tmpId } = await delegated(world)
-  await world.service.createRequirement({ title: '公共任务' }, PARENT)
+  await world.service.createRequirement({ summary: '测试简述', title: '公共任务' }, PARENT)
   const childPrompt = world.service.promptContext('ses_child', 20)
   const parentPrompt = world.service.promptContext('ses_parent', 20)
   const panelPrompt = world.service.promptContext('', 20)
@@ -501,7 +501,7 @@ console.log('\n[9] delegating a requirement another session reserved (Lead rulin
 {
   const world = await openWorld(ownershipWorld())
   const { service } = world
-  const created = await service.createRequirement({ title: '别人预留了它' }, PARENT)
+  const created = await service.createRequirement({ summary: '测试简述', title: '别人预留了它' }, PARENT)
   await service.queue(created.id, {}, { session: 'ses_stranger', name: '旁人' })
   await refuses('a delegation is refused while a third session holds the reservation', { code: 'conflict', reason: 'reserved' }, () => service.delegate(created.id, { session: 'ses_child' }, PARENT))
   check('the refused delegation wrote neither record', (raw(world, created.id).delegatedTo ?? null) === null && roleRow(world, `tmp-${created.id}`) === undefined, JSON.stringify(raw(world, created.id).delegatedTo))
@@ -512,7 +512,7 @@ console.log('\n[9] delegating a requirement another session reserved (Lead rulin
   await service.release(created.id, {}, CHILD)
   // The reservation holder is the delegation target: that is the adoption path,
   // not a conflict (§5.4 row 3).
-  const adopting = await service.createRequirement({ title: '预留者就是目标' }, PARENT)
+  const adopting = await service.createRequirement({ summary: '测试简述', title: '预留者就是目标' }, PARENT)
   await service.queue(adopting.id, {}, CHILD)
   const receipt = await service.delegate(adopting.id, { session: 'ses_child' }, PARENT)
   check('the reservation holder delegated to itself is adopted, not refused', receipt.delegatedTo?.session === 'ses_child', JSON.stringify(receipt.delegatedTo))
@@ -529,22 +529,22 @@ console.log('\n[10] the delegation preconditions: self, relation, role, state')
   const world = await openWorld(ownershipWorld())
   const { service } = world
   const panel = { session: '', name: '面板' }
-  const own = await service.createRequirement({ title: '派给自己' }, PARENT)
+  const own = await service.createRequirement({ summary: '测试简述', title: '派给自己' }, PARENT)
   await refuses('delegating to the caller itself is an argument failure', { code: 'invalid-input', reason: 'delegate-to-self' }, () => service.delegate(own.id, { session: 'ses_parent' }, PARENT))
   const stranger = { session: 'ses_stranger', name: '旁人' }
-  const unrelated = await service.createRequirement({ title: '不相关的人派发' }, PARENT)
+  const unrelated = await service.createRequirement({ summary: '测试简述', title: '不相关的人派发' }, PARENT)
   await refuses('a session with no relation to the requirement is refused', { code: 'forbidden', reason: 'not-related' }, () => service.delegate(unrelated.id, { session: 'ses_sowned' }, stranger))
-  const routed = await service.createRequirement({ title: '按角色路由的活', role: 'art' }, PARENT)
+  const routed = await service.createRequirement({ summary: '测试简述', title: '按角色路由的活', role: 'art' }, PARENT)
   await refuses('a caller whose role does not match the routed role is refused first', { code: 'forbidden', reason: 'role-mismatch' }, () => service.delegate(routed.id, { session: 'ses_sowned' }, stranger))
-  const closed = await service.createRequirement({ title: '已完成的任务' }, PARENT)
+  const closed = await service.createRequirement({ summary: '测试简述', title: '已完成的任务' }, PARENT)
   await service.claim(closed.id, {}, PARENT)
   await service.transitionRequirement(closed.id, { action: 'complete' }, PARENT)
   await refuses('a finished requirement cannot be delegated', { code: 'invalid-state', reason: 'invalid-state' }, () => service.delegate(closed.id, { session: 'ses_child' }, PARENT))
-  const archived = await service.createRequirement({ title: '已归档的任务' }, PARENT)
+  const archived = await service.createRequirement({ summary: '测试简述', title: '已归档的任务' }, PARENT)
   await service.setArchived(archived.id, { archived: true }, panel)
   await refuses('an archived requirement cannot be delegated', { code: 'invalid-state', reason: 'invalid-state' }, () => service.delegate(archived.id, { session: 'ses_child' }, PARENT))
   await refuses('an unknown requirement cannot be delegated', { code: 'not-found' }, () => service.delegate('req_missing1', { session: 'ses_child' }, PARENT))
-  const revoked = await service.createRequirement({ title: '没有委托却撤销' }, PARENT)
+  const revoked = await service.createRequirement({ summary: '测试简述', title: '没有委托却撤销' }, PARENT)
   const noop = await service.delegate(revoked.id, { revoke: true }, PARENT)
   check('revoking a requirement with no delegation is a no-op', noop.delegatedTo === null && roleRow(world, `tmp-${revoked.id}`) === undefined, JSON.stringify({ delegatedTo: noop.delegatedTo, role: noop.role }))
   note('revoke on an undelegated requirement is idempotent (it returns the record unchanged instead of failing) — recorded as a fact, not a defect')

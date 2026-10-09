@@ -267,7 +267,7 @@ if (ctx !== undefined) {
       signal: new AbortController().signal,
       callId: 'composition-create',
       name: 'requirement_board',
-      arguments: { action: 'create', title: '组合测试需求', priority: 'high' },
+      arguments: { action: 'create', title: '组合测试需求', summary: '组合装载时建一条需求，验证工具面可用。', priority: 'high' },
     }))
     report.toolCreate = failed(created)
       ? { error: created.error }
