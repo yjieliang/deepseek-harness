@@ -52,6 +52,10 @@ const BOARD_PARAMETERS = {
       description: 'The requirement in one or two plain-language sentences for a reader who will not read `description`: what is wanted and why it matters, without implementation detail, at most 300 characters. Required for `create`; used by `update`.',
     },
     description: { type: 'string', description: 'Requirement detail: scope and boundaries, acceptance criteria, and where the deliverable lands. Used by `create` and `update`; `summary` is what a reader sees first.' },
+    project: {
+      type: 'string',
+      description: 'The project this requirement belongs to, as a short label a person reads in a filter row or a card tag, at most 60 characters. Optional everywhere: `create` and `update` write it, and `list` filters by it. Used by `list`, an empty string selects the requirements that belong to no project while omitting it filters nothing. Clearing it is a normal write, so `update` with `""` takes the requirement out of its project.',
+    },
     priority: { type: 'string', enum: PRIORITY_ENUM, description: 'Used by `create` and `update`. Defaults to `normal` on create.' },
     kind: {
       type: 'string',
@@ -198,6 +202,7 @@ async function runBoardAction(service, args, exec) {
         kind: args.kind,
         role: args.role,
         templateId: args.templateId,
+        project: args.project,
         query: args.query,
         claimable: args.claimable,
         limit: args.limit,
@@ -212,6 +217,7 @@ async function runBoardAction(service, args, exec) {
       return await service.createRequirement({
         title: args.title,
         summary: args.summary,
+        project: args.project,
         description: args.description,
         kind: args.kind,
         priority: args.priority,
@@ -251,6 +257,7 @@ async function runBoardAction(service, args, exec) {
         ...(args.kind === undefined ? {} : { kind: args.kind }),
         ...(args.title === undefined ? {} : { title: args.title }),
         ...(args.summary === undefined ? {} : { summary: args.summary }),
+        ...(args.project === undefined ? {} : { project: args.project }),
         ...(args.description === undefined ? {} : { description: args.description }),
         ...(args.priority === undefined ? {} : { priority: args.priority }),
         ...(args.owner === undefined ? {} : { owner: args.owner }),
@@ -316,6 +323,8 @@ export function registerTools(ctx, service) {
       'Use action "list" to find work — with `claimable: true` for what this session may take now — "get" for one requirement\'s flow, full transition history, and your own queue, "claim" to take a requirement\'s execution lock, "release" to give it back, and "stats" for project completion and blockers.',
       'You hold one lock at a time: while you execute something, reserve your next requirement with "queue" (a soft reservation — no lock, no work started) and claim it once the current one is done. A requirement another session reserved is reported as reserved, and one it locked is refused; "unqueue" drops a reservation you no longer want.',
       'To hand one requirement to a sub-session you own, use "delegate": it mints a temporary role for that task, and the sub-session claims the requirement through that delegation. Delegate only after you created the sub-session, tell it the requirement id, and end the delegation with "delegate" and `revoke: true` when it should stop.',
+      'Every requirement carries `summary`: one or two plain-language sentences a person reads instead of the full `description`, which the panel keeps behind a fold. `create` requires it — at most 300 characters, and no implementation detail, since a summary that needs the detail has become the description.',
+      'A requirement may also carry `project`, a short label that groups it with the work it belongs to — the panel filters and groups by it. It is optional: write it when the requirement is part of a larger effort, keep one spelling per project, and pass `project: ""` to take a requirement out of its project.',
       'A requirement created with `kind: "decision"` is a question for the human: no session may claim, advance, delegate, archive, delete, or queue it, its `kind` never changes, and the panel is where a person answers it. Create one when a choice is genuinely the human\'s, and describe the options, their costs, and a default.',
       'The lock is required before advancing, ticking a checklist, blocking, archiving, deleting, or changing the role, flow template, parent, or blockers; a lock left untouched for the configured lease is taken over by the next claimant.',
       'Give a requirement `blocksOn` when other requirements must finish first: "advance" and "complete" are then refused until each of them is done — an archived blocker still blocks, because shelving work is not finishing it — unless you pass `force`, which records the gate it overrode in the history. The requirement\'s own flow node prerequisites are judged before those blockers, so an unmet node prerequisite reports `dependency-not-met` and only a cleared one reports `invalid-transition`. `parentId` groups work under a parent requirement, which "get" reports back as `children`.',

@@ -424,6 +424,42 @@ async function caseSummaryIsAdditive(backend, name) {
   })
 }
 
+/**
+ * The project is additive too, with the write rule the brief does not have: an
+ * empty value is a legitimate write that takes the requirement out of its
+ * project, so an older record can both be filled in and be cleared back.
+ */
+async function caseProjectIsAdditive(backend, name) {
+  await onBackend(backend, name, async dir => {
+    const board = await openBoard({ backend, dir })
+    const service = board.service
+    const plain = await service.createRequirement({ summary: '先写一条带项目的需求。', project: '看板', title: '无项目需求' }, actor)
+    const table = board.domain.table('requirements')
+    const { project, ...older } = table.get(plain.id)
+    void project
+    await table.put(plain.id, older)
+    check('the stored record was seeded without the project key', table.get(plain.id).project === undefined)
+    check('the version stamp stays 2 for this additive field', board.domain.global.get().schemaVersion === 2)
+    await board.close()
+
+    const reopened = await openBoard({ backend, dir })
+    const olderRead = await reopened.service.getRequirement(plain.id)
+    check('a record written before projects existed still opens', olderRead.title === '无项目需求' && olderRead.project === '')
+    const listed = reopened.service.listRequirements({}, '').items.find(item => item.id === plain.id)
+    check('the listed requirement reads the same empty project', listed?.project === '')
+    check('the unassigned filter finds it', reopened.service.listRequirements({ project: '' }, '').items.some(item => item.id === plain.id))
+    check('a named project filter does not', !reopened.service.listRequirements({ project: '看板' }, '').items.some(item => item.id === plain.id))
+    // Unlike the brief, clearing is a normal write: a requirement leaves a project
+    // without leaving the board.
+    const filled = await reopened.service.updateRequirement(plain.id, { project: '看板' }, actor)
+    check('an older record accepts a project it never had', filled.project === '看板')
+    check('and the named filter finds it now', reopened.service.listRequirements({ project: '看板' }, '').items.some(item => item.id === plain.id))
+    const cleared = await reopened.service.updateRequirement(plain.id, { project: '' }, actor)
+    check('a project can be cleared again', cleared.project === '')
+    await reopened.close()
+  })
+}
+
 for (const backend of BACKENDS) {
   await caseInvalidRecord(backend, 'schema enforcement at open')
   await caseUnknownKindDiagnostic(backend, 'an unreadable kind names the field it broke on')
@@ -437,6 +473,7 @@ for (const backend of BACKENDS) {
   await caseChangeForwarding(backend, 'domain change forwarding')
   await caseImagesAreAdditive(backend, 'pasted images are additive at the durable read')
   await caseSummaryIsAdditive(backend, 'the brief is additive at the durable read')
+  await caseProjectIsAdditive(backend, 'the project is additive and clearable at the durable read')
 }
 
 await caseLoudMountFailure()

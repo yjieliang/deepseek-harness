@@ -48,7 +48,7 @@ import { nextRevision } from './domain.js'
 import { RoleRegistry } from './roles.js'
 
 /** Fields a caller may change through `updateRequirement`. */
-const UPDATABLE = ['title', 'summary', 'description', 'priority', 'owner', 'labels', 'sessions', 'templateId', 'role', 'parentId', 'blocksOn', 'images']
+const UPDATABLE = ['title', 'summary', 'project', 'description', 'priority', 'owner', 'labels', 'sessions', 'templateId', 'role', 'parentId', 'blocksOn', 'images']
 
 /**
  * Longest plain-language summary a requirement carries.
@@ -80,6 +80,31 @@ function asSummary(value) {
 
 /** Most `blocksOn` links one requirement may carry (§4.2). */
 const BLOCKS_ON_MAX = 20
+
+/**
+ * Longest project name a requirement may carry.
+ *
+ * The field groups requirements in the panel, and grouping works only while the
+ * names stay short and legible in a filter row and a card tag. A name that needs
+ * more than this has become a description of the project rather than the label
+ * the panel sorts by.
+ */
+const PROJECT_MAX = 60
+
+/**
+ * Read the project a write carries, where empty means "no project".
+ *
+ * Unlike `summary`, an empty value is a legitimate write: taking a requirement
+ * out of a project is a change a reader asks for, so the field clears instead of
+ * being refused. Absent and empty are the same fact — a requirement that belongs
+ * to no project — which is why a record written before the field existed needs no
+ * migration.
+ * @param value - Raw `project` value.
+ * @returns the validated project name, `''` when the write clears it.
+ */
+function asProject(value) {
+  return asString(value, 'project', { max: PROJECT_MAX })
+}
 
 /**
  * Most historical versions one template may hold (§11.4).
@@ -160,7 +185,7 @@ function asRevision(value, field) {
  * show it, who shares it — and loses the routing, the flow, and the state changes
  * that would let it answer the question itself.
  */
-const DECISION_UPDATABLE = ['title', 'summary', 'description', 'priority', 'labels', 'sessions', 'images']
+const DECISION_UPDATABLE = ['title', 'summary', 'project', 'description', 'priority', 'labels', 'sessions', 'images']
 
 /**
  * The fields whose change redefines the work: who may run it, which flow it
@@ -303,6 +328,9 @@ function summarize(requirement, template, derived = {}) {
     // cards, and `get` all show the same sentence. A record written before the
     // field existed reads as one carrying none.
     summary: requirement.summary ?? '',
+    // The project travels with the summary so cards, groups, and the filter row
+    // read one fact. A record written before the field existed belongs to none.
+    project: requirement.project ?? '',
     priority: requirement.priority,
     kind: requirement.kind ?? 'task',
     requestedBy: requirement.requestedBy ?? '',
@@ -750,6 +778,10 @@ export class RequirementService {
     // without the field, so every reader gets the empty string it means rather
     // than an absent key the panel would have to test for.
     presented.summary = requirement.summary ?? ''
+    // Likewise for the project: a requirement that belongs to none reads as one
+    // carrying `''`, which is also what a filter asks for when it selects the
+    // unassigned group.
+    presented.project = requirement.project ?? ''
     // A record written before template versions existed validates without the
     // field, so every reader gets the revision it runs on rather than an absent key.
     presented.templateRevision = requirement.templateRevision ?? 1
@@ -1404,7 +1436,9 @@ export class RequirementService {
   /**
    * List requirements with optional filters.
    * @param filter - `session`, `owner`, `status`, `priority`, `kind`, `templateId`,
-   * `role`, `query`, `claimable`, `limit`, `offset`.
+   * `project`, `role`, `query`, `claimable`, `limit`, `offset`. `project` separates
+   * "no filter" from "unassigned": an absent or `null` value filters nothing, while
+   * `''` selects the requirements that belong to no project.
    * @param me - Session the `claimable` filter is asked for (`''` asks for the
    * panel); ignored by every other filter.
    * @returns `{ items, total, limit, offset }`.
@@ -1425,6 +1459,10 @@ export class RequirementService {
       ? undefined
       : asEnum(filter.kind, REQ_KINDS, 'kind')
     const templateId = asString(filter.templateId, 'templateId', { max: 64 })
+    // Absent means "every project"; `''` means the unassigned ones, which is the
+    // group a reader asks for by clearing the filter's project instead of picking
+    // one. The two cannot share a spelling, so the test is for `undefined` alone.
+    const project = filter.project === undefined || filter.project === null ? undefined : asProject(filter.project)
     const query = asString(filter.query, 'query', { max: 200 }).toLowerCase()
     const limit = asNumber(filter.limit, 'limit', 50, { min: 1, max: 200 })
     const offset = asNumber(filter.offset, 'offset', 0, { min: 0, max: 100000 })
@@ -1446,6 +1484,7 @@ export class RequirementService {
       if (kind !== undefined && (requirement.kind ?? 'task') !== kind) continue
       if (owner !== '' && requirement.owner !== owner) continue
       if (templateId !== '' && requirement.templateId !== templateId) continue
+      if (project !== undefined && (requirement.project ?? '') !== project) continue
       if (session !== '' && !(requirement.sessions ?? []).includes(session)) continue
       if (role !== '' && (requirement.role ?? '') !== role) continue
       if (query !== '' && !`${requirement.title}\n${requirement.summary ?? ''}\n${requirement.description}\n${requirement.id}`.toLowerCase().includes(query)) continue
@@ -1561,7 +1600,7 @@ export class RequirementService {
    * is the whole of the decision queue's "who is waiting for you". A tool call
    * carries no display name, so without the registry step every agent-created
    * decision would read as a bare session id.
-   * @param input - `title`, `summary`, `description`, `kind`, `priority`, `owner`, `sessions`, `labels`, `templateId`, `parentId`, `blocksOn`, `images`, `note`.
+   * @param input - `title`, `summary`, `project`, `description`, `kind`, `priority`, `owner`, `sessions`, `labels`, `templateId`, `parentId`, `blocksOn`, `images`, `note`.
    * @param actor - `{ session, name }` of the caller.
    * @returns the presented requirement.
    */
@@ -1590,6 +1629,7 @@ export class RequirementService {
       id,
       title,
       summary: asSummary(input.summary),
+      project: asProject(input.project),
       description: asString(input.description, 'description', { max: 8000 }),
       kind: asEnum(input.kind, REQ_KINDS, 'kind', 'task'),
       priority: asEnum(input.priority, PRIORITIES, 'priority', 'normal'),
@@ -2457,6 +2497,7 @@ export class RequirementService {
     }
     if (patch.title !== undefined) assign('title', asString(patch.title, 'title', { required: true, max: 200 }))
     if (patch.summary !== undefined) assign('summary', asSummary(patch.summary))
+    if (patch.project !== undefined) assign('project', asProject(patch.project))
     if (patch.description !== undefined) assign('description', asString(patch.description, 'description', { max: 8000 }))
     if (patch.priority !== undefined) assign('priority', asEnum(patch.priority, PRIORITIES, 'priority'))
     if (patch.owner !== undefined) assign('owner', asString(patch.owner, 'owner', { max: 120 }))
@@ -3639,7 +3680,7 @@ export class RequirementService {
    * @param filter - Optional list filter applied to `requirements`.
    * @param me - Session the `claimable` filter is asked for; `''` asks for the
    * panel.
-   * @returns `{ revision, generatedAt, requirements, templates, stats, total, queues }`.
+   * @returns `{ revision, generatedAt, requirements, templates, stats, total, queues, projects }`.
    */
   snapshot(filter = {}, me = '') {
     const listed = this.listRequirements({ ...filter, limit: filter.limit ?? 200, offset: filter.offset ?? 0 }, me)
@@ -3652,12 +3693,35 @@ export class RequirementService {
       templates: this.listTemplates().items,
       roles: this.listRoles(),
       stats: this.stats(),
+      // Every project name in use, read across the whole board rather than the
+      // filtered page: the panel offers these as the vocabulary a requirement may
+      // join, and a filter that narrowed the list must not also take away the
+      // names needed to leave it.
+      projects: this.#projectNames(),
       // Every session's queue, in the order it will be taken (§5.3). The panel
       // renders positions from this projection rather than from its own ordering:
       // the server owns the queue, so a reservation's position and the position
       // the `queue`/`unqueue` receipts name come from one source.
       queues: this.#queueView(),
     }
+  }
+
+  /**
+   * Every project name at least one requirement carries, sorted for display.
+   *
+   * The board holds no project records, so this projection is the only list of
+   * projects there is: it is what the panel's filter, group headers, and the
+   * create and edit suggestions are built from, and it is derived rather than
+   * stored so a name disappears once the last requirement leaves it.
+   * @returns the distinct names, in the order a reader sees them.
+   */
+  #projectNames() {
+    const names = new Set()
+    for (const [, requirement] of this.#requirements.entries()) {
+      const name = requirement.project ?? ''
+      if (name !== '') names.add(name)
+    }
+    return [...names].sort((a, b) => a.localeCompare(b))
   }
 
   /**

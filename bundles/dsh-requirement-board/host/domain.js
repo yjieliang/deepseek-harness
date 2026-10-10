@@ -184,7 +184,9 @@ const executionSyncSchema = z.object({
  * template versions existed reads as one pinned to revision 1. `summary` follows
  * the same rule: a record written before the plain-language summary existed
  * reads as one carrying none, which is why the field is optional here while the
- * write path refuses an empty one.
+ * write path refuses an empty one. `project` follows as well, with the opposite
+ * write rule: a record written before requirements could be grouped reads as one
+ * belonging to no project, and clearing the field is itself a legitimate write.
  *
  * A record this schema refuses stops the whole open, and that is the design rather
  * than an accident: `kind`, `status`, and `priority` are closed sets the write path
@@ -205,6 +207,13 @@ const requirementRecordSchema = z.object({
   // such a record reads as one whose summary is empty; every write that carries
   // the field requires a non-empty value.
   summary: z.string().optional(),
+  // The project this requirement belongs to, as the short label the panel groups
+  // and filters by rather than as a reference to a record: no project entity
+  // exists, so the name is the whole fact. Absent on a record written before it
+  // existed, and such a record reads as one belonging to no project — the same
+  // fact an empty value carries, which is why clearing the field is a write the
+  // service accepts.
+  project: z.string().optional(),
   description: z.string(),
   kind: storedEnum('kind', REQ_KINDS).optional(),
   priority: storedEnum('priority', PRIORITIES),

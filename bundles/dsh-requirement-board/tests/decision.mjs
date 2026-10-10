@@ -329,13 +329,14 @@ async function caseDecisionUpdateBoundary(backend, name) {
     const question = await service.createRequirement({ summary: '测试简述', title: '边界', kind: 'decision' }, a)
 
     const refused = await reporter.rejects('an agent cannot re-route a decision', () => board.tool.execute({ action: 'update', id: question.id, role: 'art-role' }, { agent }), 'forbidden')
-    // `summary` and `images` are on the allowed list with the rest of the
-    // readable side: the brief a person reads first and a picture attached to
-    // the description are context for the person answering, like the wording and
-    // the labels, not a change to who may answer or how.
+    // `summary`, `project`, and `images` are on the allowed list with the rest of
+    // the readable side: the brief a person reads first, the project it belongs
+    // to, and a picture attached to the description are context for the person
+    // answering, like the wording and the labels, not a change to who may answer
+    // or how.
     check('the refusal names the refused field and the allowed list', refused.details?.reason === 'decision-task'
       && refused.details?.fields.join(',') === 'role'
-      && refused.details?.allowed.join(',') === 'title,summary,description,priority,labels,sessions,images')
+      && refused.details?.allowed.join(',') === 'title,summary,project,description,priority,labels,sessions,images')
     const templateRefused = await reporter.rejects('and cannot rebind its flow', () => board.tool.execute({ action: 'update', id: question.id, templateId: 'tpl-standard' }, { agent }), 'forbidden')
     check('the template field is refused the same way', templateRefused.details?.fields.join(',') === 'templateId')
     check('neither refused update wrote anything', board.domain.table('requirements').get(question.id).role === '' && board.domain.table('requirements').get(question.id).kind === 'decision')
@@ -345,12 +346,13 @@ async function caseDecisionUpdateBoundary(backend, name) {
       id: question.id,
       title: '新的问法',
       summary: '要不要上色，请人拍板。',
+      project: '圣女战棋',
       description: '两个选项',
       priority: 'high',
       labels: ['等待拍板'],
       sessions: ['ses_A', 'ses_child'],
     }, { agent })
-    check('every allowed field goes through', updated.title === '新的问法' && updated.summary === '要不要上色，请人拍板。' && updated.description === '两个选项' && updated.priority === 'high'
+    check('every allowed field goes through', updated.title === '新的问法' && updated.summary === '要不要上色，请人拍板。' && updated.project === '圣女战棋' && updated.description === '两个选项' && updated.priority === 'high'
       && updated.labels.join(',') === '等待拍板' && updated.sessions.includes('ses_child'))
     check('the kind is untouched by all of it', updated.kind === 'decision' && board.domain.table('requirements').get(question.id).kind === 'decision')
 

@@ -935,11 +935,19 @@ check('the checklist command carries the expected revision', checklistCall?.expe
 /* ------------------------------------------------------------- dialogs */
 
 boundLocale = 'zh'
+// The board's project vocabulary travels on the snapshot rather than being read
+// off the listed rows: '圣女战棋' names no requirement on this page, so the
+// dialog offering it proves the suggestion list is the board's, not the page's.
+snapshotPayload = boardSnapshot({ projects: ['看板', '圣女战棋'] })
+await face.refresh()
+await settle()
 const again = renderPage()
 again.findButton('新建需求').props.onClick()
 const createDialog = renderPage()
 check('the create dialog renders its fields', createDialog.html.includes('标题') && createDialog.html.includes('流程模板') && createDialog.html.includes('所属会话'))
 check('the create dialog lists the templates', createDialog.html.includes('标准研发流程'))
+check('the create dialog offers the board\'s project names as suggestions',
+  createDialog.html.includes('圣女战棋') && createDialog.findInput(props => props.name === 'requirement.project') !== undefined)
 check('an empty title disables the create action', createDialog.collected.some(element => element.html === '创建' && element.props.disabled === true))
 const titleInput = createDialog.findInput(props => props.name === 'requirement.title')
 titleInput.props.onChange({ target: { value: '新需求' } })
@@ -951,6 +959,8 @@ const filledDialog = renderPage()
 check('a filled title enables the create action', filledDialog.collected.some(element => element.html === '创建' && element.props.disabled === false))
 const prioritySelect = filledDialog.findInput(props => props.name === 'requirement.priority')
 prioritySelect.props.onChange({ target: { value: 'urgent' } })
+renderPage().findInput(props => props.name === 'requirement.project')
+  .props.onChange({ target: { value: '看板' } })
 const submit = renderPage().findButton('创建')
 submit.props.onClick()
 await new Promise(resolve => setTimeout(resolve, 0))
@@ -961,6 +971,7 @@ const createCall = requests.filter(request => String(request.url).includes('/com
 check('submitting the form posts the create command', createCall?.requirement?.title === '新需求', JSON.stringify(createCall?.requirement))
 check('the form carries every edited field', createCall?.requirement?.priority === 'urgent' && Array.isArray(createCall?.requirement?.sessions) && createCall?.requirement?.templateId === 'tpl-standard', JSON.stringify(createCall?.requirement))
 check('the create command carries the brief', createCall?.requirement?.summary === '给看板加简述，让人一眼看懂要做什么。', JSON.stringify(createCall?.requirement?.summary))
+check('the create command carries the project the form named', createCall?.requirement?.project === '看板', JSON.stringify(createCall?.requirement?.project))
 check('the dialog closes after a successful create', renderPage().html.includes('模板名称') === false)
 
 /* ----------------------------------------------------- template drawer */
@@ -2542,6 +2553,63 @@ const legacyDetail = renderPage()
 check('a requirement written before the field existed shows the placeholder',
   legacyDetail.html.includes(localeDicts.zh.summaryEmpty)
   && legacyDetail.collected.some(element => String(element.props.className ?? '').includes('rb-summary-empty')))
+
+// The project is the label a crowded board is sorted by: the card carries it,
+// the detail names it, the filter reads it and can ask for the requirements that
+// belong to none, and the grouped reading splits the list into one section per
+// project with the unassigned ones last.
+boundLocale = 'zh'
+const filedA = { ...requirement, id: 'req_filed_a', title: '看板里的第一条', project: '看板' }
+const filedB = { ...requirement, id: 'req_filed_b', title: '看板里的第二条', project: '看板' }
+const loose = { ...requirement, id: 'req_loose', title: '还没归属的一条', project: '' }
+snapshotPayload = boardSnapshot({ requirements: [filedA, filedB, loose], total: 3, projects: ['看板', '圣女战棋'] })
+await face.refresh()
+await settle()
+const projectBoard = renderPage()
+check('the card carries the project as a tag',
+  projectBoard.collected.some(element => String(element.props.className ?? '').includes('rb-card-project') && element.html === '看板'))
+check('a requirement belonging to no project renders no tag',
+  !cardOf(projectBoard, loose.title).html.includes(localeDicts.zh.projectUnassigned))
+check('the filter offers every project, including one no listed row carries',
+  projectBoard.html.includes('圣女战棋') && projectBoard.html.includes(localeDicts.zh.projectUnassigned))
+const projectSelect = projectBoard.findInput(props => props.name === 'project')
+check('the project filter renders as its own control', projectSelect !== undefined)
+cardOf(projectBoard, filedA.title).props.onClick()
+await settle()
+check('the detail names the project the requirement belongs to',
+  renderPage().collected.some(element => String(element.props.className ?? '').includes('rb-meta-v') && element.html === '看板'))
+cardOf(renderPage(), loose.title).props.onClick()
+await settle()
+check('a requirement with no project reads as unassigned in the detail',
+  renderPage().collected.some(element => String(element.props.className ?? '').includes('rb-meta-v') && element.html === localeDicts.zh.projectUnassigned))
+
+// The two filter spellings stay distinct on the wire: the sentinel asks the Host
+// for the unassigned requirements, while "every project" sends no key at all —
+// a host given the empty string would otherwise read it as no filter.
+projectSelect.props.onChange({ target: { value: '__unassigned__' } })
+await settle()
+const unassignedURL = new URL(lastSnapshotUrl(), 'http://127.0.0.1:3080')
+check('asking for the unassigned requirements puts an empty project on the wire',
+  unassignedURL.searchParams.has('project') && unassignedURL.searchParams.get('project') === '')
+renderPage().findInput(props => props.name === 'project').props.onChange({ target: { value: '' } })
+await settle()
+check('every project drops the key instead of sending an empty one',
+  new URL(lastSnapshotUrl(), 'http://127.0.0.1:3080').searchParams.has('project') === false)
+
+const groupToggle = checkboxFor(renderPage(), localeDicts.zh.groupProject)
+check('the board offers the grouped reading', groupToggle !== undefined)
+groupToggle.props.onChange({ target: { checked: true } })
+await settle()
+const grouped = renderPage()
+const groupNames = grouped.collected.filter(element => String(element.props.className ?? '') === 'rb-group-name').map(element => element.html)
+const groupCounts = grouped.collected.filter(element => String(element.props.className ?? '') === 'rb-group-n').map(element => element.html)
+check('grouping splits the board into one section per project, the unassigned last',
+  groupNames.join(',') === `看板,${localeDicts.zh.projectUnassigned}`, groupNames.join(','))
+check('each group states how many requirements it holds', groupCounts.join(',') === '2,1', groupCounts.join(','))
+checkboxFor(renderPage(), localeDicts.zh.groupProject).props.onChange({ target: { checked: false } })
+await settle()
+check('leaving the grouped reading restores the flat list',
+  renderPage().collected.filter(element => String(element.props.className ?? '') === 'rb-group-name').length === 0)
 
 // A Host that reports none of these facts must not be dressed with them.
 snapshotPayload = boardSnapshot()

@@ -76,6 +76,39 @@ try {
   check('deleting the requirement this section added leaves the board as it was',
     (await service.listRequirements({}, actor.session)).items.every(item => item.id !== briefed.id))
 
+  console.log('\nthe project')
+  // The project is optional: a requirement that belongs to none is a normal
+  // requirement, not an unfinished one. The two filter spellings stay distinct —
+  // an absent value filters nothing while `''` asks for the unassigned — because
+  // the panel needs both answers from one control.
+  const loose = await service.createRequirement({ summary: '还没想好归到哪个项目。', title: '未归属需求' }, actor)
+  check('a creation without a project is accepted and reads empty', loose.project === '')
+  const filed = await service.createRequirement({ summary: '这条属于看板这个项目。', project: '看板', title: '已归属需求' }, actor)
+  check('the project is stored and read back', filed.project === '看板'
+    && (await service.getRequirement(filed.id)).project === '看板')
+  const byProject = await service.listRequirements({ project: '看板' }, actor.session)
+  check('the project filter keeps exactly the requirements filed under it',
+    byProject.items.some(item => item.id === filed.id && item.project === '看板') && byProject.items.every(item => item.project === '看板'))
+  const unassigned = await service.listRequirements({ project: '' }, actor.session)
+  check('the unassigned filter keeps the requirements belonging to none',
+    unassigned.items.some(item => item.id === loose.id) && unassigned.items.every(item => item.project === ''))
+  check('the two filters do not overlap', !byProject.items.some(item => item.id === loose.id) && !unassigned.items.some(item => item.id === filed.id))
+  const unfiltered = await service.listRequirements({}, actor.session)
+  check('leaving the filter out lists both', unfiltered.items.some(item => item.id === loose.id) && unfiltered.items.some(item => item.id === filed.id))
+  const refiled = await service.updateRequirement(filed.id, { project: '看板/面板' }, actor)
+  check('the project is updatable', refiled.project === '看板/面板')
+  const unfiled = await service.updateRequirement(filed.id, { project: '' }, actor)
+  check('and clearable, unlike the brief', unfiled.project === ''
+    && (await service.listRequirements({}, actor.session)).items.find(item => item.id === filed.id)?.project === '')
+  // Both requirements leave before the count-based assertions below, the same way
+  // the brief section's requirement does.
+  await service.claim(filed.id, {}, cleaner)
+  await service.deleteRequirement(filed.id, {}, cleaner)
+  await service.claim(loose.id, {}, cleaner)
+  await service.deleteRequirement(loose.id, {}, cleaner)
+  check('the requirements this section added leave the board as it was',
+    (await service.listRequirements({}, actor.session)).items.every(item => item.id !== filed.id && item.id !== loose.id))
+
   // §5.1: `create` attaches the creator but leaves the work unlocked, and every
   // structural change — checklist, transition, block, archive — needs the lock.
   // A session therefore claims before it runs, which is what this scenario does

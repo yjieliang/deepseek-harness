@@ -395,7 +395,14 @@ export function createBoardHandler(service, connectionOf) {
           limit: query(url, 'limit'),
           offset: query(url, 'offset'),
         }
-        sendJson(res, 200, { ok: true, data: service.snapshot(compact(filter), query(url, 'me') ?? '') })
+        const compacted = compact(filter)
+        // The project filter carries three states, and its empty one is a filter
+        // of its own — the requirements belonging to no project — so it is applied
+        // after the blank-drop instead of through it, where `?project=` would read
+        // as no filter at all.
+        const project = query(url, 'project')
+        if (project !== undefined) compacted.project = project
+        sendJson(res, 200, { ok: true, data: service.snapshot(compacted, query(url, 'me') ?? '') })
         return
       }
       if (req.method === 'GET' && path === '/events') {

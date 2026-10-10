@@ -1,6 +1,6 @@
 ---
 name: requirement-board-tasks
-description: 需求看板的任务创建与派发规范。触发场景：要在看板上建需求/任务/建议；写需求前要选流程模板、现有模板都对不上要新建模板；写需求简述（一两句大白话）与描述；判断某个活该不该建任务；按角色职能决定把任务给谁；被指派了看板任务要开工；手上有活、后面的活要排队；把同角色的活派给子会话；跨角色协作与等谁先做完；需要人拍板（决策需求）；遇到锁冲突、门禁或权限被拒。不用于：工具的参数与调用语法（看工具自身的说明）、插件与面板的实现。Task-creation and dispatch rules for the requirement board — dedupe, role routing, one deliverable per task, the plain-language brief every requirement carries, flow-template selection (mint one when none matches), register-then-run, queueing, sub-session delegation, cross-role gating, and human decisions.
+description: 需求看板的任务创建与派发规范。触发场景：要在看板上建需求/任务/建议；写需求前要选流程模板、现有模板都对不上要新建模板；写需求简述（一两句大白话）与描述；把需求归属到某个项目、按项目分组找活；判断某个活该不该建任务；按角色职能决定把任务给谁；被指派了看板任务要开工；手上有活、后面的活要排队；把同角色的活派给子会话；跨角色协作与等谁先做完；需要人拍板（决策需求）；遇到锁冲突、门禁或权限被拒。不用于：工具的参数与调用语法（看工具自身的说明）、插件与面板的实现。Task-creation and dispatch rules for the requirement board — dedupe, role routing, one deliverable per task, the plain-language brief every requirement carries, the project label that groups requirements, flow-template selection (mint one when none matches), register-then-run, queueing, sub-session delegation, cross-role gating, and human decisions.
 user-invocable: false
 ---
 
@@ -8,7 +8,7 @@ user-invocable: false
 
 这份 skill 只讲**规范**：什么时候建、建成什么样、怎么接、怎么排队、怎么派、怎么协作、怎么收尾，以及每条的验收标准。动作名可以引用，但**参数与调用语法不在本 skill 里**——它们由工具自己的说明承载，工具是唯一权威。方向是单向的：skill 引用工具契约的公开动作与意图，插件不引用、不检测、不加载本 skill。
 
-十五条覆盖：先查重、先查角色职能、一条任务一个交付物、必填四件事、先注册再跑、多任务先排队、派给子会话四件事、执行状态（看板自动同步）、门禁可选项、跨角色协作、要人拍板、不建的任务、认领礼仪、推进顺序、流程模板匹配（不符合就建模板）。
+十六条覆盖：先查重、先查角色职能、一条任务一个交付物、必填四件事、先注册再跑、多任务先排队、派给子会话四件事、执行状态（看板自动同步）、门禁可选项、跨角色协作、要人拍板、不建的任务、认领礼仪、推进顺序、流程模板匹配（不符合就建模板）、项目归属。
 
 ## 建之前
 
@@ -49,6 +49,17 @@ user-invocable: false
 面板把简述放在最显眼的位置、把描述收在下面的折叠区里，所以描述写得再细也不影响阅读；反过来，简述若写成描述的压缩版，就等于没有简述。
 
 自检：把简述单独念给没看过这条任务的人听，他能说出"要做什么、为什么"；并且简述里没有实现细节、文件名或流程术语。
+
+### 16. 项目归属：能归就归，名字要稳
+
+需求多起来之后，面板靠**项目**分组和筛选。项目是需求上的一个短标签（不超过 60 字），不是一张登记表：没有项目实体、没有项目负责人或进度，所以别指望它承担归属之外的事。
+
+- **能归就归**：这条活属于某摊更大的事，就写上那摊事的短名字（例如 `看板`、`圣女战棋`）。一次性的杂活不属于任何项目，留空即可。
+- **名字要稳**：同一个项目永远用同一个写法。先看面板筛选里已有的项目名，照抄一个；写法不一致（`看板`／`看板面板`／`Requirement Board`）等于凭空多出几个谁也分不清的组，这比不写更糟。
+- **短、人看得懂**：名字是给读者扫的，不是给自己记的。别把需求标题塞进去，也别用角色名或模板名冒充项目。
+- 写错了改回来：`update` 里改 `project` 就换组，传空字符串就把需求摘出项目（这一步不影响历史与流程）。
+
+自检：同一个项目的另一条需求，换一个会话来建，会不会写出另一个名字？如果会，先回面板看一眼已有名字再写。
 
 ### 12. 不建的任务
 

@@ -74,6 +74,7 @@ defineDomain({
 |---|---|---|
 | `id` | `string` | `req_` + 10 位十六进制，`mintId('req')` 生成 |
 | `title` / `summary` / `description` | `string` | 标题（≤200）/ **简述**（≤300，必填：一两句大白话，面板的主读数）/ 描述（≤8000，范围+验收+交付） |
+| `project` | `string`? | **项目标签**（≤60，可选）：需求归属的那摊活，面板据此筛选与分组；缺省读作 `''` = 不归属任何项目 |
 | `kind` | `'task'\|'decision'`? | 缺省读作 `task`；`decision` 是人类专属（3.6 与 ROLE-DISPATCH.md §5.7） |
 | `priority` | `'low'\|'normal'\|'high'\|'urgent'` | 自身优先级，默认 `normal` |
 | `owner` | `string` | 负责人，可为空 |
@@ -103,6 +104,10 @@ defineDomain({
 `id` 形如 `img-<uuid>`，同时是外置字节的文件名主干；`width`/`height` 由文件头部解析，不解码整图。
 `images` 在 v2 之后加入且**故意不升版本戳**：新增字段声明为 optional，旧记录便读作"没有图片"；
 改版本戳则相反——介质按精确版本戳校验且没有迁移，升号会让既有数据直接打不开（`host/images.js` 是字节仓库）。
+`project` 与 `summary` 走同一条可选字段惯例（`schemaVersion` 仍为 2，旧记录读作 `''`），但**写入规则相反**：
+`summary` 的空值被拒（补上就再也清不掉），`project` 的空值是合法写入——把需求摘出项目是一个正常请求，
+所以 `update` 传 `''` 就是"从项目里拿出来"。项目**不是一级实体**：没有项目记录、状态、负责人或进度，
+`project` 的全部含义就是这个字符串；面板的筛选、分组、表单候选都由它派生，没有第二份真相。
 
 ### 3.3 流程模板（`templates` 表：`FlowTemplate` / `TemplateNode`）
 
@@ -171,13 +176,13 @@ defineDomain({
 
 | 方法 | 说明 |
 |---|---|
-| `listRequirements(filter, me)` | 过滤 `session`/`owner`/`status`/`priority`/`kind`/`role`/`templateId`/`query`/`claimable`/`limit`（`status:'open'` = 未完成且未归档）；返回 `{ items, total, limit, offset }`；`claimable` 与 prompt 同源 |
+| `listRequirements(filter, me)` | 过滤 `session`/`owner`/`status`/`priority`/`kind`/`role`/`templateId`/`project`/`query`/`claimable`/`limit`（`status:'open'` = 未完成且未归档）；`project` 是**三态**：缺省/`null` = 不过滤，`''` = 只要不归属任何项目的，其余值 = 只要该项目；返回 `{ items, total, limit, offset }`；`claimable` 与 prompt 同源 |
 | `getRequirement(id, me)` | 单个需求的完整派生视图（`flow`/`progress`/`history`/`lastTransition` + 3.6 的资格、门禁、执行字段） |
-| `createRequirement(input, actor)` | 建需求；`summary` **必填**（空/缺 → `invalid-argument`，错误文案说明"一两句大白话"要求），`sessions` 自动并入调用者会话，节点跳到模板首节点，`requestedBy` 定格；`images` 传图片 id 列表（未知 id 报 `invalid-image`，不是静默丢弃） |
+| `createRequirement(input, actor)` | 建需求；`summary` **必填**（空/缺 → `invalid-argument`，错误文案说明"一两句大白话"要求），`sessions` 自动并入调用者会话，节点跳到模板首节点，`requestedBy` 定格；`images` 传图片 id 列表（未知 id 报 `invalid-image`，不是静默丢弃）；`project` 可选（≤60，缺省 `''`） |
 | `claim(id, input, actor)` / `release(id, input, actor)` | 拿锁 / 放锁；`claim` 走 `judgeClaim` 判定表，`locked` 时若该需求在自己队列里则 `details.queued:true` |
 | `queue(id, input, actor)` / `unqueue(id, input, actor)` / `queueOf(session)` | 软预留：追加/移除/读取本会话队列（`queue` 需要非空会话；面板用 `unqueue{targetSession}` 清任意会话） |
 | `delegate(id, input, actor)` | 派给子会话（`session` 指名目标）；`revoke:true` 撤销；同一套收尾见 ROLE-DISPATCH.md §5.5 |
-| `updateRequirement(id, patch, actor)` | 改 `title`/`summary`/`description`/`priority`/`owner`/`labels`/`sessions`/`templateId`/`role`/`parentId`/`blocksOn`/`images`；决策的合法子集更窄；`kind` 不可变；写 `summary` 走同一条 `asSummary`（空值同样被拒） |
+| `updateRequirement(id, patch, actor)` | 改 `title`/`summary`/`project`/`description`/`priority`/`owner`/`labels`/`sessions`/`templateId`/`role`/`parentId`/`blocksOn`/`images`；决策的合法子集更窄；`kind` 不可变；写 `summary` 走同一条 `asSummary`（空值同样被拒），写 `project` 走 `asProject`（空值合法 = 摘出项目） |
 | `transitionRequirement(id, input, actor)` | 流转：`advance` / `rollback` / `jump` / `complete` / `reopen` |
 | `setChecklist(id, { index, checked }, actor)` | 勾选当前节点的检查项 |
 | `blockRequirement` / `unblockRequirement` | 阻塞（需 `reason`）/ 解除 |
@@ -190,7 +195,7 @@ defineDomain({
 | `sweepDangling()` | 启动 sweep：清孤儿 `tmp-*` 角色、队列幽灵项、悬挂 `blocksOn`/`parentId`、已销毁会话的 `delegatedTo`；不可判定项以 `deferred` 具名返回 |
 | `stats(options)` | `computeStats`（见 4.6）+ `byKind`/`byRole`/`decisions`/`criticalPath`（**计数**）/`queues`/`queued`/`reserved`/`orphanedLocks`/`pendingDelegations`/`running`/`execSync` |
 | `changesSince(since)` | `since` 之后的变更与流转；返回 `{ since, requirements, transitions, revision, truncated }`（`truncated` = 流转超过 200 条） |
-| `snapshot(filter, me)` | `{ revision, generatedAt, requirements, total, templates, roles, stats, queues }` |
+| `snapshot(filter, me)` | `{ revision, generatedAt, requirements, total, templates, roles, stats, queues, projects }`；`projects` 是**全板**用到的项目名（不受 `filter` 影响）——面板的筛选、分组与表单候选都读它；若跟着筛选走，一筛就把"换回别的项目"的路也筛没了 |
 | `promptContext(session, limit)` | 该会话在一个模型步骤里看到的看板文本（段序见 ROLE-DISPATCH.md §6） |
 
 **写操作的返回约定**：除 `delete*` 外，每个写方法都返回**同一个**派生视图（presented
@@ -213,7 +218,7 @@ AI 工具、HTTP 命令）只需读一个形状，`lastTransition` 就是"刚刚
 
 | 端点 | 说明 |
 |---|---|
-| `GET /snapshot?status=&owner=&session=&priority=&kind=&role=&templateId=&query=&claimable=&limit=&offset=&me=` | 面板初始数据与增量刷新；`me` 是会话 id（不是角色名） |
+| `GET /snapshot?status=&owner=&session=&priority=&kind=&role=&templateId=&project=&query=&claimable=&limit=&offset=&me=` | 面板初始数据与增量刷新；`me` 是会话 id（不是角色名）。`project` 是唯一**不能**靠"空值即省略"表达三态的键：路由在 `compact()` 丢掉空字段之后单独接上它，所以 `?project=`（空值）是"只要未归属"，整个键缺席才是"不过滤" |
 | `GET /events` | SSE：`ready`（连接建立）、`changed`（任何一次提交，按 `sseCoalesceMs` 合并）；心跳 15s |
 | `GET /health` | 存活探测 |
 | `POST /command` | `{ action, session, name, me, id, ... }`，动作面含 `refresh/list/create/update/transition/checklist/release/unqueue/delegate/block/unblock/archive/restore/delete/stats/changes/template.*/role.*`；**没有** `claim`/`queue` |
@@ -370,16 +375,16 @@ Host 侧只需在 `res.write` 上推事件，不引入 WebSocket 依赖。SSE �
 
 | 命令 | 覆盖 |
 |---|---|
-| `node tests/domain.mjs` | 88 项：域表单与 zod 校验、`invalid-record`、导入幂等与凭据、`nextRevision` 自愈、两种后端一致 |
-| `node tests/smoke.mjs` | 89 项：模板派生与环检测、完成条件闸门、推进/回退/跳转、乐观并发（含 HTTP 命令路径）、阻塞、统计、HTTP 分发、prompt 上下文、changes、重开进程、模板生命周期 |
+| `node tests/domain.mjs` | 154 项：域表单与 zod 校验、`invalid-record`、导入幂等与凭据、`nextRevision` 自愈、两种后端一致、可选字段的向后兼容（简述必填且不可清空、项目可填可清） |
+| `node tests/smoke.mjs` | 106 项：模板派生与环检测、完成条件闸门、推进/回退/跳转、乐观并发（含 HTTP 命令路径）、阻塞、统计、HTTP 分发、prompt 上下文、changes、重开进程、模板生命周期、简述与项目的写入与筛选 |
 | `node tests/roles.mjs` | 298 项：解析链三态、四种建档来源、`human` 保留字、`dutiesMissing`、prompt 角色行、未登记角色的两种来源、启动 sweep、预设名册对照（活会话/推定/非法 id 三态与 `recorded` 拆分）与两种降级 |
-| `node tests/dispatch.mjs` | 302 项：`lockState` 全分支、`claimable`/`advanceable` 单一公式、判定表、租约与孤儿锁、并发抢锁、每会话一把锁 |
+| `node tests/dispatch.mjs` | 322 项：`lockState` 全分支、`claimable`/`advanceable` 单一公式、判定表、租约与孤儿锁、并发抢锁、每会话一把锁 |
 | `node tests/queue.mjs` | 304 项：软预留追加幂等、上界、他人 `claim` 得 `reserved`、队头 `queued:true` 分支、并发恰一胜、dispose 与面板清预留 |
 | `node tests/delegate.mjs` | 372 项：临时角色铸造与绑定、幂等收编、`roleBefore` 回退、归属校验（`owns` 三态 + 会话头判定）、派发期间禁改路由、写被拒收回临时角色、撤销与 dispose 同一套收尾、链式再派发 |
 | `node tests/decision.mjs` | 228 项：`kind` 不可变、人类专属 12 条拒绝与两入口分解、决策不进任何池、`requestedBy` |
 | `node tests/gates.mjs` | 246 项：`blocksOn`/`parentId` 环检测、门禁拒绝与 `force` 越权、优先级继承与回落、归档仍挡、`delete` 解绑 |
-| `node tests/runs.mjs` | 308 项：子智能体与 job 事件落库、无锁事件 `ignored`、重复状态不写、`output` 不落库、截断、`sync.gap`、不推 `rev` |
-| `node tests/client-smoke.mjs` | 380 项，浏览器半边：桩掉 module loader / React / 客户端服务 / `fetch` / `EventSource`，真实渲染并驱动交互；校验字典键对齐、插槽注册、SSE 生命周期、几何反推依赖图列与边、角色来源标签、预设对照区与一键登记预填、登记后重读名册（该行翻面）、名册两种降级文案 |
+| `node tests/runs.mjs` | 312 项：子智能体与 job 事件落库、无锁事件 `ignored`、重复状态不写、`output` 不落库、截断、`sync.gap`、不推 `rev` |
+| `node tests/client-smoke.mjs` | 408 项，浏览器半边：桩掉 module loader / React / 客户端服务 / `fetch` / `EventSource`，真实渲染并驱动交互；校验字典键对齐、插槽注册、SSE 生命周期、几何反推依赖图列与边、角色来源标签、预设对照区与一键登记预填、登记后重读名册（该行翻面）、名册两种降级文案、简述与项目读法（卡片标签、详情、筛选三态上线、按项目分组） |
 | `node tests/loader.mjs` | 53 项：装载清单、配置越界、`dataDir` 拒绝、插件行与路由 |
 | `node tests/composition/**` | 真组合通道：装配 Loader 配置与 stub 服务，验证挂载、失败收容与 disposer |
 | `node tests/verification/**` | 各阶段独立验证仪器（A1/A3/B/CD/E 链、变异对照、快照摘要），报告见同目录 `*-verification.md` |
@@ -426,14 +431,14 @@ Host 侧只需在 `res.write` 上推事件，不引入 WebSocket 依赖。SSE �
 
 ### 11.1 现状（实现事实）
 
-- 写入面（2026-10-09 起）：`createTemplate`（`host/service.js:2913`）、`reviseTemplate`、`setTemplateMetadata`、`migrateRequirementsToRevision`、`pruneTemplateVersion`、`archiveTemplate`、`cloneTemplate` 与 `deleteTemplate`（`host/service.js:3272`）；工具 `flow_template` 有 `list`/`get`/`create`/`revise`/`migrate`/`archive`/`clone`/`delete` 八个分支（`host/tools.js:369-395`），**不含** `prune`/`metadata`/`preview`；面板命令 `template.*` 见 `host/http.js:292-320`。
+- 写入面（2026-10-09 起）：`createTemplate`（`host/service.js:2954`）、`reviseTemplate`、`setTemplateMetadata`、`migrateRequirementsToRevision`、`pruneTemplateVersion`、`archiveTemplate`、`cloneTemplate` 与 `deleteTemplate`（`host/service.js:3313`）；工具 `flow_template` 有 `list`/`get`/`create`/`revise`/`migrate`/`archive`/`clone`/`delete` 八个分支（`host/tools.js:378-404`），**不含** `prune`/`metadata`/`preview`；面板命令 `template.*` 见 `host/http.js:292-320`。
 - 结构校验集中在 `normalizeTemplate`（`host/templates.js:137`）：`name` 必填 ≤120（`:141`）；`nodes` 1..50（非空 `:143-145`、上界 `:146`）；节点 id 缺省由名称派生（slug 保留 CJK、重名加 `-2`，`:83`），显式 id ≤64（`:106`）、重名即 `invalid-argument`（`:107`）；`dependsOn` ≤20 项、每项 ≤64（`:119`）、必须指向本模板已有节点（`:152`）、不得自环（`:154`）、装载时做环检测（`:180`）；`completion.type ∈ manual|checklist`（`host/model.js:33`）；`checklist` ≤20 项、每项 ≤160（`:114`）；`description` ≤600（`:121`，模板级同值在 `:161`）；`assignee` ≤120（`:120`）。
-- 那份 `version` 仍恒为 1（`host/templates.js:162`）；创建时写入的 `updatedAt`（`host/service.js:2918` 传入的 `now`）此后由每个写路径刷新——**版本管理的版本号是新增的 `revision` 字段，与 `version` 无关**（§11.4）。
-- 内置 `tpl-standard` 不可删（`host/service.js:3275`），空库时种下（`host/domain.js:507-509`）。
+- 那份 `version` 仍恒为 1（`host/templates.js:162`）；创建时写入的 `updatedAt`（`host/service.js:2959` 传入的 `now`）此后由每个写路径刷新——**版本管理的版本号是新增的 `revision` 字段，与 `version` 无关**（§11.4）。
+- 内置 `tpl-standard` 不可删（`host/service.js:3316`），空库时种下（`host/domain.js:516-518`）。
 - 模板与需求的耦合：需求存 `templateId`，节点状态是**按位置推导**的派生数据（`host/flow.js:41-46`：`index < currentIndex → done`、`index === currentIndex → active`）；当前节点不在模板里（`nodeIndex < 0`）时不会有任何节点是 `active`。
-- 改绑已有路径：`updateRequirement` 把 `templateId` 当结构性字段（需要锁，`host/service.js:170`、`:2395-2396`），改绑后重算节点并写一条 `retemplate` 历史（`:2422-2439`、`:2452-2453`）。
-- 删除被占用的模板：需 `force`，否则 `in-use` 并列出引用它的需求 id（`host/service.js:3279-3281`）；`force` 时逐个改绑到 `config.defaultTemplateId`，消失的当前节点重置为该模板首节点（`:3245-3268`）。
-- 模板的增删改**不写需求 `history`**（§3.4 的 `action` 词汇表里没有模板动作）；`changesSince`（`host/service.js:3561`）同样只回需求与流转（`:3541`）。
+- 改绑已有路径：`updateRequirement` 把 `templateId` 当结构性字段（需要锁，`host/service.js:195`、`:2395-2396`），改绑后重算节点并写一条 `retemplate` 历史（`:2422-2439`、`:2452-2453`）。
+- 删除被占用的模板：需 `force`，否则 `in-use` 并列出引用它的需求 id（`host/service.js:3320-3322`）；`force` 时逐个改绑到 `config.defaultTemplateId`，消失的当前节点重置为该模板首节点（`:3245-3268`）。
+- 模板的增删改**不写需求 `history`**（§3.4 的 `action` 词汇表里没有模板动作）；`changesSince`（`host/service.js:3602`）同样只回需求与流转（`:3541`）。
 
 ### 11.2 缺口
 
@@ -441,37 +446,37 @@ Host 侧只需在 `res.write` 上推事件，不引入 WebSocket 依赖。SSE �
 
 - **G1 不能编辑**：改名、改节点、改完成条件只能"删了重建"，而删除会把在办需求整体改绑到默认模板并丢掉节点进度——"改一个字"的代价与"换掉整个流程"相同。
 - **G2 版本字段是死的**：`version` 恒 1、`updatedAt` 只在创建时写（11.1），既无法表达"模板已演进"，也没有并发判据。
-- **G3 没有审计**：模板的增删改不落在任何历史里；`deleteTemplate` 连 actor 参数都没有（`host/service.js:3272`），模板侧只有创建时写的 `createdBy`。
+- **G3 没有审计**：模板的增删改不落在任何历史里；`deleteTemplate` 连 actor 参数都没有（`host/service.js:3313`），模板侧只有创建时写的 `createdBy`。
 - **G4 删除不保护配置默认模板**：`deleteTemplate` 只拒内置（`:3237`）。若 `config.defaultTemplateId` 指向非内置模板，删掉它之后新建需求的默认模板解析（`:1532-1534`）会撞上 `#template` 的 `not-found`（`:491-497`），`force` 改绑的落点（`:3246`）也会一起取不到。
-- **G5 `force` 改绑不留痕**：删除时对每个需求只改字段，transform 没有追加 `history` 条目（`:3257-3267`；`#mutateRequirement` 的签名 `host/service.js:1099` 也没有历史参数），需求侧看不到"我的流程什么时候被换了"。
-- **G6 面板只有"新建"**：无编辑、无删除接线、无引用可见性、无流程预览（`client.js:2159` 的 `CreateTemplateDialog`、`:2977` 的入口按钮、`:3139` 的 `template.create` 接线；`template.delete` 有宿主路由但没有客户端调用）。
-- **G7 权限口径不一致**：角色管理是"面板独有"（`host/service.js:3363`、`host/http.js:324-328`），模板却是模型可写（`host/tools.js:369-395`），既不要锁也没有角色约束。
+- **G5 `force` 改绑不留痕**：删除时对每个需求只改字段，transform 没有追加 `history` 条目（`:3257-3267`；`#mutateRequirement` 的签名 `host/service.js:1131` 也没有历史参数），需求侧看不到"我的流程什么时候被换了"。
+- **G6 面板只有"新建"**：无编辑、无删除接线、无引用可见性、无流程预览（`client.js:2245` 的 `CreateTemplateDialog`、`:2977` 的入口按钮、`:3139` 的 `template.create` 接线；`template.delete` 有宿主路由但没有客户端调用）。
+- **G7 权限口径不一致**：角色管理是"面板独有"（`host/service.js:3404`、`host/http.js:324-328`），模板却是模型可写（`host/tools.js:378-404`），既不要锁也没有角色约束。
 
 ### 11.3 不变量
 
 - **I1 节点 id 是身份，名称只是标签**：改节点名不改 id；改 id 等价于"删旧节点 + 加新节点"，必须在追加的那个版本里显式表达。
 - **I2 需求永远钉在一个仍然存在的版本上**：需求用可选字段 `templateRevision`（11.4）记住自己跑在哪一版；**新写入一律显式带这个字段**，只有本次改动之前写入的存量记录才读作第 1 版（三个写入点见 11.4）。**任何被需求钉住的版本都不得被裁剪**——裁剪时必须拒绝并列出钉住它的需求（11.6），否则那条需求的流程无从解析。
 - **I3 改模板不改任何需求**（机制 1 的核心承诺，2026-10-08 裁决）：追加版本只写模板记录一个键，**完全不碰 `requirements`**；在跑需求的 `nodeId`、节点状态、已勾选项一律原样。
-- **I4 只有显式迁移才会动需求，且必须事前可见**：迁移到新版时，若某需求当前的 `nodeId` 不在目标版本里，按既有先例归一到目标版本的首节点（`host/service.js:3298`、`:2434`）并写一条 `retemplate` 历史（note 记 `node <旧> 已不在第 N 版 → <新>`，沿用 §3.4 既有词汇、不新增动作）；`checklist` 长度变化会清空该节点的已勾选项（`host/flow.js:48-50`）。迁移前必须能列出"哪几条受影响、各自会变成什么样"。
+- **I4 只有显式迁移才会动需求，且必须事前可见**：迁移到新版时，若某需求当前的 `nodeId` 不在目标版本里，按既有先例归一到目标版本的首节点（`host/service.js:3339`、`:2434`）并写一条 `retemplate` 历史（note 记 `node <旧> 已不在第 N 版 → <新>`，沿用 §3.4 既有词汇、不新增动作）；`checklist` 长度变化会清空该节点的已勾选项（`host/flow.js:48-50`）。迁移前必须能列出"哪几条受影响、各自会变成什么样"。
 - **I5 破坏性动作必须留痕**：需求侧写 `retemplate`（含 `force` 与原因），模板侧写自己的 `changes`（11.4）。
 - **I6 内置模板不可改、不可删、不可归档**：要改内置流程就 `clone` 出一个自定义模板，再改那个副本（11.5）。
 
 ### 11.4 数据模型（已裁决：机制 1——追加版本；不新建表、不升域版本号）
 
-**模板记录**（`host/domain.js:297` 的 `templateRecordSchema`，`.strict()`）：顶层字段仍是"最新版"，读法与今天同构；只**新增可选字段**。
+**模板记录**（`host/domain.js:306` 的 `templateRecordSchema`，`.strict()`）：顶层字段仍是"最新版"，读法与今天同构；只**新增可选字段**。
 
 - `revision`（正整数，当前版本号；缺省读作 1）。
-- `versions`（**历史版本**数组，从旧到新，**当前版不在其中**；有界，上限 20 条——它是审计尾巴、不是运行参数，所以不进 `Config`，与可配的 `maxExecutions` 不同）：每项 `{ revision, at, by, name, description, nodes, summary }`。**溢出策略是拒绝，不是自动丢最旧**：追加第 21 个版本时报 `invalid-transition`（提示先裁剪旧版本）。这与 `maxExecutions` 那种"超限丢最旧并标 `executionsTruncated`"（`host/config.js:70-72`、`host/domain.js:241`）**故意不同**——执行观测丢了无所谓，模板版本丢了就违反 I2。
+- `versions`（**历史版本**数组，从旧到新，**当前版不在其中**；有界，上限 20 条——它是审计尾巴、不是运行参数，所以不进 `Config`，与可配的 `maxExecutions` 不同）：每项 `{ revision, at, by, name, description, nodes, summary }`。**溢出策略是拒绝，不是自动丢最旧**：追加第 21 个版本时报 `invalid-transition`（提示先裁剪旧版本）。这与 `maxExecutions` 那种"超限丢最旧并标 `executionsTruncated`"（`host/config.js:70-72`、`host/domain.js:250`）**故意不同**——执行观测丢了无所谓，模板版本丢了就违反 I2。
 - `archived`（布尔）、`updatedBy`、`supersedes`（`cloneTemplate` 的来源模板 id）。
 - `changes`（`{ at, by, revision, summary }` 的有界数组，上限同上）。`summary` 由服务端按 diff 生成（`改名 A→B`、`+节点 C`、`-节点 D`、`依赖 D→E`、`checklist 2→3`），面板直接展示。
 
-**需求记录**（`host/domain.js` 的 `requirementRecordSchema`）新增可选字段：`templateRevision`（正整数，钉住所用模板版本）。**三个写入点必须一起改，缺一处机制 1 就自相矛盾**：① **新建时写当前版本**——`createRequirement` 的记录字面量今天只有 `templateId`/`nodeId`（`host/service.js:1595-1601`），必须补 `templateRevision = template.revision ?? 1`，否则模板改到 v2 之后新建的需求会被读成钉在 v1、继续跑旧流程（与机制 1 的意图正相反）；② **两条改绑路径必须重置钉子**——`updateRequirement{templateId}`（`:2422-2439`）与 `deleteTemplate` 的 `force` 改绑（`:3245-3268`）都要把钉子写到**目标模板的当前 `revision`**，否则旧版本号在新模板里找不到，该需求会永久 `invalid-transition`（present/advance 全废），或撞上新模板同号版本而静默用错版本；③ **"缺省读作 1"只适用于本次改动之前写入的存量记录**，新写入一律显式带字段。
+**需求记录**（`host/domain.js` 的 `requirementRecordSchema`）新增可选字段：`templateRevision`（正整数，钉住所用模板版本）。**三个写入点必须一起改，缺一处机制 1 就自相矛盾**：① **新建时写当前版本**——`createRequirement` 的记录字面量今天只有 `templateId`/`nodeId`（`host/service.js:1635-1641`），必须补 `templateRevision = template.revision ?? 1`，否则模板改到 v2 之后新建的需求会被读成钉在 v1、继续跑旧流程（与机制 1 的意图正相反）；② **两条改绑路径必须重置钉子**——`updateRequirement{templateId}`（`:2422-2439`）与 `deleteTemplate` 的 `force` 改绑（`:3245-3268`）都要把钉子写到**目标模板的当前 `revision`**，否则旧版本号在新模板里找不到，该需求会永久 `invalid-transition`（present/advance 全废），或撞上新模板同号版本而静默用错版本；③ **"缺省读作 1"只适用于本次改动之前写入的存量记录**，新写入一律显式带字段。
 
-**为什么不用升版本号**：`version`（schema 必填、恒 1，`host/templates.js:162`）是历史遗留字段，不承担管理语义；**管理版本是 `revision`**。存档格式**不升** `requirementBoardDomain.version`（现为 2，`host/domain.js:361`）：这套介质按精确版本戳校验且没有迁移（§3.1），升号会让现有库整库打不开——**sqlite 对版本戳做精确比较且完全不看 `compatibleVersions`**（`packages/storage/storage-sqlite/src/index.ts:100-110`），JSON 整单元格式同样直接拒绝（`packages/storage/storage-json/src/format.ts:66-71`），而 `compatibleVersions` 只对 per-record 文档生效（`packages/storage/storage-json/src/per-record-unit.ts:106`）；看板没声明 `layout`，默认就是 `single`（`packages/storage/storage-domain/src/spec.ts:41-47`）。加**可选字段**不升版本号——代码里有现成先例：`images` 就是后加的，`host/domain.js:22-26` 明确写了那次为什么不升。代价是这次改动**只能前进不能后退**：新版本写过的记录带新字段，旧构建的 `.strict()` schema 会拒绝打开；回滚必须连数据一起回（口径同 R-ROLLOUT.md §9.1 的备份/回滚）。
+**为什么不用升版本号**：`version`（schema 必填、恒 1，`host/templates.js:162`）是历史遗留字段，不承担管理语义；**管理版本是 `revision`**。存档格式**不升** `requirementBoardDomain.version`（现为 2，`host/domain.js:370`）：这套介质按精确版本戳校验且没有迁移（§3.1），升号会让现有库整库打不开——**sqlite 对版本戳做精确比较且完全不看 `compatibleVersions`**（`packages/storage/storage-sqlite/src/index.ts:100-110`），JSON 整单元格式同样直接拒绝（`packages/storage/storage-json/src/format.ts:66-71`），而 `compatibleVersions` 只对 per-record 文档生效（`packages/storage/storage-json/src/per-record-unit.ts:106`）；看板没声明 `layout`，默认就是 `single`（`packages/storage/storage-domain/src/spec.ts:41-47`）。加**可选字段**不升版本号——代码里有现成先例：`images` 就是后加的，`host/domain.js:22-26` 明确写了那次为什么不升。代价是这次改动**只能前进不能后退**：新版本写过的记录带新字段，旧构建的 `.strict()` schema 会拒绝打开；回滚必须连数据一起回（口径同 R-ROLLOUT.md §9.1 的备份/回滚）。
 
 **存量数据零迁移**：现有模板没有 `revision`/`versions` → 读作"第 1 版、无历史"；现有需求没有 `templateRevision` → 读作"钉在第 1 版"。两者都自洽，**不需要任何回填写入**；首次追加版本（`revision` 2）时才把当时的顶层字段快照进 `versions`。
 
-**读侧解析点**：所有"拿模板节点去推导"的地方都要改成"取该需求钉住的那一版"——`advance`/`complete` 的节点判定、`recomputeNodes`、快照的 `flow` 投影、prompt 段，都要先经一个 `templateAtRevision(template, revision)`：`revision === 当前 revision` 取顶层，否则在 `versions` 里找，找不到即 `invalid-transition`（说明 I2 的裁剪门禁被绕过）。这是本节改动面最大的一处。**规则可 grep：任何接收 `template` 并读顶层 `.nodes` 的函数，其调用方都必须先经 `templateAtRevision`**；已知点位（实现时以此为准，并再 grep 一遍 `.nodes`）：`host/service.js:205-250`（`buildFlow`/`presentRequirement`，即快照 `flow` 投影的本体）、`:268-309`（`summarize` 的 `nodeName`/`nodeIndex`/`nodeCount`）、`:3619-3627`（prompt 段的节点名）、`:2422-2439` 与 `:3245-3268`（两条改绑路径）、`host/flow.js:139-143`/`:173`/`:179-191`/`:231-233`/`:254`、`host/templates.js:273`/`:286-289`/`:298-299`。
+**读侧解析点**：所有"拿模板节点去推导"的地方都要改成"取该需求钉住的那一版"——`advance`/`complete` 的节点判定、`recomputeNodes`、快照的 `flow` 投影、prompt 段，都要先经一个 `templateAtRevision(template, revision)`：`revision === 当前 revision` 取顶层，否则在 `versions` 里找，找不到即 `invalid-transition`（说明 I2 的裁剪门禁被绕过）。这是本节改动面最大的一处。**规则可 grep：任何接收 `template` 并读顶层 `.nodes` 的函数，其调用方都必须先经 `templateAtRevision`**；已知点位（实现时以此为准，并再 grep 一遍 `.nodes`）：`host/service.js:230-275`（`buildFlow`/`presentRequirement`，即快照 `flow` 投影的本体）、`:268-309`（`summarize` 的 `nodeName`/`nodeIndex`/`nodeCount`）、`:3619-3627`（prompt 段的节点名）、`:2422-2439` 与 `:3245-3268`（两条改绑路径）、`host/flow.js:139-143`/`:173`/`:179-191`/`:231-233`/`:254`、`host/templates.js:273`/`:286-289`/`:298-299`。
 
 **钉子指向不存在的版本时的修复口径**：与既有的启动 sweep `sweepDangling()`（DESIGN §4.1:189）同路——**开域时修复**：把该需求的钉子归一到当前 `revision`、按 I4 归一节点并写一条 `retemplate`（note 记 `pinned revision <n> missing → <m>`），用户可见行为是"这条需求被打回最新版"，而不是永久打不开。B2 修好之后，这个状态只可能来自外部直接改库，所以修复是兜底、不是常规路径。
 
@@ -481,8 +486,8 @@ Host 侧只需在 `res.write` 上推事件，不引入 WebSocket 依赖。SSE �
 |---|---|
 | `reviseTemplate(id, patch, actor)` | **追加一个版本**。`patch = { name?, description?, nodes?, expectedRevision? }`；内置拒绝（`invalid-transition`，I6）；节点结构复用 `normalizeTemplate`（`host/templates.js:137`）校验；`expectedRevision` 不符 → `conflict`；成功后 `revision + 1`、把旧顶层快照推进 `versions`、`changes` 追加一条摘要、写 `updatedBy`/`updatedAt`、**显式 `#bumpRevision()`**；**不碰任何需求**（I3）；返回模板派生视图（含"仍有 N 条钉在旧版"——这是信息，不是门禁）。**模型侧要改模板名/描述就走这个动作**（即追加一个只改名字的版本；工具面没有 `metadata`，见 11.7） |
 | `setTemplateMetadata(id, { name?, description? }, actor)` | **原地改**模板级名字/描述：不动 `revision`、不进历史（它不改变任何需求的流程与进度）。内置拒绝。这条划定了"元数据 vs 结构"的分界线：**节点数组的任何变动一律走 `reviseTemplate`**。**只由面板调用**（模型侧改名走 `revise`，见 11.7）。`versions` 每项记的是"当时顶层的名字"，所以原地改名之后历史版本的名称与顶层会不一致——这是有意的（历史版本记当时的实况） |
-| `migrateRequirementsToRevision(id, revision, { requirementIds? }, actor, force?)` | 把钉在旧版的需求迁到 `revision`（缺省最新版）。**必须事前列出受影响需求**：逐条给 `{ id, nodeId, next, clearedChecks }`；未指定 `requirementIds` 即"全部钉在旧版的需求"，此时必须带 `force`；目标 `revision` 必须存在（等于当前版或落在 `versions` 里），归档模板同样拒绝（`invalid-transition`）；每条改动写 `retemplate` 历史（I4），**note 用可辨前缀**（迁移记 `migrated to revision <n> from <m>`，与今天改绑的 `bound to template <id>`（`host/service.js:2491`）区分）——`action` 沿用 `retemplate` 足够，`host/domain.js:83-92` 的 `action` 是开放非空字符串 |
-| `pruneTemplateVersion(id, revision, actor)` | 裁剪一个历史版本。`revision` 必须 < 当前且存在于 `versions`；**被钉住即拒绝**（`in-use` + 需求清单，I2）；**判定集合与删除的引用集合相同**——所有 `templateId` 匹配的需求，含 done/archived（`host/service.js:3279`），只看在办会漏掉归档需求，它们下次 open 就不可解析。**面板独有**，不进工具面（11.7） |
+| `migrateRequirementsToRevision(id, revision, { requirementIds? }, actor, force?)` | 把钉在旧版的需求迁到 `revision`（缺省最新版）。**必须事前列出受影响需求**：逐条给 `{ id, nodeId, next, clearedChecks }`；未指定 `requirementIds` 即"全部钉在旧版的需求"，此时必须带 `force`；目标 `revision` 必须存在（等于当前版或落在 `versions` 里），归档模板同样拒绝（`invalid-transition`）；每条改动写 `retemplate` 历史（I4），**note 用可辨前缀**（迁移记 `migrated to revision <n> from <m>`，与今天改绑的 `bound to template <id>`（`host/service.js:2532`）区分）——`action` 沿用 `retemplate` 足够，`host/domain.js:83-92` 的 `action` 是开放非空字符串 |
+| `pruneTemplateVersion(id, revision, actor)` | 裁剪一个历史版本。`revision` 必须 < 当前且存在于 `versions`；**被钉住即拒绝**（`in-use` + 需求清单，I2）；**判定集合与删除的引用集合相同**——所有 `templateId` 匹配的需求，含 done/archived（`host/service.js:3320`），只看在办会漏掉归档需求，它们下次 open 就不可解析。**面板独有**，不进工具面（11.7） |
 | `archiveTemplate(id, { archived }, actor)` | 归档/恢复。内置拒绝（I6）；归档后不出现在"新建需求"的选择器里，但 `listTemplates({ includeArchived: true })` 可见；被引用仍可归档（它仍是那些需求的当前流程）；保护 `config.defaultTemplateId` |
 | `cloneTemplate(id, { name }, actor)` | 以现有模板（含内置、按当前版）为底新建自定义模板，`supersedes` 记来源 id——改内置流程的正路（I6） |
 | `previewRevisionImpact(id, patch)` | **只读**：算出"若按这个 patch 追加版本，哪些需求仍钉在旧版、若迁移各自会变成什么样"，供面板确认对话框用。**工具面不加 `preview` 动作**：模型从 `migrate`/`prune` 失败的 `details`（11.8）拿同一份明细——两侧同源 |
@@ -490,9 +495,9 @@ Host 侧只需在 `res.write` 上推事件，不引入 WebSocket 依赖。SSE �
 
 **`patch.nodes` 是完整的目标节点列表（全量替换，不做增量合并）**：带 `id` 的条目按 id 更新，不带的按创建规则派生 id（`host/templates.js:83`），`id` 未出现在新数组里的节点即被删除。这样"删节点 + 改依赖"在同一次 patch 里完成、不需要两步，也没有合并语义的二义性；代价是调用方必须回传整份节点（面板表单本来就持有整份）。
 
-**并发判据**：`expectedRevision` 指模板记录**当前**的 `revision`（不是文档 `global.revision`，也不是需求的 `rev`）；缺省即不做 CAS（与需求侧 `#mutateRequirement` 的缺省语义一致，`host/service.js:1092`），不符时报 `conflict` 并给 `details = { expected, current }`（同需求侧写法 `:1069-1072`）。追加是唯一会撞车的地方：两个编辑者同时追加，后者必须 `conflict`，而不是悄悄把版本推成 3。
+**并发判据**：`expectedRevision` 指模板记录**当前**的 `revision`（不是文档 `global.revision`，也不是需求的 `rev`）；缺省即不做 CAS（与需求侧 `#mutateRequirement` 的缺省语义一致，`host/service.js:1124`），不符时报 `conflict` 并给 `details = { expected, current }`（同需求侧写法 `:1069-1072`）。追加是唯一会撞车的地方：两个编辑者同时追加，后者必须 `conflict`，而不是悄悄把版本推成 3。
 
-**字段保全**：`normalizeTemplate` 仍用来校验并塑造**新版本的** `name`/`description`/`nodes`，但落盘记录必须显式带回 `id`/`createdAt`/`builtin`/`createdBy`/`archived`/`changes`/`supersedes`，并自行把旧顶层推进 `versions`、`revision` 取旧值 +1。直接照搬它的返回值落盘会静默重置 `createdAt`（`host/templates.js:164` 的 `input.createdAt || now`）并丢掉 `createdBy`（`host/service.js:2919` 是在它之外补写的）。
+**字段保全**：`normalizeTemplate` 仍用来校验并塑造**新版本的** `name`/`description`/`nodes`，但落盘记录必须显式带回 `id`/`createdAt`/`builtin`/`createdBy`/`archived`/`changes`/`supersedes`，并自行把旧顶层推进 `versions`、`revision` 取旧值 +1。直接照搬它的返回值落盘会静默重置 `createdAt`（`host/templates.js:164` 的 `input.createdAt || now`）并丢掉 `createdBy`（`host/service.js:2960` 是在它之外补写的）。
 
 **必须显式 `#bumpRevision()`**：`createTemplate`（`:2883`）与 `deleteTemplate`（`:3271`）都调它，而 `#mutateRequirement` 只在被走到时才 bump（`:1085`）。追加版本、改元数据、裁剪都可能完全不经过需求写路径——不补这一步，其它打开的面板收不到 `changed`。
 
@@ -500,15 +505,15 @@ Host 侧只需在 `res.write` 上推事件，不引入 WebSocket 依赖。SSE �
 
 **默认模板的解析与保护（G4 与存量坏配置）**：写侧——`deleteTemplate` 与 `archiveTemplate` 都拒绝对 `config.defaultTemplateId` 指向的模板动手（`invalid-transition`）。读侧——省略 `templateId` 时的解析链为 `config.defaultTemplateId` → 内置 `tpl-standard` → `templates` 表首个记录，仍无则 `not-found`（保持 loud）。这条链兜住已经坏掉的存量配置：`deleteTemplate` 自述非事务（`:3216-3218` 的 consecutive chain writes），中途失败会留下部分改绑，因此 **fallback 必须在任何写之前先解析**，解析不到就直接失败、一个需求都不改；重跑删除是幂等的（已改绑的需求不再属于引用集合）。
 
-**归档的保护范围与可见性**：`archiveTemplate` 与删除同码保护 `config.defaultTemplateId`；显式 `templateId` 不接受归档模板（`create`/`update` 都报 `invalid-transition`），而 `getTemplate` 仍返回归档模板（面板要能看详情）；`listTemplates` 默认不含归档、`includeArchived: true` 才含（工具与面板同参）。`snapshot()` 直接复用 `listTemplates().items`（`host/service.js:3597`），归档对面板列表的可见性由这一处决定。
+**归档的保护范围与可见性**：`archiveTemplate` 与删除同码保护 `config.defaultTemplateId`；显式 `templateId` 不接受归档模板（`create`/`update` 都报 `invalid-transition`），而 `getTemplate` 仍返回归档模板（面板要能看详情）；`listTemplates` 默认不含归档、`includeArchived: true` 才含（工具与面板同参）。`snapshot()` 直接复用 `listTemplates().items`（`host/service.js:3638`），归档对面板列表的可见性由这一处决定。
 
-**`listTemplates` 的投影必须扩字段**：它逐字段枚举（`:2837-2852`），新字段要加进去才会到面板：`revision`/`updatedBy`/`archived`/版本条数随列表下发；`versions`/`changes` **不下发到快照**（每次 `changed` 帧都重读整份快照，历史版本与审计尾巴会让它变肥），只在 `getTemplate` 的完整记录里给。面板抽屉因此两步：`template.list` 拿列表与 `revision`，打开详情时 `template.get` 取版本历史与 `changes`。需求的钉住版本要随需求视图下发，而且**两处口径不同**：`listRequirements` **确定是**逐条经 `summarize`（`host/service.js:1455-1462` → `:268-309` 的手写对象字面量），所以 `templateRevision` 必须加进 `summarize`；而 `snapshot()` 的需求对象走 `getRequirement` → `#present` → `presentRequirement`，其 `...requirement` 展开（`:203`）会自动带上新字段。别只改一处。
+**`listTemplates` 的投影必须扩字段**：它逐字段枚举（`:2837-2852`），新字段要加进去才会到面板：`revision`/`updatedBy`/`archived`/版本条数随列表下发；`versions`/`changes` **不下发到快照**（每次 `changed` 帧都重读整份快照，历史版本与审计尾巴会让它变肥），只在 `getTemplate` 的完整记录里给。面板抽屉因此两步：`template.list` 拿列表与 `revision`，打开详情时 `template.get` 取版本历史与 `changes`。需求的钉住版本要随需求视图下发，而且**两处口径不同**：`listRequirements` **确定是**逐条经 `summarize`（`host/service.js:1494-1501` → `:268-309` 的手写对象字面量），所以 `templateRevision` 必须加进 `summarize`；而 `snapshot()` 的需求对象走 `getRequirement` → `#present` → `presentRequirement`，其 `...requirement` 展开（`:203`）会自动带上新字段。别只改一处。
 
 `deleteTemplate` 保留为受控的硬删路径，补三处：拒绝删除 `config.defaultTemplateId` 指向的模板（`invalid-transition`，与内置同码）；改绑前先解析 fallback（解析不到就失败且不改任何需求）；`force` 改绑时为每个受影响需求写一条 `retemplate` 历史（note 记 `template <id> deleted → <fallback>`、`force: true`）。注意它与机制 1 的关系：追加版本不动需求，**删除会作废所有钉住的版本并改绑全部引用**，所以它仍是最重的动作——面板提示应优先引导用归档。
 
 ### 11.6 编辑对在跑需求的影响（规则表）
 
-**在办**指 `status` 既不是 `done` 也不是 `archived`（即 §4.1 的 `open`，含 `blocked`）：门禁只看在办需求；而删除的引用集合仍是"所有 `templateId` 匹配的需求"（含 done/archived，现状 `host/service.js:3279`），因为删除会把它们一起改绑——两个集合的差别是有意的，不要合并。
+**在办**指 `status` 既不是 `done` 也不是 `archived`（即 §4.1 的 `open`，含 `blocked`）：门禁只看在办需求；而删除的引用集合仍是"所有 `templateId` 匹配的需求"（含 done/archived，现状 `host/service.js:3320`），因为删除会把它们一起改绑——两个集合的差别是有意的，不要合并。
 
 **机制 1 把"改模板"和"动需求"彻底分开**：门禁只落在**会改变需求**的三个操作上（迁移、裁剪、删除）；追加版本与元数据编辑一律放行。
 
@@ -526,11 +531,11 @@ Host 侧只需在 `res.write` 上推事件，不引入 WebSocket 依赖。SSE �
 
 ### 11.7 工具面、skill 与面板
 
-- `flow_template` 增加 `revise` / `migrate` / `archive` / `clone`；**不加 `prune`**（事务性清理，面板独有）与 `preview`（理由见 11.5）。`TEMPLATE_PARAMETERS` 是 `additionalProperties: false`（`host/tools.js:108-130`），所以新参数走**平铺字段**、与现有 `create` 风格一致：`action` 枚举加这四个，参数面为 `id`/`name`/`description`/`nodes`/`expectedRevision`/`revision`/`requirementIds`/`force`/`archived`/`includeArchived`；**不引入嵌套 `patch` 对象**（那会同时改掉 `create` 的形状）。工具描述必须写清两件事：**`revise` 只是追加版本、不改任何需求**；**`migrate` 才会动需求、且要先看受影响清单**——否则模型会把 `revise` 当成"立即生效"而跳过迁移，用户会以为流程改了却没改。
+- `flow_template` 增加 `revise` / `migrate` / `archive` / `clone`；**不加 `prune`**（事务性清理，面板独有）与 `preview`（理由见 11.5）。`TEMPLATE_PARAMETERS` 是 `additionalProperties: false`（`host/tools.js:112-134`），所以新参数走**平铺字段**、与现有 `create` 风格一致：`action` 枚举加这四个，参数面为 `id`/`name`/`description`/`nodes`/`expectedRevision`/`revision`/`requirementIds`/`force`/`archived`/`includeArchived`；**不引入嵌套 `patch` 对象**（那会同时改掉 `create` 的形状）。工具描述必须写清两件事：**`revise` 只是追加版本、不改任何需求**；**`migrate` 才会动需求、且要先看受影响清单**——否则模型会把 `revise` 当成"立即生效"而跳过迁移，用户会以为流程改了却没改。
 - **工具面不加 `metadata` 动作**：模型要改模板名/描述就走 `revise`（追加版本）；`setTemplateMetadata` 只由面板调用。两侧语义不同是有意的——面板是人在改标签（不进历史），模型是在改流程（要留痕）。
-- **工具面 `get` 必须投影掉 `versions`/`changes`**：`getTemplate` 今天返回原始记录（`host/service.js:2903-2904`），带上版本历史后会撞 `renderJson` 的 6000 字符截断（`host/tools.js:27-31`），而那句截断文案还指向别的工具（`read one requirement with action get`，`:31`；模板工具共用同一个 `renderJson`，`:352`）。模型侧 `get` 给"当前 `revision` + 当前节点 + 版本条数"，完整历史只走面板 HTTP `template.get`。
+- **工具面 `get` 必须投影掉 `versions`/`changes`**：`getTemplate` 今天返回原始记录（`host/service.js:2944-2945`），带上版本历史后会撞 `renderJson` 的 6000 字符截断（`host/tools.js:27-31`），而那句截断文案还指向别的工具（`read one requirement with action get`，`:31`；模板工具共用同一个 `renderJson`，`:352`）。模型侧 `get` 给"当前 `revision` + 当前节点 + 版本条数"，完整历史只走面板 HTTP `template.get`。
 - 下游文本同步项：`ROLE-DISPATCH.md` §7.2 与**所有副本**的第 15 条（`.agents/skills/requirement-board-tasks/SKILL.md`、随包发布的 `skills/requirement-board-tasks/SKILL.md`、部署副本里那份）要改成"模板流程要改进时用 `revise` 追加版本（不动在跑需求），再把相关需求 `migrate` 过去；不要为避碎片化而新建模板"。仓库内三份（`ROLE-DISPATCH.md` §7.2、`.agents/skills/…` 与随包 `skills/…`）已随宿主侧落地同批改准；**部署副本里那份要等同步部署副本时一起更新**。
-- 面板：把 `client.js:2977` 的"新建流程模板"扩展为模板抽屉——列表（内置标记、节点数、`revision`、`updatedAt`、在用需求数、**仍钉旧版的条数**）+ 详情（复用 §4.5 的 `FlowChart` 只读预览 + 版本历史列表，每条版本标"被几条需求钉住"）+ 编辑表单（节点增删改、前置、完成条件、checklist 行编辑；**保存＝追加版本**）+ 迁移对话框（列出受影响需求与各自变化，勾选要迁的）+ 归档/删除（删除要列引用需求）+ 裁剪（被钉住时禁用并显示原因）。编辑态留在客户端内存、不落盘，避免"半成品模板"被新需求选中。
+- 面板：把 `client.js:3065` 的"新建流程模板"扩展为模板抽屉——列表（内置标记、节点数、`revision`、`updatedAt`、在用需求数、**仍钉旧版的条数**）+ 详情（复用 §4.5 的 `FlowChart` 只读预览 + 版本历史列表，每条版本标"被几条需求钉住"）+ 编辑表单（节点增删改、前置、完成条件、checklist 行编辑；**保存＝追加版本**）+ 迁移对话框（列出受影响需求与各自变化，勾选要迁的）+ 归档/删除（删除要列引用需求）+ 裁剪（被钉住时禁用并显示原因）。编辑态留在客户端内存、不落盘，避免"半成品模板"被新需求选中。
 - 新文案进 `client.js` 的两份 locale 字典（键集必须一致，`client-smoke` 有断言）。
 
 ### 11.8 失败码（沿用现有词汇，不新增）

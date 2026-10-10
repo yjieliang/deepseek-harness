@@ -55,6 +55,32 @@ window.__ModuleLoader__.load({
      */
     const imageId = image => (typeof image === 'string' ? image : image?.id)
 
+    /**
+     * One fetched page split into one group per project.
+     *
+     * Groups are ordered by name so two renders of an unchanged board agree, and
+     * the requirements belonging to no project come last: they are the ones a
+     * reader is most likely to file next, not the board's default reading.
+     * @param items - requirements in the order the Host listed them.
+     * @param emptyLabel - name of the group holding the requirements with no project.
+     * @returns `[{ key, label, items }]`, in group order; empty for an empty page.
+     */
+    const projectGroups = (items, emptyLabel) => {
+      const groups = new Map()
+      for (const item of items) {
+        const name = item.project ?? ''
+        if (!groups.has(name)) groups.set(name, [])
+        groups.get(name).push(item)
+      }
+      return [...groups.entries()]
+        .sort(([a], [b]) => (a === '' ? 1 : (b === '' ? -1 : a.localeCompare(b))))
+        .map(([name, groupItems]) => ({
+          key: name === '' ? PROJECT_UNASSIGNED : name,
+          label: name === '' ? emptyLabel : name,
+          items: groupItems,
+        }))
+    }
+
     /** Every user-visible string the page renders. */
     const DICT = {
       en: {
@@ -118,6 +144,10 @@ window.__ModuleLoader__.load({
         summary: 'Brief',
         summaryHint: 'Say what is wanted and why it matters in one or two plain sentences — leave the implementation detail to the description.',
         summaryEmpty: 'This requirement has no brief: it was written before the field existed.',
+        project: 'Project',
+        projectHint: 'A short name for the effort this belongs to — the same spelling for every requirement in it, and empty when it belongs to none.',
+        projectUnassigned: 'No project',
+        groupProject: 'Group by project',
         description: 'Description',
         titleField: 'Title',
         projectProgress: 'Project progress',
@@ -504,6 +534,10 @@ window.__ModuleLoader__.load({
         summary: '简述',
         summaryHint: '用一两句大白话说清楚要做什么、为什么值得做；实现细节留给下面的描述。',
         summaryEmpty: '这条需求还没有简述：它写在简述字段出现之前。',
+        project: '项目',
+        projectHint: '给这摊活起个短名字，同一个项目里每条需求的写法保持一致；不属于任何项目就留空。',
+        projectUnassigned: '未归属',
+        groupProject: '按项目分组',
         description: '描述',
         titleField: '标题',
         projectProgress: '项目进度',
@@ -894,6 +928,7 @@ window.__ModuleLoader__.load({
       priority: 'filterPriority',
       role: 'filterRole',
       kind: 'filterKind',
+      project: 'project',
     }
 
     /**
@@ -902,7 +937,27 @@ window.__ModuleLoader__.load({
      * session whose reading of the hand-off pool is asked for. Passing a key the
      * route ignores would look like it worked, so the sets are kept apart.
      */
-    const HOST_FILTER_KEYS = ['session', 'owner', 'status', 'priority', 'kind', 'role', 'templateId', 'query', 'claimable', 'me']
+    const HOST_FILTER_KEYS = ['session', 'owner', 'status', 'priority', 'kind', 'role', 'templateId', 'project', 'query', 'claimable', 'me']
+
+    /**
+     * Project select value standing for "belongs to no project".
+     *
+     * A `<select>` value is a string, so the empty one cannot mean both "every
+     * project" and the Host's own spelling of the unassigned filter — the empty
+     * string. The sentinel names the second state in the control and is mapped
+     * back to `''` before the filter leaves the page.
+     */
+    const PROJECT_UNASSIGNED = '__unassigned__'
+
+    /**
+     * DOM ids of the project suggestion lists.
+     *
+     * The create dialog and the inline edit form each own one: both can be on
+     * screen at once, and two elements sharing an id would leave one input
+     * reading the other's suggestions.
+     */
+    const PROJECT_SUGGESTIONS_CREATE = 'rb-project-suggestions-create'
+    const PROJECT_SUGGESTIONS_EDIT = 'rb-project-suggestions-edit'
 
     /** Role select value standing for "the requirement names no role". */
     /**
@@ -1064,8 +1119,9 @@ window.__ModuleLoader__.load({
         roles: { items: [], unregistered: [] },
         claimableIds: null,
         stats: null,
+        projects: [],
         queues: [],
-        filter: { session: '', owner: '', status: 'open', priority: '', query: '', role: '', kind: '', claimable: false, me: '' },
+        filter: { session: '', owner: '', status: 'open', priority: '', query: '', role: '', kind: '', project: undefined, claimable: false, me: '' },
         connected: false,
         everConnected: false,
         auth: '',
@@ -1184,6 +1240,13 @@ window.__ModuleLoader__.load({
         const query = new URLSearchParams()
         for (const key of HOST_FILTER_KEYS) {
           const value = filter[key]
+          // The project filter has three states and its empty one is a filter of
+          // its own — the requirements belonging to no project — so it travels
+          // even when empty instead of being dropped like a blank text filter.
+          if (key === 'project') {
+            if (value !== undefined && value !== null) query.set(key, String(value))
+            continue
+          }
           if (value === '' || value === false || value === undefined || value === null) continue
           query.set(key, String(value))
         }
@@ -1212,6 +1275,11 @@ window.__ModuleLoader__.load({
             roles: payload.data.roles ?? { items: [], unregistered: [] },
             claimableIds,
             stats: payload.data.stats,
+            // The board's project vocabulary, read across every requirement rather
+            // than the filtered page: a filter that narrowed the list must not also
+            // take away the names needed to leave it. A Host that does not report
+            // it falls back to the names on the page.
+            projects: Array.isArray(payload.data.projects) ? payload.data.projects : [],
             // Every session's queue in the order the service will take it. The
             // panel renders positions from this projection instead of ordering
             // reservations itself, so a receipt's `head` and the queue view name
@@ -1571,14 +1639,17 @@ body:not([data-ds-dark-theme]) .rb-root {
 .rb-live-off { background:var(--dsw-alias-label-tertiary); box-shadow:none; animation:none; }
 .rb-count-chip { font-family:var(--rb-num); font-size:11px; font-variant-numeric:tabular-nums;
   color:var(--dsw-alias-label-tertiary); }
-/* Native select and textarea keep their own element, aligned to the Input
- * primitive's frame so a field looks the same whichever element draws it. */
-.rb-select, .rb-textarea { font:inherit; font-size:14px; line-height:22px; color:var(--dsw-alias-label-primary);
+/* Native select, textarea, and the project input keep their own element,
+ * aligned to the Input primitive's frame so a field looks the same whichever
+ * element draws it. The project input is a plain element because it carries a
+ * suggestion list the primitive does not forward. */
+.rb-select, .rb-textarea, .rb-input { font:inherit; font-size:14px; line-height:22px; color:var(--dsw-alias-label-primary);
   background:var(--dsw-alias-bg-layer-1); border:.5px solid var(--dsw-alias-border-l4);
   border-radius:var(--dsw-radius-md); padding:0 8px; height:32px; min-width:0; }
-.rb-select:focus, .rb-textarea:focus { border-color:var(--dsw-alias-state-business-primary); outline:none; }
-.rb-select::placeholder, .rb-textarea::placeholder { color:var(--dsw-alias-label-dimmed); }
+.rb-select:focus, .rb-textarea:focus, .rb-input:focus { border-color:var(--dsw-alias-state-business-primary); outline:none; }
+.rb-select::placeholder, .rb-textarea::placeholder, .rb-input::placeholder { color:var(--dsw-alias-label-dimmed); }
 .rb-textarea { width:100%; min-height:64px; height:auto; padding:6px 8px; resize:vertical; box-sizing:border-box; }
+.rb-input { width:100%; box-sizing:border-box; }
 
 /* ---------- Two-column body ---------- */
 .rb-body { display:flex; gap:16px; flex:1 1 auto; min-height:0; padding:14px 18px 18px; }
@@ -1917,6 +1988,21 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   color:var(--dsw-alias-label-secondary); display:-webkit-box; -webkit-line-clamp:2;
   -webkit-box-orient:vertical; overflow:hidden; }
 .rb-textarea-brief { min-height:58px; }
+
+/* ---------- Project ----------
+   The project is the label a reader sorts a crowded board by, so it leads the
+   card's metadata row as a quiet capsule and names each grouped section. The
+   group header states its own count, which is what a reader compares projects
+   by; the unassigned group carries the same frame with a dimmed name. */
+.rb-card-project { display:inline-flex; align-items:center; height:18px; padding:0 6px;
+  border-radius:var(--dsw-radius-sm); background:var(--rb-accent-soft); color:var(--rb-accent);
+  font-size:11px; line-height:1; white-space:nowrap; max-width:140px; overflow:hidden;
+  text-overflow:ellipsis; }
+.rb-group { display:flex; flex-direction:column; gap:8px; }
+.rb-group-head { display:flex; align-items:baseline; gap:6px; padding:2px 2px 0; }
+.rb-group-name { font-size:12px; font-weight:500; color:var(--dsw-alias-label-primary);
+  overflow-wrap:anywhere; }
+.rb-group-n { font-family:var(--rb-num); font-size:11px; color:var(--dsw-alias-label-tertiary); }
 
 /* ---------- Adaptation ---------- */
 @media (max-width:1240px) {
@@ -2807,10 +2893,11 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
     }
 
     /** The requirement creation dialog. */
-    function CreateRequirementDialog({ templates, defaultTemplateId, onClose, onSubmit, onUpload, busy, t }) {
+    function CreateRequirementDialog({ templates, defaultTemplateId, projects, onClose, onSubmit, onUpload, busy, t }) {
       const [form, setForm] = useState({
         title: '',
         summary: '',
+        project: '',
         description: '',
         priority: 'normal',
         owner: '',
@@ -2939,6 +3026,7 @@ key: 'ok',
             onClick: () => onSubmit({
               title: form.title.trim(),
               summary: form.summary.trim(),
+              project: form.project.trim(),
               description: form.description.trim(),
               priority: form.priority,
               owner: form.owner.trim(),
@@ -3012,6 +3100,21 @@ key: 'ok',
           value: form.templateId,
           onChange: event => set({ templateId: event.target.value }),
         }, templates.map(template => h('option', { key: template.id, value: template.id }, `${template.name} (${template.nodes.length} ${t('nodeCount')})`)))),
+        // The project is free text with the board's own names offered as
+        // suggestions: the field is a label rather than a reference, so a typo
+        // makes a group of its own instead of being refused, and the hint is what
+        // keeps one project spelled one way.
+        h(Field, { label: t('project') },
+          h('input', {
+            className: 'rb-input',
+            name: 'requirement.project',
+            value: form.project,
+            list: PROJECT_SUGGESTIONS_CREATE,
+            maxLength: 60,
+            onChange: event => set({ project: event.target.value }),
+          }),
+          h('datalist', { id: PROJECT_SUGGESTIONS_CREATE }, projects.map(name => h('option', { key: name, value: name }))),
+          h('div', { className: 'rb-image-hint' }, t('projectHint'))),
         h(Field, { label: t('sessions') }, h(Input, {
           name: 'requirement.sessions',
           value: form.sessions,
@@ -4063,12 +4166,16 @@ name: 'delegate.submit',
      * or blocker may sit outside the fetched page, and the Host refuses a link it
      * cannot resolve (`missing-target`).
      */
-    function EditFields({ requirement, roleOptions, busy, onSave, onCancel, t }) {
+    function EditFields({ requirement, roleOptions, projects, busy, onSave, onCancel, t }) {
       const hasParent = requirement.parentId !== undefined
       const hasBlocks = Array.isArray(requirement.blocksOn)
+      // A Host that does not report the project must not be handed an empty one:
+      // the field would clear a fact it never showed.
+      const hasProject = requirement.project !== undefined
       const [draft, setDraft] = useState({
         priority: requirement.priority,
         role: requirement.role === '' ? ROLE_NONE : requirement.role,
+        project: hasProject ? requirement.project : '',
         parentId: hasParent ? requirement.parentId ?? '' : '',
         blocksOn: hasBlocks ? requirement.blocksOn.join(', ') : '',
       })
@@ -4087,6 +4194,17 @@ name: 'delegate.submit',
             value: draft.role,
             onChange: event => setDraft({ ...draft, role: event.target.value }),
           }, roleOptions.map(option => h('option', { key: option.value, value: option.value }, option.label))))),
+        hasProject ? h('div', { className: 'rb-row' },
+          h(Field, { label: t('project') },
+            h('input', {
+              className: 'rb-input',
+              name: 'edit.project',
+              value: draft.project,
+              list: PROJECT_SUGGESTIONS_EDIT,
+              maxLength: 60,
+              onChange: event => setDraft({ ...draft, project: event.target.value }),
+            }),
+            h('datalist', { id: PROJECT_SUGGESTIONS_EDIT }, projects.map(name => h('option', { key: name, value: name }))))) : null,
         hasParent || hasBlocks ? h('div', { className: 'rb-row' },
           hasParent ? h(Field, { label: t('parentRequirement') }, h(Input, {
             name: 'edit.parentId',
@@ -4110,13 +4228,14 @@ name: 'edit.save',
             onClick: () => onSave({
               priority: draft.priority,
               role: draft.role === ROLE_NONE ? '' : draft.role,
+              ...(hasProject ? { project: draft.project.trim() } : {}),
               ...(hasParent ? { parentId: draft.parentId.trim() } : {}),
               ...(hasBlocks ? { blocksOn: draft.blocksOn.split(',').map(entry => entry.trim()).filter(entry => entry !== '') } : {})
             }),
           }, t('save'))))
     }
 
-    function RequirementDetail({ requirement, controller, run, busy, roles, roleOptions, claimableIds, me, requirements, onDelegate, onRevokeDelegation, t }) {
+    function RequirementDetail({ requirement, controller, run, busy, roles, roleOptions, projects, claimableIds, me, requirements, onDelegate, onRevokeDelegation, t }) {
       const [selectedNodeId, setSelectedNodeId] = useState(requirement.nodeId)
       const [confirmDelete, setConfirmDelete] = useState(false)
       const [editing, setEditing] = useState(false)
@@ -4309,6 +4428,7 @@ disabled: busy,
           ? h(EditFields, {
             requirement,
             roleOptions,
+            projects,
             busy,
             t,
             onCancel: () => setEditing(false),
@@ -4327,6 +4447,7 @@ disabled: busy,
             ? metaCell(t('effectivePriority'), `${requirement.effectivePriority}↑`, 'rb-meta-v-hi')
             : null,
           metaCell(t('owner'), requirement.owner === '' ? t('unassigned') : requirement.owner),
+          metaCell(t('project'), requirement.project === undefined || requirement.project === '' ? t('projectUnassigned') : requirement.project),
           metaCell(t('template'), requirement.template.name),
           metaCell(t('filterKind'), t(requirement.kind === 'decision' ? 'kindDecision' : 'kindTask')),
           metaCell(t('sessions'), requirement.sessions.length === 0 ? '—' : requirement.sessions.join(', '), 'rb-meta-v-mono'),
@@ -4540,6 +4661,14 @@ key: 'ok',
       const [selectedId, setSelectedId] = useState(null)
       const [busy, setBusy] = useState(false)
       const [view, setView] = useState('board')
+      /**
+       * Whether the board is split into one section per project.
+       *
+       * Grouping is a reading of the same rows rather than a filter, so it stays
+       * on the page: the Host is asked for nothing extra, and the requirement the
+       * reader had selected stays selected across the switch.
+       */
+      const [grouped, setGrouped] = useState(false)
       /** Every requirement the board holds, unfiltered, for the drawer's pin counts. */
       const [pins, setPins] = useState(null)
       const [pinsTruncated, setPinsTruncated] = useState(false)
@@ -4695,6 +4824,20 @@ key: 'ok',
         for (const row of state.stats?.byOwner ?? []) if (row.owner !== '(unassigned)') seen.add(row.owner)
         return [...seen]
       }, [requirements, state.stats])
+      /**
+       * The project names the filter, the group headers, and the form suggestions
+       * offer.
+       *
+       * The Host reports the board's whole vocabulary, which is what keeps a
+       * narrowed list from also narrowing the way out of it. A Host that reports
+       * none is read through the page it did send, so the control still names the
+       * projects the reader can see.
+       */
+      const projects = useMemo(() => {
+        const seen = new Set(state.projects ?? [])
+        for (const item of requirements) if (item.project !== undefined && item.project !== '') seen.add(item.project)
+        return [...seen].sort((a, b) => a.localeCompare(b))
+      }, [state.projects, requirements])
       /** Every role id the board has seen, recorded or only referenced. */
       const roleOptions = useMemo(() => {
         const seen = new Set()
@@ -4812,6 +4955,53 @@ name: `unqueue.${entry.id}`,
             disabled: busy,
             onClick: () => void clearReservation(session, entry),
           }, t('clearReservation')))
+      }
+
+      /**
+       * One board card, shared by the flat list and the grouped sections.
+       *
+       * The project tag leads the metadata row: it is the fact the reader sorts by
+       * when the board holds many requirements, and it is absent — not blank — for
+       * one that belongs to no project, so nothing renders in its place.
+       * @param item - one requirement from the fetched page.
+       */
+      const card = item => {
+        const lock = lockFacts(item.lock)
+        return h('button', {
+          key: item.id,
+          type: 'button',
+          role: 'listitem',
+          className: `rb-card${item.id === selectedId ? ' rb-card-selected' : ''}`,
+          onClick: () => setSelectedId(item.id),
+        },
+          h('div', { className: 'rb-card-title' }, item.title),
+          item.summary === undefined || item.summary === '' ? null : h('div', { className: 'rb-card-summary' }, item.summary),
+          h('div', { className: 'rb-card-meta' },
+            item.project === undefined || item.project === '' ? null : h('span', { className: 'rb-card-project' }, item.project),
+            h(StatusBadge, { status: item.status, t }),
+            h(PriorityBadge, { priority: item.priority, t }),
+            h(CriticalBadge, {
+              escalated: item.escalated,
+              effectivePriority: item.effectivePriority,
+              priority: item.priority,
+              t,
+            }),
+            h(KindBadge, { kind: item.kind, t }),
+            h(RoleBadge, { role: item.role, roles, unregistered: item.roleUnregistered === true, t }),
+            h(EligibilityBadges, { item, me: filter.me, claimableIds: state.claimableIds, t }),
+            h(GatedBadge, { gated: item.gated, blockedBy: item.blockedBy, t }),
+            h(BlocksBadge, { blocksOn: item.blocksOn, t }),
+            h(DelegatedBadge, { delegatedTo: item.delegatedTo, t }),
+            h(ReservedBadge, { reservedBy: item.reservedBy, t }),
+            h('span', null, item.progress.done === item.progress.total ? `${item.progress.total}/${item.progress.total}` : `${item.progress.done + 1}/${item.progress.total}`),
+            h('span', null, item.owner === '' ? t('unassigned') : item.owner)),
+          lock === null ? null : h('div', { className: `rb-card-meta${lock.orphaned ? ' rb-error' : ''}` },
+            h('span', null, `🔒 ${lock.holder}`),
+            h('span', null, `${t('lockHeldSince')} ${formatDuration(lock.heldMs)}`),
+            lock.orphaned ? h('span', null, t('lockOrphaned')) : null),
+          h('div', { className: 'rb-card-meta' },
+            h('span', null, item.progress.activeNode?.name ?? item.nodeId),
+            h('span', null, formatInstant(item.updatedAt))))
       }
 
       /** The queue view: each session's own order and who is next. */
@@ -4941,6 +5131,31 @@ name: 'auth.recheck',
             { value: 'task', label: t('kindTask') },
             { value: 'decision', label: t('kindDecision') },
           ]),
+          // The project control cannot use `select`: its empty value is the
+          // Host's spelling of "belongs to no project", so the option standing for
+          // "every project" needs a value of its own and the sentinel maps back to
+          // the empty string on the way out.
+          h('span', { className: 'rb-filter' },
+            h('span', { className: 'rb-field-label' }, t(FILTER_LABELS.project)),
+            h('select', {
+              className: 'rb-select',
+              name: 'project',
+              value: filter.project === undefined ? '' : (filter.project === '' ? PROJECT_UNASSIGNED : filter.project),
+              'aria-label': t(FILTER_LABELS.project),
+              onChange: event => props.setFilter({
+                project: event.target.value === ''
+                  ? undefined
+                  : (event.target.value === PROJECT_UNASSIGNED ? '' : event.target.value),
+              }),
+            },
+              h('option', { value: '' }, t('all')),
+              h('option', { value: PROJECT_UNASSIGNED }, t('projectUnassigned')),
+              projects.filter(name => name !== PROJECT_UNASSIGNED).map(name => h('option', { key: name, value: name }, name)))),
+          h(Checkbox, {
+            checked: grouped,
+            label: t('groupProject'),
+            onChange: next => setGrouped(next),
+          }),
           toggle('claimable', 'filterClaimable'),
           h('span', { className: 'rb-filter' },
             h('span', { className: 'rb-field-label' }, t('filterMe')),
@@ -4968,7 +5183,7 @@ name: 'auth.recheck',
               className: 'rb-clear',
               name: 'filter.clear',
               onClick: () => props.setFilter({
-                query: '', status: '', priority: '', owner: '', session: '', role: '', kind: '', claimable: false, me: '',
+                query: '', status: '', priority: '', owner: '', session: '', role: '', kind: '', project: undefined, claimable: false, me: '',
               }),
             }, t('clearFilters'))))
           : null,
@@ -4994,43 +5209,13 @@ name: 'auth.recheck',
                     ? t('decisionsEmpty')
                     : boardIsEmpty ? t('emptyBoard') : t('empty')))
                 : null,
-              visible.map(item => {
-                const lock = lockFacts(item.lock)
-                return h('button', {
-                  key: item.id,
-                  type: 'button',
-                  role: 'listitem',
-                  className: `rb-card${item.id === selectedId ? ' rb-card-selected' : ''}`,
-                  onClick: () => setSelectedId(item.id),
-                },
-                  h('div', { className: 'rb-card-title' }, item.title),
-                  item.summary === undefined || item.summary === '' ? null : h('div', { className: 'rb-card-summary' }, item.summary),
-                  h('div', { className: 'rb-card-meta' },
-                    h(StatusBadge, { status: item.status, t }),
-                    h(PriorityBadge, { priority: item.priority, t }),
-                    h(CriticalBadge, {
-                      escalated: item.escalated,
-                      effectivePriority: item.effectivePriority,
-                      priority: item.priority,
-                      t,
-                    }),
-                    h(KindBadge, { kind: item.kind, t }),
-                    h(RoleBadge, { role: item.role, roles, unregistered: item.roleUnregistered === true, t }),
-                    h(EligibilityBadges, { item, me: filter.me, claimableIds: state.claimableIds, t }),
-                    h(GatedBadge, { gated: item.gated, blockedBy: item.blockedBy, t }),
-                    h(BlocksBadge, { blocksOn: item.blocksOn, t }),
-                    h(DelegatedBadge, { delegatedTo: item.delegatedTo, t }),
-                    h(ReservedBadge, { reservedBy: item.reservedBy, t }),
-                    h('span', null, item.progress.done === item.progress.total ? `${item.progress.total}/${item.progress.total}` : `${item.progress.done + 1}/${item.progress.total}`),
-                    h('span', null, item.owner === '' ? t('unassigned') : item.owner)),
-                  lock === null ? null : h('div', { className: `rb-card-meta${lock.orphaned ? ' rb-error' : ''}` },
-                    h('span', null, `🔒 ${lock.holder}`),
-                    h('span', null, `${t('lockHeldSince')} ${formatDuration(lock.heldMs)}`),
-                    lock.orphaned ? h('span', null, t('lockOrphaned')) : null),
-                  h('div', { className: 'rb-card-meta' },
-                    h('span', null, item.progress.activeNode?.name ?? item.nodeId),
-                    h('span', null, formatInstant(item.updatedAt))))
-              })),
+              grouped
+                ? projectGroups(visible, t('projectUnassigned')).map(group => h('section', { key: group.key, className: 'rb-group' },
+                  h('div', { className: 'rb-group-head' },
+                    h('span', { className: 'rb-group-name' }, group.label),
+                    h('span', { className: 'rb-group-n' }, String(group.items.length))),
+                  h('div', { className: 'rb-list', role: 'list' }, group.items.map(card))))
+                : visible.map(card)),
           h('div', { className: 'rb-detail' },
             selected !== null
               ? h(RequirementDetail, {
@@ -5040,6 +5225,7 @@ name: 'auth.recheck',
                 busy,
                 roles,
                 roleOptions,
+                projects,
                 claimableIds: state.claimableIds,
                 me: filter.me,
                 requirements,
@@ -5052,6 +5238,7 @@ name: 'auth.recheck',
         dialog === 'requirement' ? h(CreateRequirementDialog, {
           templates: state.templates,
           defaultTemplateId: state.templates[0]?.id ?? 'tpl-standard',
+          projects,
           busy,
           t,
           onUpload: props.uploadImage,
