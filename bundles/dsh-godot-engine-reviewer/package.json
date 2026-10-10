@@ -1,0 +1,24 @@
+{
+  "name": "dsh-godot-engine-reviewer",
+  "version": "0.1.0",
+  "description": "银橙AI · Godot 引擎审查专家：对引擎侧结论做三态裁定（成立/不成立/证据不足），识别反模式，核对版本与平台兼容。只审不实现，取证走可写探针沙箱。",
+  "type": "module",
+  "icon": "./icon.svg",
+  "license": "SEE LICENSE IN NOTICE.md",
+  "files": [
+    "icon.svg",
+    "INSTALL.md",
+    "NOTICE.md",
+    "README.md",
+    "presets",
+    "skills",
+    "tools"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./presets/godot-engine-reviewer.patch.yml"
+      ]
+    }
+  }
+}

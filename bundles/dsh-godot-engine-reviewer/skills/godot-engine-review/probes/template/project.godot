@@ -1,0 +1,18 @@
+; 引擎探针工程骨架（模板）。
+; 审查专家把它复制到探针沙箱后再改 probe.gd；不要在被审工程内就地修改。
+config_version=5
+
+[application]
+
+config/name="engine-probe"
+config/features=PackedStringArray("4.4")
+
+[debug]
+
+; 关掉引擎自己的文件日志：沙箱下 user://logs 建不出来，会往证据输出里插 ERROR 噪音
+; （2026-10-09 本机实测）。
+file_logging/enable_file_logging=false
+
+[rendering]
+
+renderer/rendering_method="forward_plus"

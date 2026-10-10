@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Godot engine reviewer">
+  <rect width="64" height="64" rx="14" fill="#14161c"/>
+  <path d="M20 12h20l8 8v12H20z" fill="none" stroke="#7fb2ff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M40 12v8h8" fill="none" stroke="#7fb2ff" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="28" cy="40" r="11" fill="none" stroke="#f0b23c" stroke-width="3.5"/>
+  <path d="M36 48l10 10" stroke="#f0b23c" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M24 40l3 3 6-7" fill="none" stroke="#f0b23c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
