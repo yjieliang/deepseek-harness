@@ -1,0 +1,22 @@
+{
+  "name": "dsh-art-director",
+  "version": "0.1.0",
+  "description": "维奥拉 · 美术总监：Art Bible 制定维护 / 美术风格与视觉仲裁 / 资产规格与命名 / 界面视觉定调 / 美术放量门禁。",
+  "type": "module",
+  "license": "SEE LICENSE IN NOTICE.md",
+  "files": [
+    "INSTALL.md",
+    "NOTICE.md",
+    "README.md",
+    "license",
+    "presets",
+    "tools"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./presets/art-director.patch.yml"
+      ]
+    }
+  }
+}

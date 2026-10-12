@@ -1,0 +1,22 @@
+{
+  "name": "dsh-godot-qa-expert",
+  "version": "0.1.0",
+  "description": "银橙AI · Godot 测试与发布就绪专家：测试策略 / 缺陷分级 / 发布就绪 / 回归规划。为 CCGS 既有 QA 技能提供缺失的运行层（配置解析器、框架语料解析、阶段与输入适配、口径归并、探针证据通道）。",
+  "type": "module",
+  "license": "SEE LICENSE IN NOTICE.md",
+  "files": [
+    "INSTALL.md",
+    "NOTICE.md",
+    "README.md",
+    "presets",
+    "skills",
+    "tools"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./presets/godot-qa-expert.patch.yml"
+      ]
+    }
+  }
+}

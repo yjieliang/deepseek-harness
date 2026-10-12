@@ -1,0 +1,22 @@
+{
+  "name": "dsh-ux-designer",
+  "version": "0.1.0",
+  "description": "沈简 · 交互设计师：交互流程与信息架构 / 信息层级与可读性 / 键鼠可达性 / 状态反馈 / 文案术语 / 前 5 分钟 / 可用性评审 / 无障碍基础要求。",
+  "type": "module",
+  "license": "SEE LICENSE IN NOTICE.md",
+  "files": [
+    "INSTALL.md",
+    "NOTICE.md",
+    "README.md",
+    "license",
+    "presets",
+    "tools"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./presets/ux-designer.patch.yml"
+      ]
+    }
+  }
+}

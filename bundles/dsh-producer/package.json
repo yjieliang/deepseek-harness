@@ -1,0 +1,22 @@
+{
+  "name": "dsh-producer",
+  "version": "0.1.0",
+  "description": "磐石 · 制作人：范围 / 里程碑排期 / 一人产能与工时 / 风险登记 / 跨角色阻塞清理 / 进度口径。",
+  "type": "module",
+  "license": "SEE LICENSE IN NOTICE.md",
+  "files": [
+    "INSTALL.md",
+    "NOTICE.md",
+    "README.md",
+    "license",
+    "presets",
+    "tools"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./presets/producer.patch.yml"
+      ]
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "dsh-godot-tech-director",
+  "version": "0.1.0",
+  "description": "权衡 · 技术总监 · Godot 专家：架构与引擎版本终裁 / 性能预算裁定 / ADR 验收签注 / 技术门控与豁免。",
+  "type": "module",
+  "license": "SEE LICENSE IN NOTICE.md",
+  "files": [
+    "INSTALL.md",
+    "NOTICE.md",
+    "README.md",
+    "license",
+    "presets",
+    "tools"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./presets/godot-tech-director.patch.yml"
+      ]
+    }
+  }
+}
