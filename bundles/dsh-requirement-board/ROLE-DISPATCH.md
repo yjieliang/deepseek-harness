@@ -251,6 +251,10 @@ await domain.global.set({ ...globals, revision: revisionCounter })
 | `sync` | `{ gap: boolean, syncedAt: ISO \| null }` | `{ gap: false, syncedAt: null }` | 该任务的对账状态（5.5） |
 | `parentId` / `blocksOn` | `string \| null` / `string[]` | `null` / `[]` | 上级需求；**可选门禁**（≤20、必须存在、不得成环） |
 | `requestedBy` | `string` | `''` | `create` 时定格为调用方显示名（无名字时用会话 id）；决策队列"谁在等你" |
+| `options` | `{ id, prompt, choices }[]` | `[]` | 结构化题面（5.7）：`choices = { id, label, detail?, recommended? }[]`，≤6 题、每题 2–8 个选项、每题最多一个 `recommended`；题目 id 默认 `q1`…、选项 id 默认 `A`…；**有人作答后题面即冻结** |
+| `answer` | `Record<questionId, choiceId>` | `{}` | **人专属**：面板上选出的答案（可部分作答，可继续补答）；AI 在工具面与命令面都写不了（5.7） |
+| `answerNote` | `string` | `''` | 人选完附的一句理由，≤500 字符 |
+| `answeredAt` | `ISO \| null` | `null` | 最近一次作答的时间 |
 | 既有字段 | | | `id`/`title`/`description`/`priority`/`owner`/`sessions`/`labels`/`status`/`templateId`/`nodeId`/`nodes`/`blockReason`/`blockedAt`/`rev`/`createdAt`/`updatedAt`/`createdBy`/`updatedBy`/`history` |
 
 `ExecutionUnit = { ref, kind: 'subagent' | 'job', label, status, progress, detail, startedAt, finishedAt, updatedAt }`（`host/domain.js:146-165`）；`ref` 是子会话 id/runId 或 job id，重复观察更新同一条；`stale` 按 `stallAfterHours` 读时派生、不落盘（`host/service.js:802-805`）。
@@ -302,7 +306,7 @@ claimable(req, me) =
 ### 4.7 流转记录（history）词表
 
 既有：`create`/`retemplate`/`advance`/`rollback`/`jump`/`complete`/`reopen`/`block`/`unblock`/`archive`/`restore`/`update`。
-新增：`claim`/`release`/`delegate`/`revoke-delegation`。`queue`/`unqueue` 与 `checklist` **不写** history（`host/service.js`、`host/flow.js:253-265`）。
+新增：`claim`/`release`/`delegate`/`revoke-delegation`/`decide`。`decide` 只由面板写：`note` 记下人选的每个 `题目id = 选项id (选项label)` 与人附的理由（`describeSelections`）。`queue`/`unqueue` 与 `checklist` **不写** history（`host/service.js`、`host/flow.js:253-265`）。
 执行单元状态变化**不进** history（它有自己的字段 + `execRev`）。
 
 ## 5. 注册、上锁、队列与派发
@@ -423,10 +427,12 @@ claimable(req, me) =
 
 ### 5.7 决策类需求只能由人推进
 
-`kind === 'decision'` 且调用方是 AI 时：`claim`/`transition`/`archive`/`delete`/`delegate`/`queue` 六个动作一律 `forbidden`（`details.reason:'decision-task'`）；`update` 只允许 `{title, description, priority, labels, sessions}`。面板路径不受限。
+`kind === 'decision'` 且调用方是 AI 时：`claim`/`transition`/`archive`/`delete`/`delegate`/`queue` 六个动作一律 `forbidden`（`details.reason:'decision-task'`）；`update` 只允许 `{title, summary, project, description, priority, labels, sessions, images, options}`（题面属于"读得到的问题"，不属于"谁来答"）。面板路径不受限。
 **两入口实测分解（12 条拒绝）**：工具入口 6 条（六个动作）+ 1 条（`delegate{revoke:true}`）；command 入口 `claim`/`queue` 各 1 条 `invalid-argument`（**面板 command 没有这两个动作**），`transition`/`archive`/`delete` 各 1 条 `decision-task`。服务层对同三个动作的拒绝证明"规则在操作里"，不是靠入口缺失（`tests/decision.mjs:201-254`）。
 **`kind` 创建后不可变**：`update{kind}` 在 AI 与面板两条路径都返回 `invalid-argument{kind-immutable}`，记录与 `rev` 不动；否则 `update{kind:'task'}` 能让 AI 把决策改成普通任务再认领（`host/service.js:2560-2566`）。
 **已知边界**：`block`/`unblock`/`checklist` **有意不**加进上面六个动作的清单（`kind` 不可变 + `update` 白名单已关后门，`block` 不通向执行），但它们仍先按同一条人类专属规则拒绝 AI —— 决策的锁永远拿不到，先报 `lock-required` 会把模型引向一把没人能拿的锁；在普通任务上它们照常要求持锁（`host/service.js:2186-2214`、`2498-2585`）。
+
+**题面与选择（`options` / `answer`）**：决策需求把问题写成结构化的 `options`（4.2），人**只在面板上选**（`host/http.js` 的 `decide` 命令），`answer` 可先答一部分、之后再补；每次作答写 `answer`/`answerNote`/`answeredAt` 并留一条 `decide` 历史，**所有题都答完时自动收尾**（`complete` 作为第二条写，门禁未清则选择先落盘、不推进）。`answer` 不在任何 AI 可写白名单里：`update{answer}` 在服务层带 `supported` 拒绝，`decide` 由 AI 调用则 `forbidden{human-only}`，工具面根本没有 `decide` 动作（`host/tools.js` 的动作枚举里只有 18 项）。对没有题面的需求作答报 `invalid-argument{no-options}`；`answer` 指到没问过的题或没给的选项时 `details` 回 `questionId` 与 `questions`/`choices`。题面在**有人作答后冻结**：`update{options}` 命中 `conflict{answered-options}` 并回带上 `answer`；把同一份题面重发不算改动、不推 `rev`。**选择本身可以改**：已 `done` 的决策仍接受一次新选择（与 `update` 一致，settled 记录可被修订；`delegate`/`checklist`/`block` 才拒收），新选择追加一条 `decide` 历史、`answeredAt` 前移，状态不变；`expectedRev` 是面板的乐观并发闸（拿旧 `rev` 提交报 `conflict` 并回带 `expected`/`current`）（`host/service.js:2616-2630`、`2756-2788`、`tests/options.mjs`）。
 
 ### 5.8 门禁（可选）
 
@@ -538,11 +544,12 @@ Waiting on the human (1) — only the human advances these:
 8. **执行状态自动同步**：子智能体、后台任务、workflow 的状态自动挂到当前锁对应的任务，**不需要手工回报**，也不要为了"同步状态"重复建任务。
 9. **门禁是可选项**：只有"必须先清掉某件事才能推进"时才设 `blocksOn`；拦路那条会被自动抬高，别手工再加 `urgent`。
 10. **跨角色协作**：父需求 + 各自角色的子需求（`parentId`）+ `blocksOn` 表达"等谁"；跨角色建议也走创建需求这条路。
-11. **要人拍板**：`kind:'decision'`，描述写 **选项 / 各自代价 / 默认建议**，`blocksOn` 指向等待中的任务。**建完就不能改成普通任务**。
+11. **要人拍板**：`kind:'decision'`，描述写 **选项 / 各自代价 / 默认建议**，`blocksOn` 指向等待中的任务。**建完就不能改成普通任务**。模板**一律绑「裁决模板」**（本机当前 id `tpl_cb97eee542`，节点 待裁决 → 裁决结束；没有就按同形先建一只）。
 12. **不建的任务**：一句话能答的、没有验收标准的、角色不明的、重复的。
 13. **认领礼仪**：接之前 `get`；开工就 `claim`；做完写 `note` 再 `advance`；被门禁挡住**不 `force`**，除非写明理由。
 14. **推进顺序**：勾 `checklist` → `transition{action:'advance'}` → 最后 `transition{action:'complete'}`。
-15. **流程模板匹配（不符合就建模板）**：建需求前先 `flow_template{action:'list'}`，按这条活真实的生命周期挑 `templateId`；现有模板都对不上就先 `flow_template{action:'create'}` 把节点写成真实步骤（稳定 id、`dependsOn` 成链、该判完成的写成 checklist）再建需求。`templateId` 省略会**静默**绑默认模板，不能拿默认模板当占位；模板看板共享，要改进现有流程就 `flow_template{action:'revise'}` **追加一个版本**（存量需求一律不动，改错了不能就地改），需要换版的需求再用 `flow_template{action:'migrate'}` 迁到新版本（先看受影响清单；不指名 `requirementIds` 即"全部钉在旧版的"，需要 `force`）；此外 `archive`（`archive:false` 恢复）、`clone`（改内置流程的正路）、`delete`（按 `force` 把受影响需求改绑到默认模板并写一条历史）也在工具面，只有 `prune`（裁剪历史版本）留给面板。绑错的代价在推进时才暴露（`dependency-not-met`、检查项与交付物错位），事后改绑走 `update` 的 `templateId`（要锁）并重算节点状态。
+15. **流程模板必须显式绑定且匹配（不符合就建模板）**：建需求单时 `templateId` **必须显式给出**——省略它不是"用默认"，是静默绑部署默认模板，不算选过；先 `flow_template{action:'list'}` 按这条活真实的生命周期挑，现有模板都对不上就先 `flow_template{action:'create'}` 把节点写成真实步骤（稳定 id、`dependsOn` 成链、该判完成的写成 checklist）再建需求；`kind:'decision'` 一律绑「裁决模板」（本机当前 id `tpl_cb97eee542`，节点 待裁决 → 裁决结束；没有就按同形先建一只）。模板看板共享，要改进现有流程就 `flow_template{action:'revise'}` **追加一个版本**（存量需求一律不动，改错了不能就地改），需要换版的需求再用 `flow_template{action:'migrate'}` 迁到新版本（先看受影响清单；不指名 `requirementIds` 即"全部钉在旧版的"，需要 `force`）；此外 `archive`（`archive:false` 恢复）、`clone`（改内置流程的正路）、`delete`（按 `force` 把受影响需求改绑到默认模板并写一条历史）也在工具面，只有 `prune`（裁剪历史版本）留给面板。绑错的代价在推进时才暴露（`dependency-not-met`、检查项与交付物错位），事后改绑走 `update` 的 `templateId`（要锁）并重算节点状态。
+16. **项目归属**：需求挂一个短项目名（≤60 字，没有项目实体，只作分组/筛选）；能归就归，名字要稳（先看面板筛选里已有的写法照抄，同一摊事永远同一个名字）、短到人看得懂，别拿标题或模板名冒充项目；不属于任何项目就留空，写错了用 `update` 改 `project`（传空字符串就摘出项目）。
 
 ### 7.3 与插件的关系
 
@@ -551,7 +558,7 @@ Waiting on the human (1) — only the human advances these:
 | skill → 工具 | 只用公开契约的**动作名与意图**，不复述参数与语法 |
 | 插件 → skill | **没有引用**；不检测、不加载、不假设它存在 |
 | 共同事实 | 动作/参数只在插件；规范（何时/怎么建、怎么派、怎么排队）只在 skill |
-| 验收 | 开发期以 `project-agents` 出现在 `<repo>/.agents/skills/`，启动期提升为 `user-dsh`；能加载、覆盖十五条、**未出现工具参数表** |
+| 验收 | 开发期以 `project-agents` 出现在 `<repo>/.agents/skills/`，启动期提升为 `user-dsh`；能加载、覆盖十六条、**未出现工具参数表** |
 
 ## 8. 面板
 
@@ -573,12 +580,12 @@ Waiting on the human (1) — only the human advances these:
 | `GET /api/requirement-board/snapshot` | `status`/`owner`/`session`/`priority`/`kind`/`role`/`templateId`/`query`/`claimable`/`limit`/`offset`/`me` | 初始数据与刷新；`me` 是**会话 id**（不是角色名），只决定 `claimable`/`advanceable` 为谁作答；`me=''` 是面板本身 |
 | `GET /api/requirement-board/events` | — | SSE：`ready` + `changed`（按 `sseCoalesceMs` 合并，15s 心跳） |
 | `GET /api/requirement-board/health` | — | 存活探测 |
-| `POST /api/requirement-board/command` | `{ action, session, name, me, id, ... }` | `refresh`/`list`/`create`/`update`/`transition`/`checklist`/`release`/`unqueue`/`delegate`（含 `revoke`）/`block`/`unblock`/`archive`/`restore`/`delete`/`stats`/`changes`/`template.*`/`role.*` |
+| `POST /api/requirement-board/command` | `{ action, session, name, me, id, ... }` | `refresh`/`list`/`create`/`update`/`transition`/`checklist`/`decide`/`release`/`unqueue`/`delegate`（含 `revoke`）/`block`/`unblock`/`archive`/`restore`/`delete`/`stats`/`changes`/`template.*`/`role.*` |
 
 快照信封 `{ ok: true, data: { revision, generatedAt, requirements, total, templates, roles, stats, queues } }`；`queues` 每行 `{ session, sessionName, items, head, length, updatedAt }`，顺序由服务端给（`host/service.js:3657-3664`，`host/http.js:382-396`）。
 `?role=human` 是人的收件箱、`?claimable=true` 只回答"这个 `me` 现在能不能接"、`?session=` 是归属筛选，三者互相独立。每条需求带 `lock`/`delegatedTo`/`executions`/`executionsTruncated`/`execRev`/`running`/`sync`/`claimable`/`advanceable`/`blocksOn`/`blockedBy`/`gated`/`effectivePriority`/`escalated`/`parentId`/`children`/`reservedBy`/`roleUnregistered`。
 失败信封 `{ ok: false, error: { code, message, details } }`：`BoardError` 一律 **409**，其余 **500**；信任判定（平台 `connection.requestRejection(request)`，缺席时回退回环 `Origin` 校验）在进入命令分发之前直接回 `401 unauthenticated` / `403 forbidden-origin`，方法不对回 `405 method-not-allowed`；请求体超过 256 KiB 仍是 `invalid-argument`（409，`host/http.js:79`）（`host/http.js:355-434`）。
-**面板 command 没有** `claim`/`queue`：面板 actor 的 `session` 为空串，占锁会让 AI 侧全部 `lockAllows` 为假直到租约过期；`session` 非空的任务不得认领（`host/http.js:225-337`）。
+**面板 command 没有** `claim`/`queue`：面板 actor 的 `session` 为空串，占锁会让 AI 侧全部 `lockAllows` 为假直到租约过期；`session` 非空的任务不得认领（`host/http.js:226-345`）。
 
 `role.list` 多回一段 `presets`：`{ items, unavailable }`。`items` 每个声明过的预设一行 `{ id, name, broken, roleId, roleName, recorded, dutiesMissing, confirmed, online, open }`——`roleId` 优先取**活会话**解析到的 id，没有活会话时按"预设 id 本身是合法角色 id"推定（`confirmed` 标出这两种来源），预设 id 连角色 id 都不是时为 `''`；`recorded` 是 `roles` 表里有没有这条记录，`dutiesMissing` 与角色列表同源。`unavailable` 为 `null` 表示名册读到了，否则 `{ code: 'service-absent' | 'read-failed', detail? }`：前者是组合里没挂 `agentPresets`，后者是 `list()` 抛错或没回数组——**空名册与读不到名册是两件事**，面板分别给不同文案。这段**不进 `snapshot`**：`snapshot()` 是同步读、且每次刷新/健康检查/SSE `ready` 都会走，而 `agentPresets.list()` 要逐个预设做启用诊断，只能异步；面板打开角色管理时按需读一次。`items`/`unregistered` 与 `snapshot().roles` 同源同字段。
 
@@ -588,14 +595,14 @@ Waiting on the human (1) — only the human advances these:
 
 | `code` | `details` | 触发 |
 |---|---|---|
-| `invalid-argument` | `reason`: `session-required`/`self-reference`/`cycle`/`missing-target`/`kind-immutable`；枚举与白名单情形不带 `reason`，而带 `received`（非法枚举值）或 `supported`（`update` 的允许字段） | 参数本身不可接受：未知动作、形状或上界不合法、非法 `kind`、自指/成环/目标不存在 |
+| `invalid-argument` | `reason`: `session-required`/`self-reference`/`cycle`/`missing-target`/`kind-immutable`/`no-options`；`answer` 指到没问过的题或没给的选项时带 `questionId`（+ `questions` 或 `choices`）；枚举与白名单情形不带 `reason`，而带 `received`（非法枚举值）或 `supported`（`update` 的允许字段） | 参数本身不可接受：未知动作、形状或上界不合法、非法 `kind`、自指/成环/目标不存在、对没有题面的需求作答 |
 | `invalid-input` | `reason`: `queue-full`（+`max`）/`delegate-to-self` | 形状没问题但组合或状态不允许 |
 | `invalid-state` | `reason`: `write-chain-order`（+`held`/`key`）/`invalid-state`（+`id`/`status`） | 写链顺序被违反；`done`/`archived` 的记录不能再操作 |
 | `invalid-transition` | `reason: blocked-by`（+`id`/`action`/`blockedBy`） | 状态或节点不允许该流转；`advance`/`complete` 的跨需求门禁未清（`rollback` 不走门禁，`jump` 另需 `force`） |
 | `dependency-not-met` | `node`（+`missing`） | 模板节点的前置节点未完成（先于跨需求门禁判定） |
 | `completion-not-met` | `node`/`reason`/`missing` | 当前节点的完成条件未满足 |
-| `conflict` | `reason`: `locked`（+`id`/`current`/`queued`）/`reserved`（+`reservedBy`）/`session-busy`（+`id`/`current`/`queueHead`）/`delegated`（+`delegatedTo`）/`delegated-role`（+`role`/`delegatedTo`）；CAS 版本不符不带 `reason`，带 `expected`/`current` | 锁、软预留、一会话一把锁、已有委托、在派发期间改路由（5.5）、CAS 版本不符 |
-| `forbidden` | `reason`: `decision-task`/`invalid-kind`（+`kind`）/`role-mismatch`（+`role`/`myRole`）/`not-owned`（+`target`/`owner`）/`not-related`（+`id`）/`lock-required`/`not-lock-holder`（+`current`）/`panel-only`（+`targetSession`） | 决策的人类专属、非任务 kind、角色不符、归属不符、无锁 |
+| `conflict` | `reason`: `locked`（+`id`/`current`/`queued`）/`reserved`（+`reservedBy`）/`session-busy`（+`id`/`current`/`queueHead`）/`delegated`（+`delegatedTo`）/`delegated-role`（+`role`/`delegatedTo`）/`answered-options`（+`id`/`answer`）；CAS 版本不符不带 `reason`，带 `expected`/`current` | 锁、软预留、一会话一把锁、已有委托、在派发期间改路由（5.5）、CAS 版本不符、**已有选择时改题面**（5.7） |
+| `forbidden` | `reason`: `decision-task`/`human-only`（+`id`）/`invalid-kind`（+`kind`）/`role-mismatch`（+`role`/`myRole`）/`not-owned`（+`target`/`owner`）/`not-related`（+`id`）/`lock-required`/`not-lock-holder`（+`current`）/`panel-only`（+`targetSession`） | 决策的人类专属、非任务 kind、角色不符、归属不符、无锁、**AI 会话想写 `answer`**（5.7） |
 | `invalid-role` | `roleId`，或 `role`（格式校验的两条路径） | 角色声明非法（格式、`tmp-` 前缀、`human` 保留字） |
 | `not-found` | `id`（+`known`） | 需求/模板/角色不存在；`GET /image/<id>` 下也指没有这张已存图片 |
 | `invalid-image` | `id`（+`path`） | `images` 里出现未落库的图片 id（不静默丢弃）；已存图片的元数据不可读、或引用在而字节文件不在 |

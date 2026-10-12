@@ -183,16 +183,17 @@ sqlite（`.artifacts/requirement-board/dev-board.db`），键写错会静默回�
 
 ```powershell
 cd <仓库绝对路径>\bundles\dsh-requirement-board
-node tests/domain.mjs         # 域表单与导入：124 项
-node tests/smoke.mjs          # Host 流程/并发/HTTP/图片：89 项
+node tests/domain.mjs         # 域表单与导入：154 项
+node tests/smoke.mjs          # Host 流程/并发/HTTP/图片：106 项
 node tests/roles.mjs          # 角色解析链与建档：220 项
 node tests/dispatch.mjs       # 锁与判定表：322 项
 node tests/queue.mjs          # 执行队列与软预留：304 项
 node tests/delegate.mjs       # 子会话派发：344 项
 node tests/decision.mjs       # 决策需求：228 项
+node tests/options.mjs        # 结构化题面与人的作答：130 项
 node tests/gates.mjs          # 门禁与优先级继承：246 项
 node tests/runs.mjs           # 执行状态同步：312 项
-node tests/client-smoke.mjs   # 浏览器半边（桩件真实渲染）：314 项
+node tests/client-smoke.mjs   # 浏览器半边（桩件真实渲染）：535 项
 node tests/templates-revision.mjs   # 模板版本管理（追加版本、钉版本、迁移、裁剪）：316 项
 node tests/loader.mjs         # 装载清单与配置：53 项
 node tests/composition/driver.mjs   # 真组合通道（需 runner 提供隔离 cwd 与环境）

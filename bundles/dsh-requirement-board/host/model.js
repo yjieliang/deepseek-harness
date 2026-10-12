@@ -76,6 +76,27 @@ export const ROLE_DUTIES_MAX = 12
 /** Longest accepted single duty. */
 export const ROLE_DUTY_MAX = 40
 
+/** Most questions one requirement's structured options may ask. */
+export const OPTION_QUESTIONS_MAX = 6
+
+/** Most choices one question may offer. */
+export const OPTION_CHOICES_MAX = 8
+
+/** Longest accepted question prompt. */
+export const OPTION_PROMPT_MAX = 300
+
+/** Longest accepted choice label. */
+export const OPTION_LABEL_MAX = 80
+
+/** Longest accepted choice detail (the cost or benefit under the label). */
+export const OPTION_DETAIL_MAX = 600
+
+/** Longest accepted choice id. */
+export const OPTION_ID_MAX = 8
+
+/** Longest accepted note a person attaches to their selection. */
+export const ANSWER_NOTE_MAX = 500
+
 /** Error carrying a stable machine code beside its message. */
 export class BoardError extends Error {
   /**
@@ -294,4 +315,130 @@ export function parseRoleDeclaration(input = {}) {
   const roleName = asString(input?.roleName, 'roleName', { max: ROLE_NAME_MAX }) || roleId
   const duties = asStringArray(input?.duties, 'duties', { max: ROLE_DUTIES_MAX, itemMax: ROLE_DUTY_MAX })
   return { roleId, roleName, duties }
+}
+
+/** The letter a choice is labelled with when its author names no id. */
+function optionLetter(index) {
+  return String.fromCharCode(65 + index)
+}
+
+/**
+ * Read the structured choices of one question.
+ *
+ * The `id`s are what an answer names, so they are unique within the question and
+ * default to the letters a person reads (`A`, `B`, …). At most one choice may be
+ * `recommended`: the recommendation is one author's advice, and two of them would
+ * contradict each other. `detail` and `recommended` are omitted rather than stored
+ * as empty when they carry nothing, so an unstored choice stays byte-identical to
+ * a record written before the field existed.
+ *
+ * @param value - Raw boundary value.
+ * @param field - Field name used in the failure messages.
+ * @returns the validated choices, in the order they were given.
+ */
+export function parseChoices(value, field = 'choices') {
+  if (!Array.isArray(value)) fail('invalid-argument', `"${field}" must be an array of choices`)
+  if (value.length < 2) fail('invalid-argument', `"${field}" must offer at least two choices`)
+  if (value.length > OPTION_CHOICES_MAX) fail('invalid-argument', `"${field}" must hold at most ${OPTION_CHOICES_MAX} choices`)
+  const out = []
+  const seen = new Set()
+  for (const [index, raw] of value.entries()) {
+    const at = `${field}[${index}]`
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      fail('invalid-argument', `${at} must be an object with a "label"`)
+    }
+    const id = asString(raw.id, `${at}.id`, { max: OPTION_ID_MAX, fallback: optionLetter(index) }) || optionLetter(index)
+    if (seen.has(id)) fail('invalid-argument', `${at}.id "${id}" is already used by another choice of this question`, { id })
+    seen.add(id)
+    const label = asString(raw.label, `${at}.label`, { required: true, max: OPTION_LABEL_MAX })
+    const detail = asString(raw.detail, `${at}.detail`, { max: OPTION_DETAIL_MAX })
+    const recommended = asBoolean(raw.recommended, `${at}.recommended`, false)
+    out.push({
+      id,
+      label,
+      ...(detail === '' ? {} : { detail }),
+      ...(recommended ? { recommended: true } : {}),
+    })
+  }
+  if (out.filter(choice => choice.recommended === true).length > 1) {
+    fail('invalid-argument', `"${field}" may mark at most one choice as recommended`)
+  }
+  return out
+}
+
+/**
+ * Read the questions a requirement puts to the human.
+ *
+ * This is the structure a decision requirement carries instead of prose: each
+ * question has an id (what an answer names), a prompt, and its choices. Question
+ * ids default to `q1`, `q2`, … in the order given and must be unique, because an
+ * answer is a map from them. An absent value is no questions at all, which is
+ * what every requirement written before this field meant.
+ *
+ * @param value - Raw boundary value.
+ * @param field - Field name used in the failure messages.
+ * @returns the validated questions, in the order they were given.
+ */
+export function parseQuestions(value, field = 'options') {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) fail('invalid-argument', `"${field}" must be an array of questions`)
+  if (value.length > OPTION_QUESTIONS_MAX) fail('invalid-argument', `"${field}" must hold at most ${OPTION_QUESTIONS_MAX} questions`)
+  const out = []
+  const seen = new Set()
+  for (const [index, raw] of value.entries()) {
+    const at = `${field}[${index}]`
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      fail('invalid-argument', `${at} must be an object with a "prompt" and its "choices"`)
+    }
+    const id = asString(raw.id, `${at}.id`, { max: 40, fallback: `q${index + 1}` }) || `q${index + 1}`
+    if (seen.has(id)) fail('invalid-argument', `${at}.id "${id}" is already used by another question`, { id })
+    seen.add(id)
+    out.push({
+      id,
+      prompt: asString(raw.prompt, `${at}.prompt`, { required: true, max: OPTION_PROMPT_MAX }),
+      choices: parseChoices(raw.choices, `${at}.choices`),
+    })
+  }
+  return out
+}
+
+/**
+ * Read one person's selections against the questions they answer.
+ *
+ * The map is partial on purpose: a decision may carry two questions and the
+ * person may answer one now and the other later, so only the entries given are
+ * checked and returned. Every id is resolved against the stored questions, and an
+ * unknown question or choice is refused by name rather than dropped — a selection
+ * that names nothing would read as an answer the record does not hold.
+ *
+ * @param value - Raw boundary value: a map of question id to choice id.
+ * @param questions - Stored questions the selections are resolved against.
+ * @param field - Field name used in the failure messages.
+ * @returns the validated map, holding only the given entries.
+ */
+export function parseAnswers(value, questions, field = 'answer') {
+  if (value === undefined || value === null) fail('invalid-argument', `"${field}" is required`)
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    fail('invalid-argument', `"${field}" must be a map of question id to choice id`)
+  }
+  const entries = Object.entries(value)
+  if (entries.length === 0) fail('invalid-argument', `"${field}" must name at least one question`)
+  const out = {}
+  for (const [questionId, choiceId] of entries) {
+    const question = questions.find(candidate => candidate.id === questionId)
+    if (question === undefined) {
+      fail('invalid-argument', `"${field}" names question "${questionId}", which this requirement does not ask`, {
+        questionId,
+        questions: questions.map(candidate => candidate.id),
+      })
+    }
+    if (typeof choiceId !== 'string' || !question.choices.some(choice => choice.id === choiceId)) {
+      fail('invalid-argument', `"${field}.${questionId}" must name one of this question's choices`, {
+        questionId,
+        choices: question.choices.map(choice => choice.id),
+      })
+    }
+    out[questionId] = choiceId
+  }
+  return out
 }

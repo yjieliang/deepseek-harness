@@ -329,14 +329,14 @@ async function caseDecisionUpdateBoundary(backend, name) {
     const question = await service.createRequirement({ summary: '测试简述', title: '边界', kind: 'decision' }, a)
 
     const refused = await reporter.rejects('an agent cannot re-route a decision', () => board.tool.execute({ action: 'update', id: question.id, role: 'art-role' }, { agent }), 'forbidden')
-    // `summary`, `project`, and `images` are on the allowed list with the rest of
-    // the readable side: the brief a person reads first, the project it belongs
-    // to, and a picture attached to the description are context for the person
-    // answering, like the wording and the labels, not a change to who may answer
-    // or how.
+    // `summary`, `project`, `images`, and `options` are on the allowed list with
+    // the rest of the readable side: the brief a person reads first, the project it
+    // belongs to, a picture attached to the description, and the structured question
+    // itself are context for the person answering, like the wording and the labels,
+    // not a change to who may answer or how. The answer is on neither list.
     check('the refusal names the refused field and the allowed list', refused.details?.reason === 'decision-task'
       && refused.details?.fields.join(',') === 'role'
-      && refused.details?.allowed.join(',') === 'title,summary,project,description,priority,labels,sessions,images')
+      && refused.details?.allowed.join(',') === 'title,summary,project,description,priority,labels,sessions,images,options')
     const templateRefused = await reporter.rejects('and cannot rebind its flow', () => board.tool.execute({ action: 'update', id: question.id, templateId: 'tpl-standard' }, { agent }), 'forbidden')
     check('the template field is refused the same way', templateRefused.details?.fields.join(',') === 'templateId')
     check('neither refused update wrote anything', board.domain.table('requirements').get(question.id).role === '' && board.domain.table('requirements').get(question.id).kind === 'decision')

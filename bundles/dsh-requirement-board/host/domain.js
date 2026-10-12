@@ -169,6 +169,25 @@ const executionSyncSchema = z.object({
 }).strict()
 
 /**
+ * One choice of one question (§5.7). `detail` carries the cost or benefit the
+ * person reads under the label, and `recommended` marks the choice its author
+ * advises; both are optional so a choice that carries neither stays as written.
+ */
+const optionChoiceSchema = z.object({
+  id: z.string().min(1),
+  label: z.string(),
+  detail: z.string().optional(),
+  recommended: z.boolean().optional(),
+}).strict()
+
+/** One question a requirement puts to the human, with its choices. */
+const optionQuestionSchema = z.object({
+  id: z.string().min(1),
+  prompt: z.string(),
+  choices: z.array(optionChoiceSchema).min(2),
+}).strict()
+
+/**
  * One stored requirement. Derived values (`flow`, `progress`) are never
  * persisted.
  *
@@ -187,6 +206,11 @@ const executionSyncSchema = z.object({
  * write path refuses an empty one. `project` follows as well, with the opposite
  * write rule: a record written before requirements could be grouped reads as one
  * belonging to no project, and clearing the field is itself a legitimate write.
+ * `options`, `answer`, `answerNote`, and `answeredAt` follow too, with the same
+ * one-way split: a record written before a requirement could put a structured
+ * question to the person reads as one asking nothing and holding no selection,
+ * the write path refuses an empty question and an unresolvable selection, and
+ * only the human's route ever writes the answer (§5.7).
  *
  * A record this schema refuses stops the whole open, and that is the design rather
  * than an accident: `kind`, `status`, and `priority` are closed sets the write path
@@ -238,6 +262,16 @@ const requirementRecordSchema = z.object({
   // Stored image refs. The encoded bytes are files of their own under the
   // deployment's image directory (`host/images.js`); a record never inlines them.
   images: z.array(imageRefSchema).optional(),
+  // The structured question this requirement puts to the person (§5.7): questions
+  // with their choices, written by the requirement's author. Absent on a record
+  // written before options existed, and such a record asks nothing.
+  options: z.array(optionQuestionSchema).optional(),
+  // The person's selections, as a map from question id to choice id, plus the one
+  // note they attached and when they last selected. Only the panel's route writes
+  // these: an agent may sharpen a question and never answer it.
+  answer: z.record(z.string(), z.string()).optional(),
+  answerNote: z.string().optional(),
+  answeredAt: z.string().optional(),
   nodes: z.record(z.string(), nodeStateSchema),
   history: z.array(historyEntrySchema),
   lock: lockSchema.nullable().optional(),

@@ -41,6 +41,25 @@ window.__ModuleLoader__.load({
     const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
     const IMAGE_MAX_BYTES = 20 * 1024 * 1024
     const IMAGE_MAX_COUNT = 20
+    /**
+     * Role declaration bounds, mirrored from the Host's own gate
+     * (`host/model.js`): they are what the duty editor counts and caps, while the
+     * Host stays the authority that accepts or refuses a write.
+     */
+    const ROLE_NAME_MAX = 40
+    const ROLE_DUTIES_MAX = 12
+    const ROLE_DUTY_MAX = 40
+
+    /**
+     * Structured-question bounds, mirrored from the Host's own gate
+     * (`host/model.js`): the editor caps and counts with them, while the Host
+     * stays the authority that accepts or refuses a write.
+     */
+    const OPTION_QUESTIONS_MAX = 6
+    const OPTION_CHOICES_MAX = 8
+    const OPTION_PROMPT_MAX = 300
+    const OPTION_LABEL_MAX = 80
+    const OPTION_DETAIL_MAX = 600
 
     /** The thumbnail and download address of one stored image. */
     const imageURL = id => `${API}/image/${encodeURIComponent(id)}`
@@ -199,6 +218,26 @@ window.__ModuleLoader__.load({
         roleName: 'Display name',
         roleDuties: 'Duties',
         roleDutiesHint: 'Comma-separated, up to 12',
+        rolesColumn: 'Roles',
+        presetsColumn: 'Preset associations',
+        roleSearch: 'Search roles',
+        presetSearch: 'Search presets',
+        roleGroupRegistered: 'Registered',
+        roleGroupEphemeral: 'Temporary',
+        rolesNoMatch: 'No role matches this search.',
+        presetsNoMatch: 'No preset matches this search.',
+        roleDutyAdd: 'Add a duty',
+        roleDutyRemove: 'Remove',
+        roleDutyCount: '{count}/12',
+        roleDutyEmptyHint: 'Empty lines are not written; each duty is at most 40 characters.',
+        roleDutyMerged: 'Merged {count} duplicate duties.',
+        roleDiscardConfirm: 'This form has unsaved changes.',
+        roleDiscardConfirmDrop: 'Discard and close',
+        roleDiscardConfirmKeep: 'Keep editing',
+        roleFormError: 'This role was not saved.',
+        roleRowError: 'This role was not deleted.',
+        roleEditTitle: 'Edit · {name} ({id})',
+        roleRegisterTitle: 'Register role · {name} ({id})',
         roleNone: 'No role',
         anyRole: 'Any role',
         rolesEmpty: 'No role is recorded yet.',
@@ -237,6 +276,12 @@ window.__ModuleLoader__.load({
         kindTask: 'Task',
         kindDecision: 'Decision',
         filterClaimable: 'Only claimable',
+        filterPanel: 'Filters',
+        filterShow: 'Show filters',
+        filterHide: 'Hide filters',
+        filterSummaryAll: 'All requirements',
+        filterRoleAll: 'All roles',
+        filterRemove: 'Remove this filter',
 
         claimableYes: 'Ready to take',
         claimableNo: 'Not takeable',
@@ -367,6 +412,32 @@ window.__ModuleLoader__.load({
         removeImage: 'Remove image',
         pastedImageName: 'pasted image',
 
+        optionsTitle: 'Options (the decision question)',
+        optionsCreateHint: 'Each question is one decision; every choice is a row the person picks. Question and choice ids are assigned in order (q1, q2 …; A, B, …).',
+        optionQuestion: 'Question',
+        optionQuestionPlaceholder: 'What should the person decide?',
+        optionAddQuestion: 'Add question',
+        optionRemoveQuestion: 'Remove question',
+        optionItem: 'Choices',
+        optionItemPlaceholder: 'The choice as the person reads it',
+        optionItemDescription: 'Cost or benefit',
+        optionItemDescriptionPlaceholder: 'What this choice costs or buys',
+        optionAddItem: 'Add choice',
+        optionRemoveItem: 'Remove choice',
+        optionRecommended: 'Recommended',
+        optionNeedQuestion: 'Every question needs its prompt.',
+        optionNeedItems: 'Every question needs at least two choices with a label.',
+        optionNeedOneRecommended: 'At most one choice per question may be recommended.',
+        optionsHint: 'The board assigns question and choice ids in order; the panel submits the choice id.',
+        optionAwaitingHuman: 'Waiting for your choice',
+        optionChooseOne: 'Choose one',
+        optionYourAnswer: 'Your answer',
+        optionSubmitAnswer: 'Submit answer',
+        optionAnsweredTag: 'Answered',
+        optionAnswerNote: 'Reason (optional)',
+        optionAnsweredAt: 'Answered at',
+        optionAnswerSaved: 'Your answer was recorded.',
+
         templates: 'Flow templates',
         templateList: 'Templates',
         templateBuiltin: 'Built-in',
@@ -438,6 +509,13 @@ window.__ModuleLoader__.load({
         templatePruneConfirm: 'Drop revision {revision} of this template?',
         templateMutated: 'The template was updated.',
         templateCloned: 'Template duplicated as {name}.',
+        templateCloneTitle: 'Duplicate · {name}',
+        templateNameRequired: 'A name is required.',
+        templateNodesRequired: 'At least one node line is required.',
+        templateFormError: 'This template was not saved.',
+        templateDiscardConfirm: 'This form has unsaved changes.',
+        templateDiscardConfirmDrop: 'Discard and close',
+        templateDiscardConfirmKeep: 'Keep editing',
         templateDeleted: 'Template deleted; its requirements were rebound.',
         templateArchived: 'Template archived.',
         templateRestored: 'Template restored.',
@@ -457,6 +535,7 @@ window.__ModuleLoader__.load({
         // so both dictionaries carry the same word.
         secBody: 'BODY',
         secImages: 'IMAGES',
+        secOptions: 'OPTIONS',
         secEligibility: 'ELIGIBILITY',
         secGates: 'GATES',
         secExecutions: 'EXECUTIONS',
@@ -589,6 +668,26 @@ window.__ModuleLoader__.load({
         roleName: '显示名',
         roleDuties: '职能',
         roleDutiesHint: '用逗号分隔，最多 12 项',
+        rolesColumn: '角色',
+        presetsColumn: '预设关联',
+        roleSearch: '检索角色',
+        presetSearch: '检索预设',
+        roleGroupRegistered: '已登记',
+        roleGroupEphemeral: '临时',
+        rolesNoMatch: '没有角色匹配这个检索词。',
+        presetsNoMatch: '没有预设匹配这个检索词。',
+        roleDutyAdd: '添加一条',
+        roleDutyRemove: '移除',
+        roleDutyCount: '{count}/12',
+        roleDutyEmptyHint: '空行不会写入；每条最多 40 字。',
+        roleDutyMerged: '已合并 {count} 条重复职能。',
+        roleDiscardConfirm: '这份表单还有未保存的改动。',
+        roleDiscardConfirmDrop: '丢弃并关闭',
+        roleDiscardConfirmKeep: '继续编辑',
+        roleFormError: '该角色未保存。',
+        roleRowError: '该角色未删除。',
+        roleEditTitle: '编辑 · {name}（{id}）',
+        roleRegisterTitle: '登记角色 · {name}（{id}）',
         roleNone: '未指定角色',
         anyRole: '任意角色',
         rolesEmpty: '还没有登记任何角色。',
@@ -627,6 +726,12 @@ window.__ModuleLoader__.load({
         kindTask: '任务',
         kindDecision: '决策',
         filterClaimable: '只看可接',
+        filterPanel: '筛选',
+        filterShow: '展开筛选',
+        filterHide: '收起筛选',
+        filterSummaryAll: '全部需求',
+        filterRoleAll: '全部角色',
+        filterRemove: '移除该筛选',
 
         claimableYes: '可接手',
         claimableNo: '不可接手',
@@ -757,6 +862,32 @@ window.__ModuleLoader__.load({
         removeImage: '移除图片',
         pastedImageName: '粘贴的图片',
 
+        optionsTitle: '选项（裁决题）',
+        optionsCreateHint: '每道题就是一次要人拍板的选择；每个选项是一行人可以直接选的答案。题目与选项的 id 按顺序自动分配（q1、q2…；A、B…）。',
+        optionQuestion: '题目',
+        optionQuestionPlaceholder: '要让人拍板的问题是什么？',
+        optionAddQuestion: '添加题目',
+        optionRemoveQuestion: '移除题目',
+        optionItem: '选项',
+        optionItemPlaceholder: '人看到的选项文字',
+        optionItemDescription: '代价或好处',
+        optionItemDescriptionPlaceholder: '这个选项的代价或好处',
+        optionAddItem: '添加选项',
+        optionRemoveItem: '移除选项',
+        optionRecommended: '推荐',
+        optionNeedQuestion: '每道题都要有题干。',
+        optionNeedItems: '每道题至少要有两个填了文字的选项。',
+        optionNeedOneRecommended: '每道题最多只能推荐一个选项。',
+        optionsHint: '题目与选项的 id 由看板按顺序分配，面板提交的是选项 id。',
+        optionAwaitingHuman: '在等你选',
+        optionChooseOne: '选一个',
+        optionYourAnswer: '你的选择',
+        optionSubmitAnswer: '提交选择',
+        optionAnsweredTag: '已作答',
+        optionAnswerNote: '理由（可选）',
+        optionAnsweredAt: '作答时间',
+        optionAnswerSaved: '已记录你的选择。',
+
         templates: '流程模板管理',
         templateList: '模板列表',
         templateBuiltin: '内置',
@@ -828,6 +959,13 @@ window.__ModuleLoader__.load({
         templatePruneConfirm: '裁剪该模板的第 {revision} 版？',
         templateMutated: '模板已更新。',
         templateCloned: '已复制为 {name}。',
+        templateCloneTitle: '复制 · {name}',
+        templateNameRequired: '名称必填。',
+        templateNodesRequired: '至少要有一行节点。',
+        templateFormError: '该模板未保存。',
+        templateDiscardConfirm: '这份表单还有未保存的改动。',
+        templateDiscardConfirmDrop: '丢弃并关闭',
+        templateDiscardConfirmKeep: '继续编辑',
         templateDeleted: '模板已删除，其需求已改绑。',
         templateArchived: '模板已归档。',
         templateRestored: '模板已恢复。',
@@ -845,6 +983,7 @@ window.__ModuleLoader__.load({
         // 分节小字是分节的英文标识（概念稿的视觉语言），两种语言用同一个词。
         secBody: 'BODY',
         secImages: 'IMAGES',
+        secOptions: 'OPTIONS',
         secEligibility: 'ELIGIBILITY',
         secGates: 'GATES',
         secExecutions: 'EXECUTIONS',
@@ -968,6 +1107,7 @@ window.__ModuleLoader__.load({
     const SECTION_EN = {
       description: 'secBody',
       images: 'secImages',
+      options: 'secOptions',
       eligibility: 'secEligibility',
       gates: 'secGates',
       executions: 'secExecutions',
@@ -1526,6 +1666,40 @@ body:not([data-ds-dark-theme]) .rb-root {
   --rb-on-accent:#fff;
   --rb-violet:#6d5bd0; --rb-violet-soft:rgba(109,91,208,.12);
 }
+/* The platform portals a Dialog outside .rb-root, so a custom property declared
+ * on the panel root does not reach anything inside one, and a var() that
+ * resolves to nothing leaves the declaration invalid at computed-value time --
+ * which reads as currentColor for a border, as transparent for a background, and
+ * as the inherited family for a font. The portal-reachable family is therefore
+ * re-declared on the theme carrier, the nearest ancestor every portaled surface
+ * inherits from: the accent triple, the error tint, the primary stroke an earlier
+ * round added, and the numeric family. Each arm repeats the value .rb-root
+ * already holds, so nothing inside the panel changes -- the panel root's own
+ * declaration still wins on its own subtree, because an element's own custom
+ * property beats the one it would inherit -- and nothing is declared on :root,
+ * which would leak these variables into every other panel and into the shell.
+ * The error tint and the numeric family are theme-invariant expressions, and both
+ * are restated in both carriers so the rule reads the same for every carried
+ * variable: one declaration per theme arm. DESIGN.md section 16 records what a
+ * portaled surface renders for each of them.
+ *
+ * Only a variable a portaled surface consumes is carried: a declaration nothing
+ * outside the panel can read buys no rendering and costs a second place to keep
+ * in step. The registry variables left out of both arms, with the evidence for
+ * each, are listed in DESIGN.md section 16.5.
+ */
+body {
+  --rb-accent:#f06423; --rb-accent-soft:rgba(240,100,35,.12); --rb-accent-line:rgba(240,100,35,.35);
+  --rb-tint-error:color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
+  --rb-accent-strong:#ff7733;
+  --rb-num:var(--dsw-font-family-brand);
+}
+body:not([data-ds-dark-theme]) {
+  --rb-accent:#c2410c; --rb-accent-soft:rgba(194,65,12,.10); --rb-accent-line:rgba(194,65,12,.35);
+  --rb-tint-error:color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
+  --rb-accent-strong:#9a3412;
+  --rb-num:var(--dsw-font-family-brand);
+}
 
 /* ---------- Top bar ---------- */
 .rb-header { display:flex; align-items:center; gap:12px; height:64px; padding:0 18px; flex:none;
@@ -1543,18 +1717,83 @@ body:not([data-ds-dark-theme]) .rb-root {
 @keyframes rb-pulse { 50% { opacity:.4; } }
 .rb-grow { flex:1 1 auto; }
 /* The top bar is the panel's identity surface, so its buttons take the concept
- * frame instead of the platform ghost skin. Two classes win on specificity, not
- * on stylesheet order, matching the existing danger-button override. */
+ * frame instead of the platform ghost skin. Repeated class names win on
+ * specificity, not on stylesheet order, matching the existing danger-button
+ * override. This arm keeps its pre-change stroke (l2) as the regression
+ * baseline; only the primary button in the header changes, and it changes
+ * because the primary arm below is later and now equally specific. */
 .rb-header .rb-btn.rb-btn { height:32px; padding:0 13px; font-size:13px; font-weight:500;
   border-radius:var(--dsw-radius-sm); border:1px solid var(--dsw-alias-border-l2);
   background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); }
 .rb-header .rb-btn.rb-btn:hover { color:var(--dsw-alias-label-primary);
   background:var(--dsw-alias-bg-layer-3); border-color:var(--dsw-alias-border-l3); }
-.rb-btn-primary.rb-btn-primary { height:32px; padding:0 13px; font-size:13px; font-weight:600;
-  border-radius:var(--dsw-radius-sm); border-color:transparent; color:var(--rb-on-accent);
+/* Every panel Button carries the rb-btn marker class on the element itself:
+ * the platform primitive's class names are hashed, and a dialog portals outside
+ * .rb-root, so neither the platform's names nor a panel subtree scope can be
+ * relied on. The concept sheet's 1px frame is the design baseline the previous
+ * visual pass missed, and --dsw-alias-border-l3 is the strongest neutral stroke
+ * alias the platform exposes. The doubled class name raises specificity above
+ * the primitive instead of depending on load order. */
+.rb-btn.rb-btn { border:1px solid var(--dsw-alias-border-l3); }
+/* The four states restate the stroke rather than clearing it. focus-visible
+ * declares border-color only: the platform owns the focus ring
+ * (packages/client/ui-theme/src/styles/focus.css:10-13), and a pointer-modality
+ * focus is made transparent there on purpose. disabled compensates the
+ * platform's :disabled opacity .4 with an opaque neutral, so the stroke
+ * survives the composite instead of fading into the fill. */
+.rb-btn.rb-btn:hover { border-color:var(--dsw-alias-border-l3); }
+.rb-btn.rb-btn:active { border-color:var(--dsw-alias-border-l3); }
+.rb-btn.rb-btn:focus-visible { border-color:var(--dsw-alias-border-l3); }
+.rb-btn.rb-btn:disabled { border-color:var(--dsw-alias-label-tertiary); }
+/* The detail row already carried a 1px l2 stroke before this change, so its arm
+ * is restated at equal specificity here to keep it: these are compact inline
+ * actions whose frame was a deliberate l2, and re-tinting them to the neutral
+ * l3 would be a visible change nothing asked for. */
+.rb-detail-actions .rb-btn.rb-btn { border:1px solid var(--dsw-alias-border-l2); }
+/* Geometry (see the geometry note): the platform's box-sizing:border-box
+ * absorbs a 1px border only when the width is definite, and these controls are
+ * auto-width, so the stroke would add 2px to the outer box. Each marked arm
+ * takes the border's 1px back out of its horizontal padding, which is why the
+ * values sit one pixel below the platform base. A control that already carried
+ * a stroke (the top bar's buttons, the detail row's, the outline variant's
+ * 0.5px) is deliberately not marked: for it the border was already inside the
+ * box and padding back would shrink it by the same 2px. */
+.rb-btn-pad.rb-btn-pad { padding:0 13px; }
+.rb-btn-pad.rb-btn-pad.rb-btn-sm.rb-btn-sm { padding:0 9px; }
+/* A primary-variant button that keeps the platform's fill has to take the
+ * primary arm's stroke rather than the neutral one: that fill is near-black in
+ * the light theme and near-white in the dark one, so an l3 stroke composites
+ * into it and reads as no stroke at all. This arm carries the stroke only --
+ * fill, height, padding, and weight stay the platform's -- which is why it is a
+ * separate marker from rb-btn-primary, whose rule also restyles the fill. */
+.rb-btn-primary-stroke.rb-btn-primary-stroke { border-color:var(--rb-accent-strong); }
+.rb-btn-primary-stroke.rb-btn-primary-stroke:hover { border-color:var(--rb-accent-strong); }
+.rb-btn-primary-stroke.rb-btn-primary-stroke:active { border-color:var(--rb-accent-strong); }
+.rb-btn-primary-stroke.rb-btn-primary-stroke:focus-visible { border-color:var(--rb-accent-strong); }
+.rb-btn-primary-stroke.rb-btn-primary-stroke:disabled { border-color:var(--dsw-alias-label-tertiary); }
+/* Primary and danger restate the stroke at three repeated class names, (0,3,0),
+ * so they beat the baseline rule without depending on order. At (0,2,0) they
+ * would tie with it, and a border shorthand against a bare border-color
+ * resolves by load order -- exactly the ambiguity this form removes. */
+.rb-btn-primary.rb-btn-primary.rb-btn-primary { height:32px; padding:0 13px; font-size:13px; font-weight:600;
+  border-radius:var(--dsw-radius-sm); border:1px solid var(--rb-accent-strong); color:var(--rb-on-accent);
   background:var(--rb-accent-fill); box-shadow:0 2px 10px -2px var(--rb-accent-line); }
-.rb-btn-primary.rb-btn-primary:hover { background:var(--rb-accent-strong); color:var(--rb-on-accent); }
-.rb-btn-danger.rb-btn-danger { border-color:var(--dsw-alias-state-error-primary); color:var(--dsw-alias-state-error-primary); }
+.rb-btn-primary.rb-btn-primary.rb-btn-primary:hover { background:var(--rb-accent-strong);
+  color:var(--rb-on-accent); border-color:var(--rb-accent-strong); }
+.rb-btn-primary.rb-btn-primary.rb-btn-primary:active { border-color:var(--rb-accent-strong); }
+.rb-btn-primary.rb-btn-primary.rb-btn-primary:focus-visible { border-color:var(--rb-accent-strong); }
+.rb-btn-primary.rb-btn-primary.rb-btn-primary:disabled { border-color:var(--dsw-alias-label-tertiary); }
+.rb-btn-danger.rb-btn-danger.rb-btn-danger { border:1px solid var(--dsw-alias-state-error-primary);
+  color:var(--dsw-alias-state-error-primary); }
+.rb-btn-danger.rb-btn-danger.rb-btn-danger:hover { border-color:var(--dsw-alias-state-error-primary); }
+.rb-btn-danger.rb-btn-danger.rb-btn-danger:active { border-color:var(--dsw-alias-state-error-primary); }
+.rb-btn-danger.rb-btn-danger.rb-btn-danger:focus-visible { border-color:var(--dsw-alias-state-error-primary); }
+.rb-btn-danger.rb-btn-danger.rb-btn-danger:disabled { border-color:var(--dsw-alias-label-tertiary); }
+/* The top bar's primary button is the one marked site whose pre-change padding
+ * came from the panel's own primary rule (13px) rather than the platform base
+ * (14px), so its compensation is 12px, not 13px. It is not pad-marked because
+ * the top bar arm below would then have to be fought; this rule outranks it. */
+.rb-header .rb-btn-primary.rb-btn-primary.rb-btn-primary { padding:0 12px; }
 
 /* ---------- View switcher ---------- */
 .rb-views { display:flex; align-items:center; gap:12px; padding:14px 18px 0; flex:none; flex-wrap:wrap; }
@@ -1617,9 +1856,15 @@ body:not([data-ds-dark-theme]) .rb-root {
 .rb-bar-fill { height:100%; background:var(--rb-accent); }
 
 /* ---------- Filters ---------- */
-.rb-filters { display:flex; flex-wrap:wrap; gap:8px; padding:12px 18px; flex:none; align-items:center;
-  border-top:1px solid var(--dsw-alias-border-l1); }
-.rb-flabel { font-size:12px; color:var(--dsw-alias-label-tertiary); margin-right:4px; }
+.rb-filters { display:flex; flex-direction:column; gap:8px; padding:12px 18px; flex:none;
+  align-items:stretch; border-top:1px solid var(--dsw-alias-border-l1); }
+/* The switch, the summary of what is in force, and the row count: one line, and
+ * it stays one line however many filters are on — the chips scroll sideways
+ * rather than wrap, so folding the area really gives the board its space back. */
+.rb-filter-bar { display:flex; align-items:center; gap:8px; min-width:0; }
+.rb-filter-chips { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; overflow-x:auto;
+  min-width:0; max-width:100%; }
+.rb-filter-controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .rb-filter { display:inline-flex; align-items:center; gap:4px; }
 .rb-filters .rb-chip.rb-chip { height:26px; padding:0 11px; border-radius:999px; font-size:12px;
   border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
@@ -1634,11 +1879,37 @@ body:not([data-ds-dark-theme]) .rb-root {
 .rb-clear { margin-left:auto; border:0; background:none; font-size:12px; cursor:pointer;
   color:var(--dsw-alias-label-tertiary); padding:0 4px; }
 .rb-clear:hover { color:var(--rb-accent); }
-.rb-chips { flex:1 1 100%; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .rb-chip-label { max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .rb-live-off { background:var(--dsw-alias-label-tertiary); box-shadow:none; animation:none; }
 .rb-count-chip { font-family:var(--rb-num); font-size:11px; font-variant-numeric:tabular-nums;
   color:var(--dsw-alias-label-tertiary); }
+
+/* ---------- Structured options ---------- */
+/* The create dialog's question editor and the detail's answer block. Both read
+ * as cards: one card per question and one row per choice, so a question with
+ * eight choices stays one block instead of flooding the surface. */
+.rb-options-editor { display:flex; flex-direction:column; gap:8px; margin-top:4px; }
+.rb-option-hint { font-size:12px; color:var(--dsw-alias-label-tertiary); }
+.rb-choice-name { flex:1 1 140px; min-width:0; display:flex; }
+.rb-choice-name input { width:100%; }
+.rb-choice-detail { flex:1 1 180px; min-width:0; display:flex; }
+.rb-choice-detail input { width:100%; }
+.rb-choice-rec { flex:none; font-size:12px; }
+.rb-question { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.rb-question-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.rb-question-prompt { font-size:13px; font-weight:600; color:var(--dsw-alias-label-primary); }
+/* The selectable choice. The chosen one reuses the summary chip's accent pair,
+ * which is how the panel already says "this is the one in force". */
+.rb-choice { display:flex; align-items:flex-start; gap:8px; padding:6px 8px;
+  border:1px solid var(--dsw-alias-border-l2); border-radius:var(--dsw-radius-md); cursor:pointer; }
+.rb-choice-on { border-color:var(--rb-accent-line); background:var(--rb-accent-soft); }
+.rb-choice input[type="radio"] { flex:none; margin-top:2px; }
+.rb-choice-body { display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0; }
+.rb-choice-text { font-size:13px; }
+.rb-choice-cost { font-size:12px; color:var(--dsw-alias-label-tertiary); }
+.rb-choice-note { font-size:12px; color:var(--dsw-alias-label-tertiary); }
+.rb-answer-form { display:flex; flex-direction:column; gap:8px; align-items:flex-start; margin-top:10px; }
+
 /* Native select, textarea, and the project input keep their own element,
  * aligned to the Input primitive's frame so a field looks the same whichever
  * element draws it. The project input is a plain element because it carries a
@@ -1703,8 +1974,11 @@ body:not([data-ds-dark-theme]) .rb-root {
 .rb-queue-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
 .rb-queue-session { font-size:13px; font-weight:500; }
 .rb-queue-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:var(--dsw-radius-sm);
+  flex-wrap:wrap; row-gap:6px;
   border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1); }
-.rb-queue-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rb-queue-title { flex:1 1 160px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.rb-queue-row > *:not(.rb-queue-title) { flex-shrink:0; }
+.rb-queue-row .rb-btn { white-space:nowrap; }
 .rb-tag { display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:5px;
   font-family:var(--rb-num); font-size:11px; font-weight:500; font-variant-numeric:tabular-nums;
   color:var(--rb-violet); background:var(--rb-violet-soft); }
@@ -1887,11 +2161,12 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   background:var(--rb-tint-error); }
 
 /* ---------- Dialog chrome, fields, images ---------- */
-.rb-dialog, .rb-dialog-wide, .rb-dialog-drawer { max-height:100%; font-size:13px; line-height:1.55;
-  color:var(--dsw-alias-label-primary); }
+.rb-dialog, .rb-dialog-wide, .rb-dialog-drawer, .rb-dialog-roles { max-height:100%; font-size:13px;
+  line-height:1.55; color:var(--dsw-alias-label-primary); }
 .rb-dialog { width:min(560px, 100%); }
 .rb-dialog-wide { width:min(680px, 100%); }
 .rb-dialog-drawer { width:min(960px, 100%); }
+.rb-dialog-roles { width:min(920px, 100%); min-height:0; }
 .rb-field { display:flex; flex-direction:column; gap:3px; }
 .rb-field-label { font-size:11px; color:var(--dsw-alias-label-tertiary); }
 .rb-images { display:flex; flex-wrap:wrap; gap:8px; }
@@ -1930,7 +2205,10 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   appearance:none; cursor:pointer; padding:10px 12px; border-radius:var(--dsw-radius-md);
   border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1); color:inherit; }
 .rb-template-row:hover { border-color:var(--dsw-alias-border-l2); }
-.rb-template-row-picked { border-color:var(--rb-accent-line); background:var(--dsw-alias-bg-layer-2);
+/* The picked row keeps the accent stroke while the pointer is on it: the state arm
+   doubles its base class so it outranks the hovered base rule, which is one
+   class plus one pseudo-class. */
+.rb-template-row.rb-template-row-picked { border-color:var(--rb-accent-line); background:var(--dsw-alias-bg-layer-2);
   box-shadow:inset 2px 0 0 var(--rb-accent); }
 .rb-template-row-title { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-weight:500; }
 .rb-version-list { display:flex; flex-direction:column; gap:6px; }
@@ -1949,6 +2227,35 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   background:var(--dsw-alias-bg-layer-1); }
 .rb-impact-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .rb-impact-move { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:12px; }
+
+/* ---------- Role management: two columns, duty editor, in-place confirm ----------
+   Role management is the one surface that reads a role and the presets that
+   resolve to it side by side, so each column owns its own search box and its
+   own scroll body: the grid splits the width evenly and only the column that
+   overflows moves. A scroll body needs a bounded height, which the platform
+   modal body does not supply, so it also caps at the template drawer's 52vh. */
+.rb-roles-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  min-height:0; flex:1; }
+.rb-roles-col { display:flex; flex-direction:column; gap:8px; min-width:0; min-height:0;
+  padding:10px 14px; }
+.rb-roles-col:first-child { border-right:1px solid var(--dsw-alias-border-l1); }
+.rb-roles-col-head { display:flex; align-items:baseline; gap:6px; }
+.rb-roles-search { flex:none; }
+.rb-roles-scroll { overflow:auto; min-height:0; flex:1; max-height:52vh; display:flex;
+  flex-direction:column; gap:8px; }
+.rb-role-confirm { display:flex; flex-direction:column; gap:6px; margin-top:4px; padding:8px 10px;
+  border:1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
+  border-radius:var(--dsw-radius-sm); background:var(--rb-tint-error);
+  color:var(--dsw-alias-state-error-primary); font-size:12px; }
+.rb-duty-row { display:flex; align-items:center; gap:6px; }
+.rb-duty-row > span { flex:1 1 auto; min-width:0; }
+.rb-duty-count { font-family:var(--rb-num); font-size:11px; color:var(--dsw-alias-label-tertiary);
+  font-variant-numeric:tabular-nums; }
+.rb-form-error { display:flex; flex-direction:column; gap:4px; padding:8px 10px;
+  border:1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
+  border-radius:var(--dsw-radius-sm); background:var(--rb-tint-error);
+  color:var(--dsw-alias-state-error-primary); font-size:12px; }
+.rb-preset-empty { padding:4px 2px 8px; }
 .rb-role-list { display:flex; flex-direction:column; border:1px solid var(--dsw-alias-border-l1);
   border-radius:var(--dsw-radius-md); overflow:hidden; max-height:40vh; overflow-y:auto;
   background:var(--dsw-alias-bg-layer-1); }
@@ -1956,6 +2263,13 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-md);
   background:var(--dsw-alias-bg-layer-1); }
 .rb-role-row:last-child { border-bottom:1px solid var(--dsw-alias-border-l1); }
+/* The row the form dialog addresses stays marked for as long as that dialog is
+   open, so "which row am I editing" is answered on the list itself. The state arm
+   doubles its base class -- the idiom the chip and primary button arms already use
+   -- because one class ties with the base row rule and with the last-child rule,
+   both of which sit later in the sheet. */
+.rb-role-row.rb-role-row-editing { border-color:var(--rb-accent-line); background:var(--dsw-alias-bg-layer-2);
+  box-shadow:inset 2px 0 0 var(--rb-accent); }
 .rb-role-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .rb-role-name { font-weight:500; }
 .rb-duties { display:flex; flex-wrap:wrap; gap:4px; }
@@ -1999,7 +2313,11 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   font-size:11px; line-height:1; white-space:nowrap; max-width:140px; overflow:hidden;
   text-overflow:ellipsis; }
 .rb-group { display:flex; flex-direction:column; gap:8px; }
-.rb-group-head { display:flex; align-items:baseline; gap:6px; padding:2px 2px 0; }
+/* The three role groups and the preset section are headed by a real h3, so the
+   element's own size and weight are reset here: the name and count runs carry
+   the type, in the role columns and in the board's project groups alike. */
+.rb-group-head { display:flex; align-items:baseline; gap:6px; padding:2px 2px 0;
+  margin:0; font-size:12px; font-weight:500; }
 .rb-group-name { font-size:12px; font-weight:500; color:var(--dsw-alias-label-primary);
   overflow-wrap:anywhere; }
 .rb-group-n { font-family:var(--rb-num); font-size:11px; color:var(--dsw-alias-label-tertiary); }
@@ -2020,6 +2338,12 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   .rb-stat-hero, .rb-stat-alert { flex:1 1 100%; }
   .rb-meta-grid { grid-template-columns:minmax(0,1fr); }
 }
+@media (max-width:760px) {
+  /* Side by side is the point of this dialog, so the narrow arm keeps both
+     columns at a usable width and lets the grid scroll horizontally instead of
+     stacking them: a stacked pair has to be scrolled between anyway. */
+  .rb-roles-grid { grid-template-columns:minmax(300px,1fr) minmax(300px,1fr); overflow-x:auto; }
+}
 @media (prefers-reduced-motion: reduce) {
   .rb-live, .rb-skeleton-row { animation:none; }
   .rb-stat, .rb-card, .rb-node, .rb-caret, .rb-ring-fill { transition:none; }
@@ -2037,14 +2361,18 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
      * The platform Modal owns the mask, the surface, Escape for the top layer,
      * the Tab trap, entry and return focus, and the frame's overlay inset; this
      * wrapper only supplies localized copy and the dialog's width.
+     *
+     * `className` replaces the width tiers rather than joining them: a surface
+     * that needs its own width states it once, and the three defaults stay the
+     * whole set for every other dialog.
      */
-    function Dialog({ title, closeLabel, onClose, children, footer, wide, drawer }) {
+    function Dialog({ title, closeLabel, onClose, children, footer, wide, drawer, className }) {
       return h(Modal, {
         open: true,
         onClose,
         title,
         closeLabel,
-        className: drawer === true ? 'rb-dialog-drawer' : wide === true ? 'rb-dialog-wide' : 'rb-dialog',
+        className: className ?? (drawer === true ? 'rb-dialog-drawer' : wide === true ? 'rb-dialog-wide' : 'rb-dialog'),
         footer,
       }, children)
     }
@@ -2121,6 +2449,225 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
     }
 
     /**
+     * Whether two role drafts are the same edit.
+     *
+     * The duty list is compared as a list — order and repeats both count — so
+     * adding, removing, reordering, or restating a duty all read as a change. An
+     * untouched draft closes without a prompt; anything else is the reader's to
+     * confirm before it is lost.
+     * @param left - one draft.
+     * @param right - the draft it started from.
+     * @returns whether the two are the same edit.
+     */
+    function sameRoleDraft(left, right) {
+      return left.roleId === right.roleId
+        && left.roleName === right.roleName
+        && left.duties.length === right.duties.length
+        && left.duties.every((duty, index) => duty === right.duties[index])
+    }
+
+    /**
+     * The duty list a `role.put` carries, and how many repeats it absorbed.
+     *
+     * The Host's own reader (`host/model.js` `asStringArray`) trims each entry,
+     * drops the empty ones, and keeps the first occurrence of a repeat; the panel
+     * applies the same rule before submitting, so the list it shows is the list
+     * that lands. A repeat merges rather than failing, and the caller states how
+     * many merged — an empty list is a legal declaration, and is exactly what
+     * `dutiesMissing` reports.
+     * @param duties - the editor's rows, one string each.
+     * @returns `{ duties, merged }`, the merged list and the repeats it dropped.
+     */
+    function mergedDuties(duties) {
+      const kept = []
+      let merged = 0
+      for (const duty of duties) {
+        const text = duty.trim()
+        if (text === '') continue
+        if (kept.includes(text)) {
+          merged += 1
+          continue
+        }
+        kept.push(text)
+      }
+      return { duties: kept, merged }
+    }
+
+    /**
+     * Whether two template form drafts are the same edit.
+     *
+     * Every field the form owns is compared, so a duplicate draft, which carries
+     * only a name, compares as an untouched one while any typed character asks
+     * first. An untouched draft closes without a prompt.
+     * @param left - one draft.
+     * @param right - the draft it started from.
+     * @returns whether the two are the same edit.
+     */
+    function sameTemplateDraft(left, right) {
+      return left.name === right.name
+        && left.description === right.description
+        && left.nodes === right.nodes
+    }
+
+    /**
+     * The role form, as a second dialog over role management.
+     *
+     * Three entries share this one layer — a new role, a line edit, and a
+     * one-click registration from a preset — so the row a form addresses is
+     * stated twice: in the dialog title, which names that row, and on the row
+     * itself, which stays marked while the form is open. Fields and their bounds
+     * are the Host's own (`role.put`): the display name and each duty carry the
+     * 40-character cap on the control, the duty editor counts its rows against
+     * the twelve-row ceiling, and the id's charset is the Host's to refuse — its
+     * message is what the error block shows.
+     *
+     * Duties are one row each (`role.duty.<i>`) rather than comma-separated text:
+     * a duty may then contain a comma, and each row is added or removed on its
+     * own. The body is a `form`, so Enter in any field submits through it — which
+     * is why the action row is inside the form and not in `Modal.footer`. Escape
+     * and the mask belong to the platform modal layer and arrive here as
+     * `onAttemptClose`, which turns them into the discard confirmation while the
+     * draft differs from the value it started as.
+     * @returns the second-layer dialog.
+     */
+    function RoleFormDialog({ form, discard, busy, error, merged, t, onPatch, onDutyChange, onDutyAdd, onDutyRemove, onAttemptClose, onDrop, onKeep, onSave }) {
+      const value = form.value
+      const name = value.roleName.trim() === '' ? value.roleId : value.roleName.trim()
+      const title = form.mode === 'new'
+        ? t('newRole')
+        : interpolate(t(form.mode === 'edit' ? 'roleEditTitle' : 'roleRegisterTitle'), { name, id: value.roleId })
+      return h(Dialog, { title, closeLabel: t('close'), onClose: onAttemptClose },
+        h('form', { onSubmit: event => { event.preventDefault(); onSave() } },
+          h(Field, { label: t('roleId') }, h(Input, {
+            name: 'role.roleId',
+            value: value.roleId,
+            disabled: form.mode === 'edit',
+            'data-modal-autofocus': true,
+            onChange: event => onPatch({ roleId: event.target.value }),
+          })),
+          h(Field, { label: t('roleName') }, h(Input, {
+            name: 'role.roleName',
+            value: value.roleName,
+            maxLength: ROLE_NAME_MAX,
+            onChange: event => onPatch({ roleName: event.target.value }),
+          })),
+          h('div', { className: 'rb-field' },
+            h('div', { className: 'rb-field-label' },
+              h('span', null, t('roleDuties')),
+              h('span', { className: 'rb-duty-count' }, interpolate(t('roleDutyCount'), { count: value.duties.length }))),
+            value.duties.map((duty, index) => h('div', { key: `duty.${index}`, className: 'rb-duty-row' },
+              h(Input, {
+                name: `role.duty.${index}`,
+                value: duty,
+                maxLength: ROLE_DUTY_MAX,
+                onChange: event => onDutyChange(index, event.target.value),
+              }),
+              h(Button, {
+                className: 'rb-btn-pad rb-btn-sm rb-btn',
+                variant: 'ghost',
+                size: 'sm',
+                name: `role.duty.remove.${index}`,
+                disabled: busy,
+                onClick: () => onDutyRemove(index),
+              }, t('roleDutyRemove')))),
+            h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
+              variant: 'ghost',
+              size: 'sm',
+              name: 'role.duty.add',
+              disabled: busy || value.duties.length >= ROLE_DUTIES_MAX,
+              onClick: () => onDutyAdd(),
+            }, t('roleDutyAdd')),
+            h('div', { className: 'rb-muted' }, t('roleDutyEmptyHint')),
+            merged > 0 ? h('div', { className: 'rb-muted' }, interpolate(t('roleDutyMerged'), { count: merged })) : null),
+          error === null ? null : h('div', { className: 'rb-form-error', name: 'role.form.error' },
+            h('div', null, t('roleFormError')),
+            h('div', null, error)),
+          discard ? h('div', { className: 'rb-panel' },
+            h('div', null, t('roleDiscardConfirm')),
+            h('div', { className: 'rb-row' },
+              h(Button, { className: 'rb-btn', variant: 'outline', name: 'role.discard.drop', onClick: () => onDrop() }, t('roleDiscardConfirmDrop')),
+              h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', name: 'role.discard.keep', onClick: () => onKeep() }, t('roleDiscardConfirmKeep')))) : null,
+          h('div', { className: 'rb-row' },
+            h(Button, {
+              className: 'rb-btn-primary-stroke rb-btn-pad rb-btn',
+              variant: 'primary',
+              type: 'submit',
+              name: 'role.save',
+              disabled: busy || value.roleId.trim() === '',
+            }, t('save')),
+            h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', name: 'role.cancel', onClick: () => onAttemptClose() }, t('cancel')))))
+    }
+
+    /**
+     * The template form, as a second dialog over the template drawer.
+     *
+     * Two entries share this one layer — a new template, and a duplicate of the
+     * template the drawer has selected — so the title names its subject: the
+     * blank draft is `newTemplate`, the copy is `templateCloneTitle` with the row
+     * it copies. The field names and the submit predicate are the ones the inline
+     * form used, so the command bodies are unchanged; the required-field line
+     * states what the disabled submit is waiting for, because a disabled control
+     * alone does not say why. The body is a `form`, so Enter in any field submits
+     * through it — which is why the action row is inside the form and not in
+     * `Modal.footer`. Escape and the mask belong to the platform modal layer and
+     * arrive here as `onAttemptClose`, which turns them into the discard
+     * confirmation while the draft differs from the value it started as.
+     * @returns the second-layer dialog.
+     */
+    function TemplateFormDialog({ form, discard, busy, error, t, onPatch, onAttemptClose, onDrop, onKeep, onSave }) {
+      const value = form.value
+      const blank = form.mode === 'new'
+      const title = blank ? t('newTemplate') : interpolate(t('templateCloneTitle'), { name: form.sourceName })
+      const nameMissing = value.name.trim() === ''
+      const nodesMissing = blank && value.nodes.trim() === ''
+      return h(Dialog, { title, closeLabel: t('close'), onClose: onAttemptClose },
+        h('form', { onSubmit: event => { event.preventDefault(); onSave() } },
+          h(Field, { label: t('templateName') }, h(Input, {
+            name: blank ? 'template.new.name' : 'template.clone.name',
+            value: value.name,
+            'data-modal-autofocus': true,
+            onChange: event => onPatch({ name: event.target.value }),
+          })),
+          blank ? null : h('div', { className: 'rb-muted' }, t('templateCloneHint')),
+          blank ? h(Field, { label: t('templateDescription') }, h(Input, {
+            name: 'template.new.description',
+            value: value.description,
+            onChange: event => onPatch({ description: event.target.value }),
+          })) : null,
+          blank ? h(Field, { label: `${t('templateNodes')} — ${t('templateNodesHint')}` }, h('textarea', {
+            className: 'rb-textarea',
+            name: 'template.new.nodes',
+            style: { minHeight: 90 },
+            value: value.nodes,
+            placeholder: t('templateNodesExample'),
+            onChange: event => onPatch({ nodes: event.target.value }),
+          })) : null,
+          nameMissing || nodesMissing
+            ? h('div', { className: 'rb-muted', name: 'template.form.required' },
+              nameMissing ? h('div', null, t('templateNameRequired')) : null,
+              nodesMissing ? h('div', null, t('templateNodesRequired')) : null)
+            : null,
+          error === null ? null : h('div', { className: 'rb-form-error', name: 'template.form.error' },
+            h('div', null, t('templateFormError')),
+            h('div', null, error)),
+          discard ? h('div', { className: 'rb-panel' },
+            h('div', null, t('templateDiscardConfirm')),
+            h('div', { className: 'rb-row' },
+              h(Button, { className: 'rb-btn', variant: 'outline', name: 'template.discard.drop', onClick: () => onDrop() }, t('templateDiscardConfirmDrop')),
+              h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', name: 'template.discard.keep', onClick: () => onKeep() }, t('templateDiscardConfirmKeep')))) : null,
+          h('div', { className: 'rb-row' },
+            h(Button, {
+              className: 'rb-btn-primary-stroke rb-btn-pad rb-btn',
+              variant: 'primary',
+              type: 'submit',
+              name: blank ? 'template.create' : 'template.clone.confirm',
+              disabled: busy || nameMissing || nodesMissing,
+            }, t(blank ? 'create' : 'templateClone')),
+            h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', type: 'button', name: 'template.form.cancel', disabled: busy, onClick: () => onAttemptClose() }, t('cancel')))))
+    }
+
+    /**
      * Role management: the recorded roles, the ids in use but unrecorded, the
      * presets that resolve to them, and the panel's only write path into the
      * roles table (`put`/`delete`).
@@ -2130,15 +2677,28 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
      * be registered here, which is the only way a requirement's dangling role id
      * stops reading as unregistered.
      *
-     * The preset section is the association itself: each declared preset with the
-     * role its sessions resolve to, and every preset whose role has no record
-     * offering to register one, prefilled from the preset's own id and name. The
-     * roster is read when the dialog opens and again after a `put` or `delete`,
-     * so a registration this panel just made stops reading as one still to make.
+     * The dialog reads as two columns because the question it answers is an
+     * association: the left column is every role (recorded, temporary, in use but
+     * unrecorded) and the right column is every declared preset with the role its
+     * sessions resolve to. Each column searches and scrolls on its own, so a long
+     * pair of lists never scrolls one against the other. The roster is read when
+     * the dialog opens and again after a `put` or `delete`, so a registration
+     * this panel just made stops reading as one still to make.
+     *
+     * Writes report where they were asked for: a refused save in the form dialog,
+     * a refused delete on its own row, and a refused roster read as the roster
+     * section's degraded state. Role management therefore takes the command path
+     * directly rather than the page's shared `run`, whose error branch raises the
+     * overlay toast.
      */
-    function RolesDialog({ roles, status, busy, run, onClose, t }) {
-      const [draft, setDraft] = useState(null)
+    function RolesDialog({ roles, status, busy, invoke, onClose, t }) {
       const [confirmId, setConfirmId] = useState(null)
+      const [rowErrors, setRowErrors] = useState({})
+      const [form, setForm] = useState(null)
+      const [discard, setDiscard] = useState(false)
+      const [formError, setFormError] = useState(null)
+      const [roleQuery, setRoleQuery] = useState('')
+      const [presetQuery, setPresetQuery] = useState('')
       // `null` is "still reading": the preset roster is read when the dialog
       // opens, because the registry audits every preset as it lists them and the
       // board's own read path must not wait on that.
@@ -2146,15 +2706,15 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
       const live = useRef(true)
       const items = roles?.items ?? []
       const unregistered = roles?.unregistered ?? []
-      const set = patch => setDraft(current => ({ ...current, ...patch }))
       /**
        * Read the preset roster: when the dialog opens, and again after a write
        * that changes which presets have a role record — otherwise the section
        * keeps offering a registration the Host has already recorded, or hides
-       * one it no longer has.
+       * one it no longer has. A read the Host refuses becomes the section's own
+       * degraded state, with the Host's reason, rather than an overlay toast.
        */
       const loadPresets = async () => {
-        const result = await run('role.list')
+        const result = await invoke('role.list')
         if (!live.current) return
         const roster = result.ok && result.data !== null && typeof result.data === 'object'
           ? result.data.presets
@@ -2162,37 +2722,122 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
         // A roster the Host did not answer with is a degraded section, not an
         // empty one: "no presets declared" and "cannot read them" are different
         // facts and the panel states which one it has.
-        setPresets(roster ?? { items: [], unavailable: { code: 'read-failed' } })
+        setPresets(roster ?? {
+          items: [],
+          unavailable: {
+            code: 'read-failed',
+            detail: result.ok ? '' : String(result.error?.message ?? result.error ?? ''),
+          },
+        })
       }
       useEffect(() => {
         // One read per dialog open. The dialog is mounted per open, so the first
-        // render's `run` is the one to use; depending on it would re-read without
-        // a new open whenever the locale changed its identity. The liveness flag
-        // is re-armed on every mount because a ref outlives one in the test
-        // renderer's slot reuse.
+        // render's `invoke` is the one to use; depending on it would re-read
+        // without a new open whenever the locale changed its identity. The
+        // liveness flag is re-armed on every mount because a ref outlives one in
+        // the test renderer's slot reuse.
         live.current = true
         void loadPresets()
         return () => { live.current = false }
       }, [])
-      /** Open the form for a new role, or for one existing record. */
-      const startEdit = record => setDraft({
+
+      /**
+       * Open the form dialog over one starting value.
+       *
+       * `target` names the row the form addresses, so the list can mark it while
+       * the form is open: the role itself for an edit, the preset for a
+       * registration, and nothing for a role that has no row yet.
+       */
+      const openForm = (mode, target, value) => {
+        setForm({ mode, target, initial: value, value })
+        setDiscard(false)
+        setFormError(null)
+      }
+      /** Edit one existing role; the id stays pinned to the record being edited. */
+      const startEdit = record => openForm('edit', { kind: 'role', id: record.id }, {
         roleId: record.id,
         roleName: record.name ?? record.id,
-        duties: (record.duties ?? []).join(', '),
-        existing: record.name !== undefined,
+        duties: [...(record.duties ?? [])],
       })
-      const submit = async () => {
-        const result = await run('role.put', {
-          role: {
-            roleId: draft.roleId.trim(),
-            roleName: draft.roleName.trim(),
-            duties: draft.duties.split(',').map(entry => entry.trim()).filter(Boolean),
-          },
-        })
-        if (result.ok) {
-          setDraft(null)
-          void loadPresets()
+      /** Register an unrecorded role, prefilled from the preset that named it. */
+      const registerPreset = preset => openForm('preset', { kind: 'preset', id: preset.id }, {
+        roleId: preset.roleId,
+        roleName: preset.name === '' ? preset.id : preset.name,
+        duties: [''],
+      })
+      const patchForm = patch => {
+        // A refusal belongs to the draft that caused it, so editing clears it.
+        setFormError(null)
+        setForm(current => current === null ? null : { ...current, value: { ...current.value, ...patch } })
+      }
+      const changeDuty = (index, text) => setForm(current => current === null ? null : {
+        ...current,
+        value: {
+          ...current.value,
+          duties: current.value.duties.map((duty, at) => (at === index ? text : duty)),
+        },
+      })
+      const addDuty = () => setForm(current => current === null ? null : {
+        ...current,
+        value: { ...current.value, duties: [...current.value.duties, ''] },
+      })
+      const removeDuty = index => setForm(current => current === null ? null : ({
+        ...current,
+        value: {
+          ...current.value,
+          duties: [...current.value.duties.slice(0, index), ...current.value.duties.slice(index + 1)],
+        },
+      }))
+      const dropForm = () => {
+        setForm(null)
+        setDiscard(false)
+        setFormError(null)
+      }
+      /**
+       * The form dialog's own close control, standing in for cancel, Escape, and
+       * the mask. A changed draft asks first; while that confirmation is up, this
+       * path takes the confirmation back instead of the input, so discarding
+       * stays an explicit act.
+       */
+      const attemptCloseForm = () => {
+        if (discard) {
+          setDiscard(false)
+          return
         }
+        if (form !== null && !sameRoleDraft(form.value, form.initial)) {
+          setDiscard(true)
+          return
+        }
+        dropForm()
+      }
+      /** Save the draft; a refusal lands in the form dialog, never as a toast. */
+      const submitForm = async () => {
+        if (form === null) return
+        const { duties } = mergedDuties(form.value.duties)
+        const result = await invoke('role.put', {
+          role: { roleId: form.value.roleId.trim(), roleName: form.value.roleName.trim(), duties },
+        })
+        if (!result.ok) {
+          setFormError(String(result.error?.message ?? result.error ?? ''))
+          return
+        }
+        dropForm()
+        void loadPresets()
+      }
+      /** Delete one role; a refusal lands on that row. */
+      const deleteRole = async id => {
+        const result = await invoke('role.delete', { id })
+        if (!result.ok) {
+          setRowErrors(current => ({ ...current, [id]: String(result.error?.message ?? result.error ?? '') }))
+          return
+        }
+        setRowErrors(current => {
+          const next = { ...current }
+          delete next[id]
+          return next
+        })
+        setConfirmId(null)
+        void loadPresets()
       }
 
       const presence = record => {
@@ -2206,7 +2851,41 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
           : online
       }
 
-      const row = (record, unrecorded) => h('div', { key: record.id, className: 'rb-role-row' },
+      /** Whether the form dialog addresses one named row, and in which column. */
+      const addressed = (kind, id) => form !== null && form.target.kind === kind && form.target.id === id
+
+      /** One row's own delete confirmation and its own refusal, both in its subtree. */
+      const rowTail = record => [
+        confirmId === record.id
+          ? h('div', { key: 'confirm', className: 'rb-role-confirm' },
+            h('div', null, t('removeRoleConfirm')),
+            h('div', { className: 'rb-row' },
+              h(Button, {
+                variant: 'outline',
+                className: 'rb-btn rb-btn-danger',
+                name: `role.confirm.${record.id}`,
+                disabled: busy,
+                onClick: () => void deleteRole(record.id),
+              }, t('confirm')),
+              h(Button, {
+                className: 'rb-btn-pad rb-btn',
+                variant: 'ghost',
+                name: `role.confirm.cancel.${record.id}`,
+                onClick: () => setConfirmId(null),
+              }, t('cancel'))))
+          : null,
+        typeof rowErrors[record.id] === 'string'
+          ? h('div', { key: 'error', className: 'rb-form-error', name: `role.row.error.${record.id}` },
+            h('div', null, t('roleRowError')),
+            h('div', null, rowErrors[record.id]))
+          : null,
+      ]
+
+      const row = (record, unrecorded) => h('div', {
+        key: record.id,
+        className: `rb-role-row${addressed('role', record.id) ? ' rb-role-row-editing' : ''}`,
+        'aria-current': addressed('role', record.id) ? 'true' : undefined,
+      },
         h('div', { className: 'rb-role-head' },
           h('span', { className: 'rb-role-name' }, record.name ?? record.id),
           h(Tag, { tone: 'outline' }, record.id),
@@ -2221,6 +2900,7 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
           h('span', { className: 'rb-grow' }),
           record.ephemeral !== true
             ? h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
 name: `role.edit.${record.id}`,
@@ -2232,7 +2912,7 @@ name: `role.edit.${record.id}`,
             ? h(Button, {
               variant: 'outline',
               size: 'sm',
-              className: 'rb-btn-danger',
+              className: 'rb-btn-sm rb-btn rb-btn-danger',
 name: `role.remove.${record.id}`,
               disabled: busy,
               onClick: () => setConfirmId(record.id),
@@ -2247,20 +2927,15 @@ name: `role.remove.${record.id}`,
           ? h('div', { className: 'rb-card-meta' },
             record.boundSession !== undefined ? h('span', null, `${t('roleBoundSession')}: ${record.boundSession}`) : null,
             record.boundTask !== undefined ? h('span', null, `${t('roleBoundTask')}: ${record.boundTask}`) : null)
-          : null)
-
-      const loaded = items.length > 0 || unregistered.length > 0
-
-      /** Open the role form prefilled from one preset: its id and display name. */
-      const registerPreset = preset => setDraft({
-        roleId: preset.roleId,
-        roleName: preset.name === '' ? preset.id : preset.name,
-        duties: '',
-        existing: false,
-      })
+          : null,
+        rowTail(record))
 
       /** One declared preset and the role its sessions resolve to. */
-      const presetRow = preset => h('div', { key: `preset.${preset.id}`, className: 'rb-role-row rb-preset-row' },
+      const presetRow = preset => h('div', {
+        key: `preset.${preset.id}`,
+        className: 'rb-role-row rb-preset-row',
+        'aria-current': addressed('preset', preset.id) ? 'true' : undefined,
+      },
         h('div', { className: 'rb-role-head' },
           h('span', { className: 'rb-role-name' }, preset.name === '' ? preset.id : preset.name),
           h(Tag, { tone: 'outline' }, preset.id),
@@ -2279,6 +2954,7 @@ name: `role.remove.${record.id}`,
           h('span', { className: 'rb-grow' }),
           preset.roleId !== '' && preset.recorded === false
             ? h(Button, {
+              className: 'rb-btn-primary-stroke rb-btn-pad rb-btn-sm rb-btn',
               variant: 'primary',
               size: 'sm',
               name: `preset.register.${preset.id}`,
@@ -2294,95 +2970,153 @@ name: `role.remove.${record.id}`,
             ? h('span', null, t('presetInferred'))
             : null))
 
-      /**
-       * The preset half of role management.
-       *
-       * Three states stay apart: still reading, unreadable (with the Host's own
-       * reason), and read. An empty roster is a fact about the deployment — no
-       * preset is declared — and is stated as one rather than shown as nothing.
-       */
-      const rosterSection = () => h('div', null,
-        h('div', { className: 'rb-section-title', style: { padding: '8px 10px 0' } }, t('rolePresets')),
-        presets === null
-          ? h('div', { className: 'rb-muted', style: { padding: '4px 10px 8px' } }, t('presetsReading'))
-          : presets.unavailable !== null && presets.unavailable !== undefined
-            ? h('div', { className: 'rb-muted', style: { padding: '4px 10px 8px' } },
-              h('div', null, t(presets.unavailable.code === 'service-absent' ? 'presetsUnavailableAbsent' : 'presetsUnavailableFailed')),
-              typeof presets.unavailable.detail === 'string' && presets.unavailable.detail !== ''
-                ? h('div', null, presets.unavailable.detail)
-                : null)
-            : presets.items.length === 0
-              ? h('div', { className: 'rb-muted', style: { padding: '4px 10px 8px' } }, t('presetsEmpty'))
-              : h('div', { className: 'rb-role-list' }, presets.items.map(presetRow)))
+      const loaded = items.length > 0 || unregistered.length > 0
 
-      return h(Dialog, {
-        title: t('roles'),
-        wide: true,
-        closeLabel: t('close'),
-        onClose,
-        footer: [
-          h(Button, { variant: 'ghost', key: 'new', disabled: busy, onClick: () => setDraft({ roleId: '', roleName: '', duties: '', existing: false })}, t('newRole')),
-          h('span', { key: 'grow', className: 'rb-grow' }),
-          h(Button, { variant: 'ghost', key: 'close', onClick: onClose}, t('close')),
-        ],
-      },
-        draft !== null ? h('div', null,
-          h(Field, { label: t('roleId') }, h(Input, {
-            name: 'role.roleId',
-            value: draft.roleId,
-            disabled: draft.existing === true,
-            onChange: event => set({ roleId: event.target.value }),
-          })),
-          h(Field, { label: t('roleName') }, h(Input, {
-            name: 'role.roleName',
-            value: draft.roleName,
-            onChange: event => set({ roleName: event.target.value }),
-          })),
-          h(Field, { label: `${t('roleDuties')} — ${t('roleDutiesHint')}` }, h(Input, {
-            name: 'role.duties',
-            value: draft.duties,
-            onChange: event => set({ duties: event.target.value }),
-          })),
-          h('div', { className: 'rb-row' },
-            h(Button, {
-              variant: 'primary',
-name: 'role.save',
-              disabled: busy || draft.roleId.trim() === '',
-              onClick: () => void submit(),
-            }, t('save')),
-            h(Button, { variant: 'ghost', onClick: () => setDraft(null)}, t('cancel')))) : null,
-        status === 'loading' && !loaded
-          ? h('div', { className: 'rb-skeleton' }, [0, 1, 2].map(index => h('div', {
+      /**
+       * One group's heading with the count of the rows below it.
+       *
+       * A real heading element rather than a styled row: a group and its count
+       * are the outline of what is on screen, so a reader, an accessibility
+       * tool, and a browser gate all find that group's rows from its heading.
+       */
+      const groupHead = (label, count) => h('h3', { className: 'rb-group-head' },
+        h('span', { className: 'rb-group-name' }, label),
+        ' ',
+        h('span', { className: 'rb-group-n' }, String(count)))
+
+      // Search is a reading of the lists, never a filter on the wire, and an
+      // empty box filters nothing; matching is a trimmed, case-insensitive
+      // substring over the fields a reader would name a row by.
+      const hits = (query, fields) => query === ''
+        || fields.some(field => String(field ?? '').trim().toLowerCase().includes(query))
+      const needle = query => query.trim().toLowerCase()
+      const dutiesOf = roleId => (items.find(record => record.id === roleId)?.duties ?? [])
+      const shownRoles = list => list.filter(record => hits(needle(roleQuery), [record.id, record.name, ...(record.duties ?? [])]))
+      const registered = shownRoles(items.filter(record => record.ephemeral !== true))
+      const ephemeral = shownRoles(items.filter(record => record.ephemeral === true))
+      const unrecorded = shownRoles(unregistered)
+      const rosterReadable = presets !== null && (presets.unavailable === null || presets.unavailable === undefined)
+      const shownPresets = rosterReadable
+        ? (presets.items ?? []).filter(preset => hits(needle(presetQuery),
+          [preset.id, preset.name, preset.roleId, preset.roleName, ...dutiesOf(preset.roleId)]))
+        : []
+
+      /**
+       * The left column: the three groups, each stating its filtered count.
+       *
+       * "No role is recorded at all" and "nothing matches this search" are
+       * different facts; the second cannot be read off the first because the
+       * first is decided before the search runs.
+       */
+      const roleColumn = () => {
+        if (status === 'loading' && !loaded) {
+          return h('div', { className: 'rb-skeleton' }, [0, 1, 2].map(index => h('div', {
             key: index,
             className: 'rb-skeleton-row',
             style: { width: `${90 - index * 18}%` },
           })))
-          : null,
-        status !== 'loading' && !loaded ? h('div', { className: 'rb-muted' }, t('rolesEmpty')) : null,
-        loaded
-          ? h('div', { className: 'rb-role-list' },
-            items.map(record => row(record, false)),
-            unregistered.length > 0
-              ? h('div', { className: 'rb-section-title', style: { padding: '8px 10px 0' } }, t('rolesUnregistered'))
-              : null,
-            unregistered.map(record => row(record, true)))
-          : null,
-        rosterSection(),
-        confirmId !== null ? h('div', { className: 'rb-panel' },
-          h('div', null, t('removeRoleConfirm')),
-          h('div', { className: 'rb-row' },
-            h(Button, {
-              variant: 'outline',
-              className: 'rb-btn-danger',
-disabled: busy,
-              onClick: async () => {
-                if ((await run('role.delete', { id: confirmId })).ok) {
-                  setConfirmId(null)
-                  void loadPresets()
-                }
-              },
-            }, t('confirm')),
-            h(Button, { variant: 'ghost', onClick: () => setConfirmId(null)}, t('cancel')))) : null)
+        }
+        if (!loaded) return h('div', { className: 'rb-muted' }, t('rolesEmpty'))
+        if (registered.length === 0 && ephemeral.length === 0 && unrecorded.length === 0) {
+          return h('div', { className: 'rb-muted' }, t('rolesNoMatch'))
+        }
+        const group = (label, records, missing) => records.length === 0 ? null : h('div', {
+          key: label,
+          className: 'rb-group',
+        }, groupHead(label, records.length), records.map(record => row(record, missing)))
+        return [
+          group(t('roleGroupRegistered'), registered, false),
+          group(t('roleGroupEphemeral'), ephemeral, false),
+          group(t('rolesUnregistered'), unrecorded, true),
+        ]
+      }
+
+      /**
+       * The right column: one section, `rolePresets`, titled with the count of
+       * the presets the search left.
+       *
+       * Three states stay apart, and none of them changes because of a search
+       * term: still reading, unreadable (with the Host's own reason), and read.
+       * An empty roster is a fact about the deployment — no preset is declared —
+       * and is stated as one rather than shown as nothing.
+       */
+      const rosterColumn = () => {
+        if (presets === null) {
+          return h('div', { className: 'rb-muted rb-preset-empty' }, t('presetsReading'))
+        }
+        if (presets.unavailable !== null && presets.unavailable !== undefined) {
+          return h('div', { className: 'rb-muted rb-preset-empty' },
+            h('div', null, t(presets.unavailable.code === 'service-absent' ? 'presetsUnavailableAbsent' : 'presetsUnavailableFailed')),
+            typeof presets.unavailable.detail === 'string' && presets.unavailable.detail !== ''
+              ? h('div', null, presets.unavailable.detail)
+              : null)
+        }
+        const title = groupHead(t('rolePresets'), shownPresets.length)
+        if ((presets.items ?? []).length === 0) {
+          return h('div', { className: 'rb-group' }, title,
+            h('div', { className: 'rb-muted rb-preset-empty' }, t('presetsEmpty')))
+        }
+        if (shownPresets.length === 0) {
+          return h('div', { className: 'rb-group' }, title,
+            h('div', { className: 'rb-muted rb-preset-empty' }, t('presetsNoMatch')))
+        }
+        return h('div', { className: 'rb-group' }, title, shownPresets.map(presetRow))
+      }
+
+      /** One column's head and its own search box. */
+      const columnSearch = (label, name, value, placeholder, onChange) => [
+        h('div', { key: 'head', className: 'rb-roles-col-head' },
+          h('span', { className: 'rb-group-name' }, label)),
+        h('div', { key: 'search', className: 'rb-roles-search' }, h(Input, {
+          name,
+          value,
+          placeholder,
+          'aria-label': placeholder,
+          onChange: event => onChange(event.target.value),
+        })),
+      ]
+
+      return h(Dialog, {
+        title: t('roles'),
+        className: 'rb-dialog-roles',
+        closeLabel: t('close'),
+        onClose,
+        footer: [
+          h(Button, {
+            className: 'rb-btn-pad rb-btn',
+            variant: 'ghost',
+            key: 'new',
+            name: 'role.new',
+            disabled: busy,
+            onClick: () => openForm('new', { kind: 'new', id: '' }, { roleId: '', roleName: '', duties: [''] }),
+          }, t('newRole')),
+          h('span', { key: 'grow', className: 'rb-grow' }),
+          h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', key: 'close', onClick: onClose}, t('close')),
+        ],
+      },
+        h('div', { className: 'rb-roles-grid' },
+          h('div', { className: 'rb-roles-col' },
+            ...columnSearch(t('rolesColumn'), 'role.search', roleQuery, t('roleSearch'), setRoleQuery),
+            h('div', { key: 'rows', className: 'rb-roles-scroll' }, roleColumn())),
+          h('div', { className: 'rb-roles-col' },
+            ...columnSearch(t('presetsColumn'), 'preset.search', presetQuery, t('presetSearch'), setPresetQuery),
+            h('div', { key: 'rows', className: 'rb-roles-scroll' }, rosterColumn()))),
+        form === null ? null : h(RoleFormDialog, {
+          form,
+          discard,
+          busy,
+          error: formError,
+          merged: mergedDuties(form.value.duties).merged,
+          t,
+          onPatch: patchForm,
+          onDutyChange: changeDuty,
+          onDutyAdd: addDuty,
+          onDutyRemove: removeDuty,
+          onAttemptClose: attemptCloseForm,
+          onDrop: dropForm,
+          onKeep: () => setDiscard(false),
+          onSave: () => void submitForm(),
+        }))
     }
 
     /** The sidebar entry: the panel id's icon and accessible label. */
@@ -2807,30 +3541,34 @@ disabled: busy,
         pendingAction === 'block' ? h('div', { className: 'rb-row' },
           h(Button, {
             variant: 'outline',
-            className: 'rb-btn-danger',
+            className: 'rb-btn rb-btn-danger',
 disabled: busy || note.trim() === '',
             onClick: () => run('block', { reason: note.trim() }),
           }, t('block')),
           h('span', { className: 'rb-muted' }, t('blockReasonPlaceholder'))) : null,
         h('div', { className: 'rb-row', style: { marginTop: 8 } },
           h(Button, {
+            className: 'rb-btn-primary-stroke rb-btn-pad rb-btn',
             variant: 'primary',
 disabled: finishDisabled,
             title: unmetChecks.length > 0 ? `${t('errCompletionNotMet')} ${unmetChecks.join(', ')}` : undefined,
             onClick: () => run('transition', { transition: 'advance', note: note.trim() }),
           }, t('advance')),
           canRollback ? h(Button, {
+            className: 'rb-btn-pad rb-btn',
             variant: 'ghost',
 disabled: busy || note.trim() === '',
             onClick: () => run('transition', { transition: 'rollback', to: node.id, note: note.trim() }),
           }, t('rollback')) : null,
           canJump ? h(Button, {
+            className: 'rb-btn-pad rb-btn',
             variant: 'ghost',
 disabled: busy || note.trim() === '',
             onClick: () => run('transition', { transition: 'jump', to: node.id, note: note.trim(), force: true }),
           }, t('jump')) : null,
           h('span', { className: 'rb-grow' }),
           h(Button, {
+            className: 'rb-btn-pad rb-btn-sm rb-btn',
             variant: 'ghost',
             size: 'sm',
 onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
@@ -2915,6 +3653,15 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
       const [notice, setNotice] = useState('')
       /** Numbers the image rows so two identical files stay distinct rows. */
       const [sequence, setSequence] = useState(0)
+      /**
+       * The structured question this requirement puts to the person, one row per
+       * question and one row per choice, each tracked by a stable key: an edit,
+       * an insertion or a removal must never move a half-typed prompt or hand a
+       * choice to another question.
+       */
+      const [questions, setQuestions] = useState([])
+      /** Mints those keys, so two rows added in one gesture cannot share one. */
+      const optionSeq = useRef(0)
       const picker = useRef(null)
       const set = patch => setForm(current => ({ ...current, ...patch }))
       const uploading = images.some(image => image.status === 'uploading')
@@ -3006,23 +3753,88 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
         h(Button, {
           variant: 'ghost',
           size: 'sm',
-          className: 'rb-image-remove',
+          className: 'rb-btn-pad rb-btn-sm rb-btn rb-image-remove',
           name: `requirement.image.remove.${index}`,
           title: t('removeImage'),
           'aria-label': `${t('removeImage')}: ${image.name}`,
           onClick: () => setImages(list => list.filter(entry => entry.key !== image.key)),
         }, '×'))
 
+      /** A fresh key for one question or choice row. */
+      const mintOptionKey = prefix => {
+        optionSeq.current += 1
+        return `option-${prefix}-${optionSeq.current}`
+      }
+      /** One choice row as a question starts it: a label, a cost, and no advice. */
+      const blankChoice = () => ({ key: mintOptionKey('c'), label: '', detail: '', recommended: false })
+      const patchQuestion = (key, patch) => setQuestions(list => list.map(entry => (entry.key === key ? { ...entry, ...patch } : entry)))
+      const patchChoices = (questionKey, change) => setQuestions(list => list.map(question => (question.key === questionKey
+        ? { ...question, choices: change(question.choices) }
+        : question)))
+      const patchChoice = (questionKey, choiceKey, patch) => patchChoices(questionKey, choices => choices.map(choice => (choice.key === choiceKey ? { ...choice, ...patch } : choice)))
+      /** Add a question with the two choices every question must offer. */
+      const addQuestion = () => setQuestions(list => [...list, {
+        key: mintOptionKey('q'),
+        prompt: '',
+        choices: [blankChoice(), blankChoice()],
+      }])
+      const removeQuestion = key => setQuestions(list => list.filter(entry => entry.key !== key))
+      const addChoice = questionKey => patchChoices(questionKey, choices => [...choices, blankChoice()])
+      const removeChoice = (questionKey, choiceKey) => patchChoices(questionKey, choices => choices.filter(choice => choice.key !== choiceKey))
+
+      /**
+       * Mark one choice as the question's advice.
+       *
+       * At most one choice per question may carry it, so ticking a second one
+       * moves the mark instead of adding to it: the rule is held by the control
+       * rather than reported after a submit the Host would refuse.
+       * @param questionKey - The question row's key.
+       * @param choiceKey - The choice row's key.
+       * @param next - Whether that row is now the recommended one.
+       */
+      const recommendChoice = (questionKey, choiceKey, next) => patchChoices(questionKey, choices => choices.map(choice => ({
+        ...choice,
+        recommended: next && choice.key === choiceKey,
+      })))
+
+      /**
+       * The questions as the create payload carries them.
+       *
+       * A row whose text trims to nothing is dropped rather than sent: the Host
+       * refuses an empty prompt, an empty label and a question with fewer than
+       * two choices, and an unfinished row is exactly what the reader means by
+       * "not this one". `detail` and `recommended` are omitted when they carry
+       * nothing, which is how the Host stores them.
+       */
+      const optionPayload = questions.map(question => ({
+        prompt: question.prompt.trim(),
+        choices: question.choices
+          .map(choice => ({ label: choice.label.trim(), detail: choice.detail.trim(), recommended: choice.recommended === true }))
+          .filter(choice => choice.label !== '')
+          .map(choice => ({
+            label: choice.label,
+            ...(choice.detail === '' ? {} : { detail: choice.detail }),
+            ...(choice.recommended ? { recommended: true } : {}),
+          })),
+      }))
+      /** The draft is sendable only when every question asks at least two choices. */
+      const optionsReady = optionPayload.every(question => question.prompt !== '' && question.choices.length >= 2)
+      /** Why the option draft cannot be saved yet, or the empty string. */
+      const optionProblem = optionPayload.some(question => question.prompt === '')
+        ? t('optionNeedQuestion')
+        : optionPayload.some(question => question.choices.length < 2) ? t('optionNeedItems') : ''
+
       return h(Dialog, {
         title: t('newRequirement'),
         closeLabel: t('close'),
         onClose,
         footer: [
-          h(Button, { variant: 'ghost', key: 'cancel', onClick: onClose}, t('cancel')),
+          h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', key: 'cancel', onClick: onClose}, t('cancel')),
           h(Button, {
+            className: 'rb-btn-primary-stroke rb-btn-pad rb-btn',
             variant: 'primary',
 key: 'ok',
-            disabled: busy || uploading || form.title.trim() === '' || form.summary.trim() === '',
+            disabled: busy || uploading || form.title.trim() === '' || form.summary.trim() === '' || !optionsReady,
             onClick: () => onSubmit({
               title: form.title.trim(),
               summary: form.summary.trim(),
@@ -3033,6 +3845,10 @@ key: 'ok',
               templateId: form.templateId,
               sessions: form.sessions.split(',').map(entry => entry.trim()).filter(Boolean),
               images: stored,
+              // A requirement that asks nothing carries no `options` field at all,
+              // so a board written here stays byte-identical to one written before
+              // the field existed.
+              ...(optionPayload.length === 0 ? {} : { options: optionPayload }),
             }),
           }, t('create')),
         ],
@@ -3061,6 +3877,7 @@ key: 'ok',
           }),
           h('div', { className: 'rb-row', style: { marginTop: 4 } },
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
               name: 'requirement.image.pick',
@@ -3082,6 +3899,96 @@ key: 'ok',
             role: 'alert',
             style: { margin: '8px 0 0' },
           }, notice)),
+        // The structured question, when this requirement asks one: a decision
+        // requirement carries its choices here instead of spelling them out in
+        // the description, and a task may carry them too when a person has to
+        // pick before the work can go on.
+        h('div', { className: 'rb-options-editor' },
+          h('div', { className: 'rb-field-label' }, t('optionsTitle')),
+          h('div', { className: 'rb-option-hint' }, t('optionsCreateHint')),
+          h('div', { className: 'rb-option-hint' }, t('optionNeedOneRecommended')),
+          questions.map((question, index) => h('div', { key: question.key, className: 'rb-node-card' },
+            h('div', { className: 'rb-node-card-head' },
+              h('span', { className: 'rb-node-heading' }, `${index + 1}. ${question.prompt.trim() === '' ? t('optionQuestion') : question.prompt.trim()}`),
+              h(Tag, { tone: 'outline' }, `q${index + 1}`),
+              h('span', { className: 'rb-grow' }),
+              h(Button, {
+                className: 'rb-btn-pad rb-btn-sm rb-btn',
+                variant: 'ghost',
+                size: 'sm',
+                name: `option.question.remove.${index}`,
+                disabled: busy,
+                onClick: () => removeQuestion(question.key),
+              }, t('optionRemoveQuestion'))),
+            h(Field, { label: t('optionQuestion') }, h(Input, {
+              name: `option.question.prompt.${index}`,
+              value: question.prompt,
+              maxLength: OPTION_PROMPT_MAX,
+              placeholder: t('optionQuestionPlaceholder'),
+              onChange: event => patchQuestion(question.key, { prompt: event.target.value }),
+            })),
+            h('div', null,
+              h('div', { className: 'rb-field-label' }, t('optionItem')),
+              h('div', { className: 'rb-checks' }, question.choices.map((choice, at) => h('div', {
+                key: choice.key,
+                className: 'rb-check-row',
+              },
+                h(Input, {
+                  className: 'rb-choice-name',
+                  name: `option.item.label.${index}.${at}`,
+                  value: choice.label,
+                  maxLength: OPTION_LABEL_MAX,
+                  placeholder: t('optionItemPlaceholder'),
+                  'aria-label': t('optionItem'),
+                  onChange: event => patchChoice(question.key, choice.key, { label: event.target.value }),
+                }),
+                h(Input, {
+                  className: 'rb-choice-detail',
+                  name: `option.item.detail.${index}.${at}`,
+                  value: choice.detail,
+                  maxLength: OPTION_DETAIL_MAX,
+                  placeholder: t('optionItemDescriptionPlaceholder'),
+                  // The detail column has no visible label of its own, so the column
+                  // name travels with the field.
+                  'aria-label': t('optionItemDescription'),
+                  onChange: event => patchChoice(question.key, choice.key, { detail: event.target.value }),
+                }),
+                h(Checkbox, {
+                  className: 'rb-choice-rec',
+                  checked: choice.recommended === true,
+                  label: t('optionRecommended'),
+                  disabled: busy,
+                  onChange: next => recommendChoice(question.key, choice.key, next),
+                }),
+                h(Button, {
+                  className: 'rb-btn-pad rb-btn-sm rb-btn',
+                  variant: 'ghost',
+                  size: 'sm',
+                  name: `option.item.remove.${index}.${at}`,
+                  disabled: busy || question.choices.length <= 2,
+                  onClick: () => removeChoice(question.key, choice.key),
+                }, t('optionRemoveItem'))))),
+              h(Button, {
+                className: 'rb-btn-pad rb-btn-sm rb-btn',
+                variant: 'ghost',
+                size: 'sm',
+                name: `option.item.add.${index}`,
+                disabled: busy || question.choices.length >= OPTION_CHOICES_MAX,
+                onClick: () => addChoice(question.key),
+              }, t('optionAddItem'))))),
+          h('div', { className: 'rb-row', style: { marginTop: 8 } },
+            h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
+              variant: 'ghost',
+              size: 'sm',
+              name: 'option.question.add',
+              disabled: busy || questions.length >= OPTION_QUESTIONS_MAX,
+              onClick: addQuestion,
+            }, t('optionAddQuestion'))),
+          optionProblem === '' ? null : h('div', {
+            className: 'rb-notice rb-notice-error',
+            role: 'alert',
+          }, optionProblem)),
         h('div', { className: 'rb-row' },
           h(Field, { label: t('filterPriority') }, h('select', {
             className: 'rb-select',
@@ -3166,9 +4073,12 @@ key: 'ok',
      * same reason rather than a re-implementation of it. Every draft lives in
      * this component's state and reaches the board only through a command: a
      * half-edited template is never stored, so a new requirement cannot be
-     * created against it (§11.7).
+     * created against it (§11.7). The two writes that keep a draft on screen —
+     * the new template and the duplicate — run through `invokeQuiet`, so their
+     * refusal is reported by the form dialog that asked for the save rather than
+     * by the overlay toast, which would fade while the draft stayed.
      */
-    function TemplateDrawer({ templates, pins, pinsTruncated, busy, run, controller, revision, onClose, t }) {
+    function TemplateDrawer({ templates, pins, pinsTruncated, busy, run, invokeQuiet, controller, revision, onClose, t }) {
       const [list, setList] = useState(templates)
       const [includeArchived, setIncludeArchived] = useState(false)
       const [selectedId, setSelectedId] = useState(null)
@@ -3182,13 +4092,12 @@ key: 'ok',
       // Bumped on every opening, so the migration dialog can tell one opening
       // from the next and never inherit the impact list of a run that finished.
       const [migrateOpens, setMigrateOpens] = useState(0)
-      const [cloning, setCloning] = useState(false)
-      const [cloneName, setCloneName] = useState('')
       const [deleting, setDeleting] = useState(false)
       const [deleteArmed, setDeleteArmed] = useState(false)
       const [pruneTarget, setPruneTarget] = useState(null)
-      const [adding, setAdding] = useState(false)
-      const [newForm, setNewForm] = useState({ name: '', description: '', nodes: '' })
+      const [form, setForm] = useState(null)
+      const [discard, setDiscard] = useState(false)
+      const [formError, setFormError] = useState(null)
       const editingRef = useRef(false)
       editingRef.current = editing
       /** Whether the Host has answered the list read of this drawer at least once. */
@@ -3467,12 +4376,55 @@ key: 'ok',
         await loadDetail(row.id)
       }
 
+      /**
+       * Open the form layer over one starting draft.
+       *
+       * `sourceName` names the template a duplicate copies, and is empty for a new
+       * one; it is what the dialog title states, so a copy reads as a copy of a
+       * named row rather than as a blank template.
+       */
+      const openForm = (mode, sourceName, value) => {
+        setForm({ mode, sourceName, initial: value, value })
+        setDiscard(false)
+        setFormError(null)
+      }
+      const patchForm = patch => {
+        // A refusal belongs to the draft that caused it, so editing clears it.
+        setFormError(null)
+        setForm(current => current === null ? null : { ...current, value: { ...current.value, ...patch } })
+      }
+      const dropForm = () => {
+        setForm(null)
+        setDiscard(false)
+        setFormError(null)
+      }
+      /**
+       * The form's own close control, standing in for cancel, Escape, and the
+       * mask. A changed draft asks first; while that confirmation is up, this path
+       * takes the confirmation back instead of the input, so discarding a draft
+       * stays an explicit act.
+       */
+      const attemptCloseForm = () => {
+        if (discard) {
+          setDiscard(false)
+          return
+        }
+        if (form !== null && !sameTemplateDraft(form.value, form.initial)) {
+          setDiscard(true)
+          return
+        }
+        dropForm()
+      }
+
       /** Copy the current version into a fresh, editable template. */
-      const cloneTemplate = async () => {
-        const result = await invoke('template.clone', { id: row.id, name: cloneName.trim() })
-        if (!result.ok) return
-        controller.notify('info', interpolate(t('templateCloned'), { name: cloneName.trim() }))
-        setCloning(false)
+      const cloneTemplate = async name => {
+        const result = await invokeQuiet('template.clone', { id: row.id, name: name.trim() })
+        if (!result.ok) {
+          setFormError(String(result.error?.message ?? result.error ?? ''))
+          return
+        }
+        controller.notify('info', interpolate(t('templateCloned'), { name: name.trim() }))
+        dropForm()
         await loadList(includeArchived)
       }
 
@@ -3481,10 +4433,11 @@ key: 'ok',
        *
        * The line syntax is the one the create dialog has always used
        * (`name | assignee | check;check`), parsed here and sent as declarations
-       * the service normalizes and validates.
+       * the service normalizes and validates. A refusal lands in the form dialog
+       * and leaves the draft untouched.
        */
-      const createNew = async () => {
-        const nodes = newForm.nodes.split('\n').map(line => line.trim()).filter(line => line !== '').map(line => {
+      const createNew = async value => {
+        const nodes = value.nodes.split('\n').map(line => line.trim()).filter(line => line !== '').map(line => {
           const [head, ...rest] = line.split('|').map(part => part.trim())
           const checks = (rest[1] ?? '').split(';').map(entry => entry.trim()).filter(entry => entry !== '')
           return {
@@ -3495,13 +4448,15 @@ key: 'ok',
               : { type: 'checklist', checklist: checks },
           }
         })
-        const result = await invoke('template.create', {
-          template: { name: newForm.name.trim(), description: newForm.description.trim(), nodes },
+        const result = await invokeQuiet('template.create', {
+          template: { name: value.name.trim(), description: value.description.trim(), nodes },
         })
-        if (!result.ok) return
+        if (!result.ok) {
+          setFormError(String(result.error?.message ?? result.error ?? ''))
+          return
+        }
         controller.notify('info', t('templateMutated'))
-        setAdding(false)
-        setNewForm({ name: '', description: '', nodes: '' })
+        dropForm()
         await loadList(includeArchived)
         if (result.data?.id !== undefined) setSelectedId(result.data.id)
       }
@@ -3547,6 +4502,7 @@ key: 'ok',
               : null,
             h('span', { className: 'rb-grow' }),
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
               name: `template.prune.${version.revision}`,
@@ -3560,6 +4516,7 @@ key: 'ok',
               onClick: () => setPruneTarget(version.revision),
             }, t('templatePrune')),
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
               name: `template.migrate.${version.revision}`,
@@ -3597,6 +4554,7 @@ key: 'ok',
           h('div', { className: 'rb-muted' }, interpolate(t('templateRevisionUnchanged'), { revision: currentRevision })),
           h('div', { className: 'rb-row', style: { marginTop: 6 } },
             h(Button, {
+              className: 'rb-btn-sm rb-btn',
               variant: 'outline',
               size: 'sm',
               name: 'template.metadata.save',
@@ -3621,6 +4579,7 @@ key: 'ok',
             h(Tag, { tone: 'outline' }, node.id),
             h('span', { className: 'rb-grow' }),
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
               name: `template.node.up.${index}`,
@@ -3628,6 +4587,7 @@ key: 'ok',
               onClick: () => moveNode(index, -1),
             }, t('templateMoveUp')),
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
               name: `template.node.down.${index}`,
@@ -3637,7 +4597,7 @@ key: 'ok',
             h(Button, {
               variant: 'ghost',
               size: 'sm',
-              className: 'rb-btn-danger',
+              className: 'rb-btn-pad rb-btn-sm rb-btn rb-btn-danger',
               name: `template.node.remove.${index}`,
               disabled: busy,
               onClick: () => removeNode(node.id),
@@ -3695,6 +4655,7 @@ key: 'ok',
                 `template.node.check.${index}.${position}`,
               ),
               h(Button, {
+                className: 'rb-btn-pad rb-btn-sm rb-btn',
                 variant: 'ghost',
                 size: 'sm',
                 name: `template.node.check.remove.${index}.${position}`,
@@ -3702,6 +4663,7 @@ key: 'ok',
                 onClick: () => patchNode(index, { checklist: node.checklist.filter((entry, at) => at !== position) }),
               }, t('templateRemoveCheck'))))),
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
               name: `template.node.check.add.${index}`,
@@ -3710,6 +4672,7 @@ key: 'ok',
             }, t('templateAddCheck'))))),
         h('div', { className: 'rb-row', style: { marginTop: 8 } },
           h(Button, {
+            className: 'rb-btn-pad rb-btn-sm rb-btn',
             variant: 'ghost',
             size: 'sm',
             name: 'template.node.add',
@@ -3718,6 +4681,7 @@ key: 'ok',
           }, t('templateAddNode')),
           h('span', { className: 'rb-grow' }),
           h(Button, {
+            className: 'rb-btn-pad rb-btn-sm rb-btn',
             variant: 'ghost',
             size: 'sm',
             name: 'template.edit.cancel',
@@ -3729,6 +4693,7 @@ key: 'ok',
             },
           }, t('cancel')),
           h(Button, {
+            className: 'rb-btn-primary-stroke rb-btn-pad rb-btn-sm rb-btn',
             variant: 'primary',
             size: 'sm',
             name: 'template.revise.save',
@@ -3774,10 +4739,11 @@ key: 'ok',
               t,
             })),
           h('div', { className: 'rb-row', style: { marginTop: 10 } },
-            h(Button, { variant: 'ghost', size: 'sm', name: 'template.edit', disabled: busy, onClick: startEdit }, t('edit')),
-            h(Button, { variant: 'ghost', size: 'sm', name: 'template.migrate', disabled: busy, onClick: () => openMigration(currentRevision, undefined) }, t('templateMigration')),
-            h(Button, { variant: 'ghost', size: 'sm', name: 'template.clone', disabled: busy, onClick: () => setCloning(true) }, t('templateClone')),
+            h(Button, { className: 'rb-btn-pad rb-btn-sm rb-btn', variant: 'ghost', size: 'sm', name: 'template.edit', disabled: busy, onClick: startEdit }, t('edit')),
+            h(Button, { className: 'rb-btn-pad rb-btn-sm rb-btn', variant: 'ghost', size: 'sm', name: 'template.migrate', disabled: busy, onClick: () => openMigration(currentRevision, undefined) }, t('templateMigration')),
+            h(Button, { className: 'rb-btn-pad rb-btn-sm rb-btn', variant: 'ghost', size: 'sm', name: 'template.clone', disabled: busy, onClick: () => openForm('clone', detail.name, { name: '', description: '', nodes: '' }) }, t('templateClone')),
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
               name: 'template.archive',
@@ -3787,7 +4753,7 @@ key: 'ok',
             h(Button, {
               variant: 'outline',
               size: 'sm',
-              className: 'rb-btn-danger',
+              className: 'rb-btn-sm rb-btn rb-btn-danger',
               name: 'template.delete',
               disabled: busy,
               onClick: () => setDeleting(true),
@@ -3808,7 +4774,7 @@ key: 'ok',
         drawer: true,
         closeLabel: t('close'),
         onClose,
-        footer: [h(Button, { variant: 'ghost', key: 'close', onClick: onClose }, t('close'))],
+        footer: [h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', key: 'close', onClick: onClose }, t('close'))],
       },
         h('div', { className: 'rb-drawer' },
           h('div', { className: 'rb-drawer-list' },
@@ -3820,41 +4786,13 @@ key: 'ok',
                 onChange: next => setIncludeArchived(next),
               })),
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
               name: 'template.new',
               disabled: busy,
-              onClick: () => setAdding(current => !current),
+              onClick: () => openForm('new', '', { name: '', description: '', nodes: '' }),
             }, t('newTemplate')),
-            adding ? h('div', { className: 'rb-panel' },
-              h(Field, { label: t('templateName') }, h(Input, {
-                name: 'template.new.name',
-                value: newForm.name,
-                onChange: event => setNewForm(current => ({ ...current, name: event.target.value })),
-              })),
-              h(Field, { label: t('templateDescription') }, h(Input, {
-                name: 'template.new.description',
-                value: newForm.description,
-                onChange: event => setNewForm(current => ({ ...current, description: event.target.value })),
-              })),
-              h(Field, { label: `${t('templateNodes')} — ${t('templateNodesHint')}` }, h('textarea', {
-                className: 'rb-textarea',
-                name: 'template.new.nodes',
-                style: { minHeight: 90 },
-                value: newForm.nodes,
-                placeholder: t('templateNodesExample'),
-                onChange: event => setNewForm(current => ({ ...current, nodes: event.target.value })),
-              })),
-              h('div', { className: 'rb-row' },
-                h(Button, {
-                  variant: 'primary',
-                  size: 'sm',
-                  name: 'template.create',
-                  disabled: busy || newForm.name.trim() === '' || newForm.nodes.trim() === '',
-                  onClick: () => void createNew(),
-                }, t('create')),
-                h(Button, { variant: 'ghost', size: 'sm', onClick: () => setAdding(false) }, t('cancel'))))
-              : null,
             listLoadedRef.current && visible.length === 0
               ? h('div', { className: 'rb-muted' }, t('templateEmpty'))
               : null,
@@ -3894,11 +4832,11 @@ key: 'ok',
               h(Button, {
                 variant: 'outline',
                 size: 'sm',
-                className: 'rb-btn-danger',
+                className: 'rb-btn-sm rb-btn rb-btn-danger',
                 disabled: busy,
                 onClick: () => void prune(pruneTarget),
               }, t('confirm')),
-              h(Button, { variant: 'ghost', size: 'sm', onClick: () => setPruneTarget(null) }, t('cancel'))),
+              h(Button, { className: 'rb-btn-pad rb-btn-sm rb-btn', variant: 'ghost', size: 'sm', onClick: () => setPruneTarget(null) }, t('cancel'))),
             row === null
               ? h('div', { className: 'rb-muted' }, t('templateDetailEmpty'))
               : editing && draft !== null ? editBody() : detailBody())),
@@ -3917,23 +4855,18 @@ key: 'ok',
             if (selectedId !== null) await loadDetail(selectedId)
           },
         }),
-        cloning ? h('div', { className: 'rb-panel', style: { marginTop: 12 } },
-          h('div', { className: 'rb-field-label' }, t('templateCloneHint')),
-          h('div', { className: 'rb-row', style: { marginTop: 6 } },
-            h(Field, { label: t('templateName') }, h(Input, {
-              name: 'template.clone.name',
-              value: cloneName,
-              onChange: event => setCloneName(event.target.value),
-            })),
-            h(Button, {
-              variant: 'primary',
-              size: 'sm',
-              name: 'template.clone.confirm',
-              disabled: busy || cloneName.trim() === '',
-              onClick: () => void cloneTemplate(),
-            }, t('templateClone')),
-            h(Button, { variant: 'ghost', size: 'sm', onClick: () => setCloning(false) }, t('cancel'))))
-          : null,
+        form === null ? null : h(TemplateFormDialog, {
+          form,
+          discard,
+          busy,
+          error: formError,
+          t,
+          onPatch: patchForm,
+          onAttemptClose: attemptCloseForm,
+          onDrop: dropForm,
+          onKeep: () => setDiscard(false),
+          onSave: () => form.mode === 'new' ? void createNew(form.value) : void cloneTemplate(form.value.name),
+        }),
         deleting ? h('div', { className: 'rb-panel', style: { marginTop: 12 } },
           h('div', null, t('templateDeleteConfirm')),
           bound.length === 0
@@ -3956,7 +4889,7 @@ key: 'ok',
             h(Button, {
               variant: 'outline',
               size: 'sm',
-              className: 'rb-btn-danger',
+              className: 'rb-btn-sm rb-btn rb-btn-danger',
               name: 'template.delete.confirm',
               disabled: busy,
               onClick: () => {
@@ -3967,7 +4900,7 @@ key: 'ok',
                 void deleteTemplate()
               },
             }, bound.length > 0 && !deleteArmed ? t('templateDeleteArmed') : t('confirm')),
-            h(Button, { variant: 'ghost', size: 'sm', onClick: () => { setDeleting(false); setDeleteArmed(false) } }, t('cancel')))))
+            h(Button, { className: 'rb-btn-pad rb-btn-sm rb-btn', variant: 'ghost', size: 'sm', onClick: () => { setDeleting(false); setDeleteArmed(false) } }, t('cancel')))))
           : null)
     }
 
@@ -4074,10 +5007,11 @@ key: 'ok',
         closeLabel: t('close'),
         onClose,
         footer: [
-          h(Button, { variant: 'ghost', key: 'cancel', onClick: onClose }, t('cancel')),
+          h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', key: 'cancel', onClick: onClose }, t('cancel')),
           affected === null
-            ? h(Button, { variant: 'primary', key: 'read', disabled: busy || reading, onClick: () => void read() }, t('templateMigrationRead'))
+            ? h(Button, { className: 'rb-btn-primary-stroke rb-btn-pad rb-btn', variant: 'primary', key: 'read', disabled: busy || reading, onClick: () => void read() }, t('templateMigrationRead'))
             : h(Button, {
+              className: 'rb-btn-primary-stroke rb-btn-pad rb-btn',
               variant: 'primary',
               key: 'confirm',
               disabled: busy || (!bulk && picked === 0),
@@ -4095,6 +5029,7 @@ key: 'ok',
             : h('div', { className: 'rb-version-list' }, affected.map(row)),
         affected === null || affected.length === 0 ? null : h('div', { className: 'rb-row', style: { marginTop: 8 } },
           h(Button, {
+            className: 'rb-btn-pad rb-btn-sm rb-btn',
             variant: 'ghost',
             size: 'sm',
             name: 'template.migrate.all',
@@ -4102,6 +5037,7 @@ key: 'ok',
             onClick: () => { setBulk(true); setNotice(t('templateMigrationBulkWarn')) },
           }, t('templateMigrationBulk')),
           h(Button, {
+            className: 'rb-btn-pad rb-btn-sm rb-btn',
             variant: 'ghost',
             size: 'sm',
             name: 'template.migrate.pick',
@@ -4144,6 +5080,7 @@ key: 'ok',
           ready ? null : h('span', { className: 'rb-muted' }, t('delegateNeedsSession')),
           h('span', { className: 'rb-grow' }),
           h(Button, {
+            className: 'rb-btn-primary-stroke rb-btn-pad rb-btn-sm rb-btn',
             variant: 'primary',
             size: 'sm',
 name: 'delegate.submit',
@@ -4219,8 +5156,9 @@ name: 'delegate.submit',
           })) : null) : null,
         h('div', { className: 'rb-row' },
           h('span', { className: 'rb-grow' }),
-          h(Button, { variant: 'ghost', size: 'sm', onClick: onCancel}, t('cancel')),
+          h(Button, { className: 'rb-btn-pad rb-btn-sm rb-btn', variant: 'ghost', size: 'sm', onClick: onCancel}, t('cancel')),
           h(Button, {
+            className: 'rb-btn-primary-stroke rb-btn-pad rb-btn-sm rb-btn',
             variant: 'primary',
             size: 'sm',
 name: 'edit.save',
@@ -4241,6 +5179,14 @@ name: 'edit.save',
       const [editing, setEditing] = useState(false)
       const [forceOffer, setForceOffer] = useState(null)
       const [note, setNote] = useState('')
+      /**
+       * The choices this reader has picked in the option section but not yet
+       * submitted, by question id, and the one reason that may travel with them.
+       * They are a draft and nothing else: what the section shows as answered
+       * always comes from the requirement's own `answer`.
+       */
+      const [picks, setPicks] = useState({})
+      const [answerNote, setAnswerNote] = useState('')
       // Re-sync the view when another requirement is selected. This runs during
       // render rather than from an effect: an effect also fires when the panel
       // re-mounts, which would discard a half-typed edit or a gate refusal the
@@ -4252,6 +5198,8 @@ name: 'edit.save',
         setNote('')
         setEditing(false)
         setForceOffer(null)
+        setPicks({})
+        setAnswerNote('')
       }
       // The gate refusal offer belongs to the requirement that raised it, so a
       // value left from another selection can neither show here nor be armed.
@@ -4354,6 +5302,116 @@ name: 'edit.save',
           h('div', { className: 'rb-muted' }, t('executionsHint')),
           h('div', { className: 'rb-muted' }, t('execRevLine', { exec: requirement.execRev ?? 0, rev: requirement.rev })))
       }
+      /**
+       * The structured questions this requirement puts to the person.
+       *
+       * A record written before the field existed asks nothing, and a Host that
+       * sends none renders no section at all rather than an empty one. `answer`
+       * is the record's own map from question id to choice id and is the only
+       * thing that ever reads as answered.
+       */
+      const questions = Array.isArray(requirement.options) ? requirement.options : []
+      const answers = requirement.answer ?? {}
+      const outstanding = questions.filter(question => answers[question.id] === undefined)
+
+      /**
+       * Send the reader's selections among the questions still open.
+       *
+       * Only those questions travel, and only the ones this reader picked: the
+       * service merges a partial map, so a requirement asking two questions may
+       * be answered one at a time. The draft is dropped once the write landed,
+       * because the answer the section shows is the record's own — held to the
+       * next refresh like every other fact on this page.
+       */
+      const submitAnswer = async () => {
+        const answer = {}
+        for (const question of outstanding) {
+          if (picks[question.id] !== undefined) answer[question.id] = picks[question.id]
+        }
+        if (Object.keys(answer).length === 0) return
+        const result = await run('decide', {
+          id: requirement.id,
+          expectedRev: requirement.rev,
+          answer,
+          note: answerNote.trim(),
+        })
+        if (!result.ok) return
+        setPicks({})
+        setAnswerNote('')
+        controller.notify('info', t('optionAnswerSaved'))
+      }
+
+      /**
+       * The option section: one block per question, its choices, and the form
+       * that sends the picks among the questions still open.
+       *
+       * An answered question keeps its choices on screen with the stored pick
+       * marked and its radios disabled: a person reads what the record holds,
+       * and a question the record has settled is not offered again.
+       */
+      const optionsSection = () => {
+        if (questions.length === 0) return null
+        /** The choice one stored answer names, or null when it names none. */
+        const chosenChoice = (question, id) => question.choices.find(choice => choice.id === id) ?? null
+        return foldSection('options', t,
+          // The header already says this decision waits for a person; the notice
+          // says it again here, where the choices are.
+          requirement.kind === 'decision' && outstanding.length > 0
+            ? h('div', { className: 'rb-notice rb-notice-hint' }, t('optionAwaitingHuman'))
+            : null,
+          h('div', { className: 'rb-muted' }, t('optionsHint')),
+          questions.map(question => {
+            const chosen = answers[question.id]
+            const open = chosen === undefined
+            return h('div', { key: question.id, className: 'rb-question' },
+              h('div', { className: 'rb-question-head' },
+                h('span', { className: 'rb-question-prompt' }, question.prompt),
+                h(Tag, { tone: 'outline' }, question.id),
+                open ? null : h(Tag, { tone: 'success' }, t('optionAnsweredTag'))),
+              h('div', { className: 'rb-field-label' }, open ? t('optionChooseOne') : t('optionYourAnswer')),
+              question.choices.map(choice => {
+                const on = open ? picks[question.id] === choice.id : chosen === choice.id
+                return h('label', {
+                  key: choice.id,
+                  className: on ? 'rb-choice rb-choice-on' : 'rb-choice',
+                },
+                  h('input', {
+                    type: 'radio',
+                    name: `options.pick.${question.id}`,
+                    value: choice.id,
+                    checked: on,
+                    disabled: !open || busy,
+                    onChange: () => setPicks(current => ({ ...current, [question.id]: choice.id })),
+                  }),
+                  h('span', { className: 'rb-choice-body' },
+                    h('span', { className: 'rb-choice-text' }, choice.label),
+                    choice.recommended === true ? h(Tag, { tone: 'warning' }, t('optionRecommended')) : null,
+                    choice.detail === undefined || choice.detail === '' ? null : h('span', { className: 'rb-choice-cost' }, choice.detail)))
+              }),
+              open || requirement.answeredAt === undefined || requirement.answeredAt === '' ? null : h('div', { className: 'rb-choice-note' },
+                `${t('optionAnsweredAt')} ${formatInstant(requirement.answeredAt)}`,
+                chosenChoice(question, chosen) === null ? null : h('span', { className: 'rb-muted' }, ` · ${t('optionYourAnswer')}: ${chosenChoice(question, chosen).label}`))
+            )
+          }),
+          outstanding.length === 0 ? null : h('div', { className: 'rb-answer-form' },
+            h(Field, { label: t('optionAnswerNote') }, h(Input, {
+              name: 'options.note',
+              value: answerNote,
+              maxLength: 500,
+              disabled: busy,
+              onChange: event => setAnswerNote(event.target.value),
+            })),
+            h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
+              variant: 'primary',
+              size: 'sm',
+              name: 'options.submit',
+              disabled: busy || outstanding.every(question => picks[question.id] === undefined),
+              onClick: () => void submitAnswer(),
+            }, t('optionSubmitAnswer'))),
+          requirement.answerNote === undefined || requirement.answerNote === '' ? null : h('div', { className: 'rb-muted' },
+            `${t('optionAnswerNote')}: ${requirement.answerNote}`))
+      }
       return h('div', null,
         h('div', { className: 'rb-detail-top' },
           h('div', { className: 'rb-detail-head' },
@@ -4362,6 +5420,11 @@ name: 'edit.save',
               h(StatusBadge, { status: requirement.status, t }),
           h(PriorityBadge, { priority: requirement.priority, t }),
           h(KindBadge, { kind: requirement.kind, t }),
+          // A decision whose questions are still open says so where the reader
+          // lands, before the folded section that asks them.
+          requirement.kind === 'decision' && outstanding.length > 0
+            ? h(Tag, { tone: 'warning' }, t('optionAwaitingHuman'))
+            : null,
           h(RoleBadge, { role: requirement.role, roles, unregistered: requirement.roleUnregistered === true, t }),
           h(EligibilityBadges, { item: requirement, me, claimableIds, t }),
           h(CriticalBadge, {
@@ -4377,6 +5440,7 @@ name: 'edit.save',
           h('span', { className: 'rb-grow' }),
           h('div', { className: 'rb-detail-actions' },
           h(Button, {
+            className: 'rb-btn-sm rb-btn',
             variant: 'ghost',
             size: 'sm',
 disabled: busy,
@@ -4384,6 +5448,7 @@ disabled: busy,
           }, t('editRequirement')),
           requirement.status === 'done'
             ? h(Button, {
+              className: 'rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
 disabled: busy,
@@ -4392,6 +5457,7 @@ disabled: busy,
             : null,
           requirement.status === 'blocked'
             ? h(Button, {
+              className: 'rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
 disabled: busy,
@@ -4400,12 +5466,14 @@ disabled: busy,
             : null,
           requirement.status === 'archived'
             ? h(Button, {
+              className: 'rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
 disabled: busy,
               onClick: () => void run('restore', { id: requirement.id, expectedRev: requirement.rev }),
             }, t('restore'))
             : h(Button, {
+              className: 'rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
 disabled: busy,
@@ -4414,7 +5482,7 @@ disabled: busy,
           h(Button, {
             variant: 'outline',
             size: 'sm',
-            className: 'rb-btn-danger',
+            className: 'rb-btn-sm rb-btn rb-btn-danger',
 disabled: busy,
             onClick: () => setConfirmDelete(true),
             }, t('remove')))),
@@ -4475,6 +5543,7 @@ disabled: busy,
             src: imageURL(image.id),
             alt: image.name === '' ? image.id : image.name,
           }))))),
+        optionsSection(),
         foldSection('eligibility', t,
           h('div', { className: 'rb-muted' }, t('eligibilityFor', { me: reading })),
           h('div', { className: 'rb-kv' },
@@ -4524,7 +5593,7 @@ disabled: busy,
                 h(Button, {
                   variant: 'outline',
                   size: 'sm',
-                  className: 'rb-btn-danger',
+                  className: 'rb-btn-sm rb-btn rb-btn-danger',
 disabled: busy,
                   onClick: () => void run('release', { id: requirement.id, expectedRev: requirement.rev }),
                 }, t('releaseLock'))))),
@@ -4553,7 +5622,7 @@ disabled: busy,
                 h(Button, {
                   variant: 'outline',
                   size: 'sm',
-                  className: 'rb-btn-danger',
+                  className: 'rb-btn-sm rb-btn rb-btn-danger',
 name: 'revoke.delegation',
                   disabled: busy,
                   onClick: () => onRevokeDelegation(requirement),
@@ -4593,6 +5662,7 @@ name: 'revoke.delegation',
               : forceRequest.blockedBy.map(id => reference(id)).join(', ')),
             h('span', { className: 'rb-grow' }),
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
 name: 'force.request',
@@ -4600,6 +5670,7 @@ name: 'force.request',
               onClick: () => setForceOffer(current => current === null ? null : { ...current, armed: true }),
             }, t('forceAdvance')),
             h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
               variant: 'ghost',
               size: 'sm',
 onClick: () => setForceOffer(null),
@@ -4613,10 +5684,10 @@ onClick: () => setForceOffer(null),
           closeLabel: t('close'),
           onClose: () => setForceOffer(current => current === null ? null : { ...current, armed: false }),
           footer: [
-            h(Button, { variant: 'ghost', key: 'cancel', onClick: () => setForceOffer(null)}, t('cancel')),
+            h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', key: 'cancel', onClick: () => setForceOffer(null)}, t('cancel')),
             h(Button, {
               variant: 'outline',
-              className: 'rb-btn-danger',
+              className: 'rb-btn rb-btn-danger',
 key: 'ok',
               name: 'force.confirm',
               disabled: busy,
@@ -4638,10 +5709,10 @@ key: 'ok',
           closeLabel: t('close'),
           onClose: () => setConfirmDelete(false),
           footer: [
-            h(Button, { variant: 'ghost', key: 'cancel', onClick: () => setConfirmDelete(false)}, t('cancel')),
+            h(Button, { className: 'rb-btn-pad rb-btn', variant: 'ghost', key: 'cancel', onClick: () => setConfirmDelete(false)}, t('cancel')),
             h(Button, {
               variant: 'outline',
-              className: 'rb-btn-danger',
+              className: 'rb-btn rb-btn-danger',
 key: 'ok',
               disabled: busy,
               onClick: async () => {
@@ -4669,6 +5740,13 @@ key: 'ok',
        * reader had selected stays selected across the switch.
        */
       const [grouped, setGrouped] = useState(false)
+      /**
+       * Whether the reader has folded or opened the filter area, and `null`
+       * while she has not said anything: an untouched area follows the filters
+       * themselves, so it opens by itself once one is in force. The choice is
+       * this component's own and is written nowhere else.
+       */
+      const [filtersOpen, setFiltersOpen] = useState(null)
       /** Every requirement the board holds, unfiltered, for the drawer's pin counts. */
       const [pins, setPins] = useState(null)
       const [pinsTruncated, setPinsTruncated] = useState(false)
@@ -4715,6 +5793,27 @@ key: 'ok',
           setBusy(false)
         }
       }, [controller, t])
+
+      /**
+       * Run one command with the busy flag and no app toast.
+       *
+       * Role management reports a refusal where the work is — in the form dialog
+       * that asked for the save, or on the row that asked for the delete — so it
+       * takes the command path directly instead of `run`, whose error branch
+       * raises the overlay toast. The toast would fade while the draft stayed on
+       * screen, and the reader would have no reason next to the control.
+       */
+      const invokeQuietly = useCallback(async (action, payload) => {
+        setBusy(true)
+        try {
+          const data = await controller.command(action, payload)
+          return { ok: true, data }
+        } catch (error) {
+          return { ok: false, error }
+        } finally {
+          setBusy(false)
+        }
+      }, [controller])
 
       /**
        * Read the unfiltered requirement set the drawer counts pins from.
@@ -4876,26 +5975,73 @@ key: 'ok',
         return map
       }, [state.stats])
       /**
-       * One capsule chip for one role filter value.
-       *
-       * Clicking the selected chip again clears it, which is the same
-       * `setFilter` call the select made — the affordance changed, not the
-       * filter. Counting unfinished work per role is what the Host's own
-       * `byRole` tally reports; the "all" chip counts what is on screen.
+       * One role filter value as the reader saw it offered: the reserved
+       * `human` inbox by its own name, a recorded role by its record's label,
+       * and a value the board never offered by the id it was asked for.
        */
-      const roleChip = (value, label, title) => {
-        const on = filter.role === value
-        return h(Pill, {
-          key: `role.${value}`,
-          className: on ? 'rb-chip rb-chip-on' : 'rb-chip',
-          active: on,
-          'aria-pressed': on,
-          title,
-          name: `filter.role.${value === '' ? 'all' : value}`,
-          onClick: () => props.setFilter({ role: on ? '' : value }),
-        }, h('span', { className: 'rb-chip-label' }, label),
-        h('span', { className: 'rb-chip-n' }, String(value === '' ? visible.length : (roleTally.get(value) ?? 0))))
+      const roleFilterLabel = value => {
+        if (value === 'human') return t('roleHuman')
+        const option = roleFilterOptions.find(entry => entry.value === value)
+        return option === undefined ? value : option.label
       }
+      /**
+       * The role filter as one compact control.
+       *
+       * It is a native select, so a long role list opens as the platform's own
+       * scrolling dropdown and never adds a row to the page. The values and the
+       * count beside each one are the ones the capsule row carried: every value
+       * the Host may be asked for (`human` is its own inbox), each role's open
+       * count from the Host's own tally, and "all" counting what is on screen.
+       */
+      const roleSelect = h('span', { className: 'rb-filter' },
+        h('span', { className: 'rb-field-label' }, t(FILTER_LABELS.role)),
+        h('select', {
+          className: 'rb-select',
+          name: 'filter.role',
+          value: filter.role,
+          'aria-label': t(FILTER_LABELS.role),
+          onChange: event => props.setFilter({ role: event.target.value }),
+        },
+          h('option', { value: '' }, `${t('filterRoleAll')} (${visible.length})`),
+          roleFilterOptions.map(option => h('option', { key: option.value, value: option.value },
+            `${roleFilterLabel(option.value)} (${roleTally.get(option.value) ?? 0})`))))
+
+      /**
+       * The filters in force, each as the summary chip that names it and the
+       * patch that clears it.
+       *
+       * A filter is in force when it asks for something the untouched board
+       * would not: that reading is the open status, no project, and nothing
+       * else, so those are what every entry here is compared against.
+       */
+      const activeFilters = useMemo(() => {
+        const statusKeys = { open: 'open', active: 'statusActive', blocked: 'statusBlocked', done: 'statusDone', archived: 'statusArchived' }
+        const priorityKeys = { low: 'priorityLow', normal: 'priorityNormal', high: 'priorityHigh', urgent: 'priorityUrgent' }
+        const list = []
+        if (filter.query !== '') list.push({ key: 'query', label: `${t('filterQuery')}: ${filter.query}`, clear: { query: '' } })
+        if (filter.status !== 'open') list.push({ key: 'status', label: `${t('filterStatus')}: ${t(statusKeys[filter.status] ?? 'open')}`, clear: { status: 'open' } })
+        if (filter.priority !== '') list.push({ key: 'priority', label: `${t('filterPriority')}: ${t(priorityKeys[filter.priority] ?? 'priorityNormal')}`, clear: { priority: '' } })
+        if (filter.owner !== '') list.push({ key: 'owner', label: `${t('filterOwner')}: ${filter.owner}`, clear: { owner: '' } })
+        if (filter.session !== '') list.push({ key: 'session', label: `${t('filterSession')}: ${filter.session}`, clear: { session: '' } })
+        if (filter.kind !== '') list.push({ key: 'kind', label: `${t('filterKind')}: ${t(filter.kind === 'decision' ? 'kindDecision' : 'kindTask')}`, clear: { kind: '' } })
+        if (filter.project !== undefined) list.push({ key: 'project', label: `${t('project')}: ${filter.project === '' ? t('projectUnassigned') : filter.project}`, clear: { project: undefined } })
+        if (filter.role !== '') list.push({ key: 'role', label: `${t('filterRole')}: ${roleFilterLabel(filter.role)}`, clear: { role: '' } })
+        if (filter.claimable === true) list.push({ key: 'claimable', label: t('filterClaimable'), clear: { claimable: false } })
+        if (filter.me !== '') list.push({ key: 'me', label: `${t('filterMe')}: ${filter.me}`, clear: { me: '' } })
+        return list
+      }, [filter, t, visible.length, roles, roleFilterOptions])
+      /** One filter in force: its label, and a click that clears just that one. */
+      const filterChip = entry => h(Pill, {
+        key: `filter.chip.${entry.key}`,
+        className: 'rb-chip rb-chip-on',
+        active: true,
+        title: t('filterRemove'),
+        name: `filter.chip.${entry.key}`,
+        onClick: () => props.setFilter(entry.clear),
+      }, h('span', { className: 'rb-chip-label' }, entry.label),
+      h('span', { className: 'rb-chip-n', 'aria-hidden': 'true' }, '×'))
+      /** Whether the controls are on screen, as the reader last left it. */
+      const filtersShown = filtersOpen === null ? activeFilters.length > 0 : filtersOpen
 
       /** One labelled filter control, so a select is never a bare value list. */
       const select = (key, values, emptyLabel = t('all')) => h('span', { key, className: 'rb-filter' },
@@ -4942,16 +6088,16 @@ key: 'ok',
           h(Button, {
             variant: 'ghost',
             size: 'sm',
-            className: 'rb-queue-title',
-onClick: () => setSelectedId(entry.id),
+            className: 'rb-btn-pad rb-btn-sm rb-btn rb-queue-title',
+            onClick: () => setSelectedId(entry.id),
           }, item === null ? entry.id : item.title),
           item === null ? null : h(StatusBadge, { status: item.status, t }),
           item === null ? null : h(RoleBadge, { role: item.role, roles, unregistered: item.roleUnregistered === true, t }),
           h(Button, {
             variant: 'outline',
             size: 'sm',
-            className: 'rb-btn-danger',
-name: `unqueue.${entry.id}`,
+            className: 'rb-btn-sm rb-btn rb-btn-danger',
+            name: `unqueue.${entry.id}`,
             disabled: busy,
             onClick: () => void clearReservation(session, entry),
           }, t('clearReservation')))
@@ -5052,17 +6198,17 @@ name: `unqueue.${entry.id}`,
           h(Button, {
             variant: 'ghost',
             size: 'sm',
-            className: 'rb-btn',
+            className: 'rb-btn-sm rb-btn',
 name: 'refresh',
             disabled: state.auth !== '',
             onClick: () => void props.refresh(),
           }, t('refresh')),
-          h(Button, { variant: 'ghost', size: 'sm', className: 'rb-btn', onClick: () => setDialog('roles')}, t('roles')),
-          h(Button, { variant: 'ghost', size: 'sm', className: 'rb-btn', onClick: () => setDialog('template')}, t('templates')),
+          h(Button, { variant: 'ghost', size: 'sm', className: 'rb-btn-sm rb-btn', onClick: () => setDialog('roles')}, t('roles')),
+          h(Button, { variant: 'ghost', size: 'sm', className: 'rb-btn-sm rb-btn', onClick: () => setDialog('template')}, t('templates')),
           h(Button, {
             variant: 'primary',
             size: 'sm',
-            className: 'rb-btn-primary',
+            className: 'rb-btn-sm rb-btn rb-btn-primary',
             onClick: () => setDialog('requirement'),
           }, t('newRequirement'))),
         h('div', { className: 'rb-views', role: 'tablist', 'aria-label': t('view') },
@@ -5084,6 +6230,7 @@ name: 'refresh',
           h('span', null, t(state.auth === 'expired' ? 'authExpired' : 'authCrossOrigin')),
           h('span', { className: 'rb-muted' }, t(state.auth === 'expired' ? 'authExpiredHint' : 'authCrossOriginHint')),
           h(Button, {
+            className: 'rb-btn-pad rb-btn-sm rb-btn',
             variant: 'ghost',
             size: 'sm',
 name: 'auth.recheck',
@@ -5092,12 +6239,12 @@ name: 'auth.recheck',
         state.auth === '' && state.everConnected && !state.connected
           ? h('div', { className: 'rb-notice rb-notice-stale' },
             h('span', null, t('staleNotice')),
-            h(Button, { variant: 'ghost', size: 'sm', onClick: () => void props.refresh()}, t('retry')))
+            h(Button, { className: 'rb-btn-pad rb-btn-sm rb-btn', variant: 'ghost', size: 'sm', onClick: () => void props.refresh()}, t('retry')))
           : null,
         state.auth === '' && state.error !== null
           ? h('div', { className: 'rb-notice rb-notice-error' },
             h('span', null, controller.errorText(state.error, t)),
-            h(Button, { variant: 'ghost', size: 'sm', onClick: () => void props.refresh()}, t('retry')))
+            h(Button, { className: 'rb-btn-pad rb-btn-sm rb-btn', variant: 'ghost', size: 'sm', onClick: () => void props.refresh()}, t('retry')))
           : null,
         view === 'decisions'
           ? h('div', { className: 'rb-notice rb-notice-hint' },
@@ -5106,86 +6253,94 @@ name: 'auth.recheck',
           : null,
         h(StatsStrip, { stats: state.stats, roles, t }),
         view === 'board' ? h('div', { className: 'rb-filters' },
-          h('span', { className: 'rb-filter' },
-            h('span', { className: 'rb-field-label' }, t('filterQuery')),
-            h(Input, {
-              name: 'query',
-              value: filter.query,
-              'aria-label': t('filterQuery'),
-              onChange: event => props.setFilter({ query: event.target.value }),
-            })),
-          select('status', [
-            { value: 'open', label: t('open') },
-            { value: 'active', label: t('statusActive') },
-            { value: 'blocked', label: t('statusBlocked') },
-            { value: 'done', label: t('statusDone') },
-            { value: 'archived', label: t('statusArchived') },
-          ]),
-          select('priority', ['low', 'normal', 'high', 'urgent'].map(value => ({
-            value,
-            label: t(`priority${value[0].toUpperCase()}${value.slice(1)}`),
-          }))),
-          select('owner', owners.map(value => ({ value, label: value }))),
-          select('session', sessions.map(value => ({ value, label: value }))),
-          select('kind', [
-            { value: 'task', label: t('kindTask') },
-            { value: 'decision', label: t('kindDecision') },
-          ]),
-          // The project control cannot use `select`: its empty value is the
-          // Host's spelling of "belongs to no project", so the option standing for
-          // "every project" needs a value of its own and the sentinel maps back to
-          // the empty string on the way out.
-          h('span', { className: 'rb-filter' },
-            h('span', { className: 'rb-field-label' }, t(FILTER_LABELS.project)),
-            h('select', {
-              className: 'rb-select',
-              name: 'project',
-              value: filter.project === undefined ? '' : (filter.project === '' ? PROJECT_UNASSIGNED : filter.project),
-              'aria-label': t(FILTER_LABELS.project),
-              onChange: event => props.setFilter({
-                project: event.target.value === ''
-                  ? undefined
-                  : (event.target.value === PROJECT_UNASSIGNED ? '' : event.target.value),
-              }),
-            },
-              h('option', { value: '' }, t('all')),
-              h('option', { value: PROJECT_UNASSIGNED }, t('projectUnassigned')),
-              projects.filter(name => name !== PROJECT_UNASSIGNED).map(name => h('option', { key: name, value: name }, name)))),
-          h(Checkbox, {
-            checked: grouped,
-            label: t('groupProject'),
-            onChange: next => setGrouped(next),
-          }),
-          toggle('claimable', 'filterClaimable'),
-          h('span', { className: 'rb-filter' },
-            h('span', { className: 'rb-field-label' }, t('filterMe')),
-            h(Input, {
-              name: 'me',
-              value: filter.me,
-              title: t('filterMeHint'),
-              'aria-label': t('filterMe'),
-              onChange: event => props.setFilter({ me: event.target.value }),
-            })),
-          h('span', { className: 'rb-grow' }),
-          h('span', { className: 'rb-muted' }, `${visible.length} / ${state.stats?.total ?? 0}`),
-          // The role filter reads as a capsule row of its own, with the clearing
-          // affordance the concept sheet places at the row's end.
-          h('div', { className: 'rb-chips' },
-            h('span', { className: 'rb-flabel' }, t(FILTER_LABELS.role)),
-            roleChip('', t('all'), t('all')),
-            roleFilterOptions.map(option => roleChip(
-              option.value,
-              option.value === 'human' ? t('roleHuman') : roleName(option.value, roles),
-              option.label,
-            )),
-            h('button', {
+          // The switch and the summary are the whole area while it is folded, and
+          // they stay on screen when it opens: a reader always sees which filters
+          // are in force, and each chip clears only its own.
+          h('div', { className: 'rb-filter-bar' },
+            h(Button, {
+              className: 'rb-btn-pad rb-btn-sm rb-btn',
+              variant: 'ghost',
+              size: 'sm',
+              name: 'filter.toggle',
+              'aria-expanded': filtersShown,
+              title: filtersShown ? t('filterHide') : t('filterShow'),
+              onClick: () => setFiltersOpen(!filtersShown),
+            }, t('filterPanel')),
+            activeFilters.length === 0
+              ? h('span', { className: 'rb-muted' }, t('filterSummaryAll'))
+              : h('div', { className: 'rb-filter-chips' }, activeFilters.map(filterChip)),
+            h('span', { className: 'rb-grow' }),
+            h('span', { className: 'rb-muted' }, `${visible.length} / ${state.stats?.total ?? 0}`),
+            activeFilters.length === 0 ? null : h('button', {
               type: 'button',
               className: 'rb-clear',
               name: 'filter.clear',
               onClick: () => props.setFilter({
                 query: '', status: '', priority: '', owner: '', session: '', role: '', kind: '', project: undefined, claimable: false, me: '',
               }),
-            }, t('clearFilters'))))
+            }, t('clearFilters'))),
+          filtersShown ? h('div', { className: 'rb-filter-controls' },
+            h('span', { className: 'rb-filter' },
+              h('span', { className: 'rb-field-label' }, t('filterQuery')),
+              h(Input, {
+                name: 'query',
+                value: filter.query,
+                'aria-label': t('filterQuery'),
+                onChange: event => props.setFilter({ query: event.target.value }),
+              })),
+            select('status', [
+              { value: 'open', label: t('open') },
+              { value: 'active', label: t('statusActive') },
+              { value: 'blocked', label: t('statusBlocked') },
+              { value: 'done', label: t('statusDone') },
+              { value: 'archived', label: t('statusArchived') },
+            ]),
+            select('priority', ['low', 'normal', 'high', 'urgent'].map(value => ({
+              value,
+              label: t(`priority${value[0].toUpperCase()}${value.slice(1)}`),
+            }))),
+            select('owner', owners.map(value => ({ value, label: value }))),
+            select('session', sessions.map(value => ({ value, label: value }))),
+            select('kind', [
+              { value: 'task', label: t('kindTask') },
+              { value: 'decision', label: t('kindDecision') },
+            ]),
+            // The project control cannot use `select`: its empty value is the
+            // Host's spelling of "belongs to no project", so the option standing for
+            // "every project" needs a value of its own and the sentinel maps back to
+            // the empty string on the way out.
+            h('span', { className: 'rb-filter' },
+              h('span', { className: 'rb-field-label' }, t(FILTER_LABELS.project)),
+              h('select', {
+                className: 'rb-select',
+                name: 'project',
+                value: filter.project === undefined ? '' : (filter.project === '' ? PROJECT_UNASSIGNED : filter.project),
+                'aria-label': t(FILTER_LABELS.project),
+                onChange: event => props.setFilter({
+                  project: event.target.value === ''
+                    ? undefined
+                    : (event.target.value === PROJECT_UNASSIGNED ? '' : event.target.value),
+                }),
+              },
+                h('option', { value: '' }, t('all')),
+                h('option', { value: PROJECT_UNASSIGNED }, t('projectUnassigned')),
+                projects.filter(name => name !== PROJECT_UNASSIGNED).map(name => h('option', { key: name, value: name }, name)))),
+            h(Checkbox, {
+              checked: grouped,
+              label: t('groupProject'),
+              onChange: next => setGrouped(next),
+            }),
+            toggle('claimable', 'filterClaimable'),
+            h('span', { className: 'rb-filter' },
+              h('span', { className: 'rb-field-label' }, t('filterMe')),
+              h(Input, {
+                name: 'me',
+                value: filter.me,
+                title: t('filterMeHint'),
+                'aria-label': t('filterMe'),
+                onChange: event => props.setFilter({ me: event.target.value }),
+              })),
+            roleSelect) : null)
           : null,
         h('div', { className: 'rb-body' },
           view === 'queue'
@@ -5255,6 +6410,7 @@ name: 'auth.recheck',
           pinsTruncated,
           busy,
           run,
+          invokeQuiet: invokeQuietly,
           controller,
           revision: state.revision,
           onClose: () => setDialog(null),
@@ -5264,7 +6420,7 @@ name: 'auth.recheck',
           roles,
           status: state.status,
           busy,
-          run,
+          invoke: invokeQuietly,
           onClose: () => setDialog(null),
           t,
         }) : null)

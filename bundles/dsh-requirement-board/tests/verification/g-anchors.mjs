@@ -231,7 +231,7 @@ const LOAD_BEARING = [
   { doc: 'ROLE-DISPATCH.md', path: 'host/runs.js', from: 230, to: 243, expect: /truncated/, why: '§5.5 条数截断' },
   { doc: 'ROLE-DISPATCH.md', path: 'packages/subagent/subagent/src/lifecycle.ts', from: 134, to: 163, expect: /observeRun/, why: '§3.1 生命周期（歧义裁定为 subagent）' },
   // §5.6 tool surface
-  { doc: 'ROLE-DISPATCH.md', path: 'host/tools.js', from: 206, to: 211, expect: /case 'get'/, why: '§5.6 工具动作面' },
+  { doc: 'ROLE-DISPATCH.md', path: 'host/tools.js', from: 236, to: 241, expect: /case 'get'/, why: '§5.6 工具动作面' },
   { doc: 'ROLE-DISPATCH.md', path: 'host/tools.js', expect: /requirement_board/, why: '§5.6 requirement_board 工具' },
   { doc: 'ROLE-DISPATCH.md', path: 'host/tools.js', expect: /flow_template/, why: '§5.6 flow_template 工具' },
   { doc: 'ROLE-DISPATCH.md', path: 'host/tools.js', expect: /requirement_role/, why: '§5.6 requirement_role 工具' },
@@ -259,7 +259,7 @@ const LOAD_BEARING = [
   { doc: 'ROLE-DISPATCH.md', path: 'host/http.js', expect: /ROUTE_PREFIX/, why: '§8.1 路由前缀' },
   { doc: 'ROLE-DISPATCH.md', path: 'host/http.js', from: 355, to: 442, expect: /createBoardHandler/, why: '§8.1 处理器' },
   { doc: 'ROLE-DISPATCH.md', path: 'host/http.js', from: 271, to: 337, expect: /case 'delete'/, why: '§8.1 command 分发面' },
-  { doc: 'ROLE-DISPATCH.md', path: 'host/http.js', from: 225, to: 337, expect: /case 'stats'/, why: '§8.1 面板动作穷举' },
+  { doc: 'ROLE-DISPATCH.md', path: 'host/http.js', from: 226, to: 345, expect: /case 'stats'/, why: '§8.1 面板动作穷举' },
   { doc: 'ROLE-DISPATCH.md', path: 'host/http.js', from: 239, to: 245, expect: /force/, why: '§8.1 transition 参数' },
   { doc: 'ROLE-DISPATCH.md', path: 'host/http.js', from: 79, to: 79, expect: /MAX_BODY_BYTES/, why: '§8.2 256 KiB 上界' },
   // §8.1 / §8.2 the panel has no claim/queue, and that is reported as unknown action

@@ -21,6 +21,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { DomainError } from '@deepseek-ai/dsh-storage-domain'
 import {
+  ANSWER_NOTE_MAX,
   PRIORITIES,
   REQ_KINDS,
   REQ_STATUSES,
@@ -38,6 +39,8 @@ import {
   fail,
   mintId,
   nowIso,
+  parseAnswers,
+  parseQuestions,
 } from './model.js'
 import { advanceable, assertLockHeld, claimable, escalationIndex, judgeClaim, lockState, newLock, renewedLock } from './dispatch.js'
 import { applyTransition, computeStats, flowPrerequisiteMissing, recomputeNodes, setChecklistEntry } from './flow.js'
@@ -48,7 +51,7 @@ import { nextRevision } from './domain.js'
 import { RoleRegistry } from './roles.js'
 
 /** Fields a caller may change through `updateRequirement`. */
-const UPDATABLE = ['title', 'summary', 'project', 'description', 'priority', 'owner', 'labels', 'sessions', 'templateId', 'role', 'parentId', 'blocksOn', 'images']
+const UPDATABLE = ['title', 'summary', 'project', 'description', 'priority', 'owner', 'labels', 'sessions', 'templateId', 'role', 'parentId', 'blocksOn', 'images', 'options']
 
 /**
  * Longest plain-language summary a requirement carries.
@@ -182,10 +185,11 @@ function asRevision(value, field) {
  *
  * A decision is the human's to answer, so an agent keeps the parts that make the
  * question readable — its wording, its priority, its labels, the pictures that
- * show it, who shares it — and loses the routing, the flow, and the state changes
- * that would let it answer the question itself.
+ * show it, who shares it, and the structured `options` that spell the question out
+ * — and loses the routing, the flow, and the state changes that would let it
+ * answer the question itself.
  */
-const DECISION_UPDATABLE = ['title', 'summary', 'project', 'description', 'priority', 'labels', 'sessions', 'images']
+const DECISION_UPDATABLE = ['title', 'summary', 'project', 'description', 'priority', 'labels', 'sessions', 'images', 'options']
 
 /**
  * The fields whose change redefines the work: who may run it, which flow it
@@ -212,6 +216,28 @@ function lockEntry(action, requirement, at, who, note = '') {
     force: false,
     durationMs: null,
   }
+}
+
+/**
+ * The history note one selection writes, naming the choices that were made.
+ *
+ * The person reads this line in the panel rather than the stored ids, so each
+ * selection carries the choice's own label beside its id. `note` is the person's
+ * own sentence, appended when they wrote one.
+ * @param questions - The questions the selection was resolved against.
+ * @param picks - The selections made in this write, by question id.
+ * @param note - The person's own note, or `''`.
+ * @returns the note stored on the history entry.
+ */
+function describeSelections(questions, picks, note = '') {
+  const parts = questions
+    .filter(question => picks[question.id] !== undefined)
+    .map(question => {
+      const choice = question.choices.find(candidate => candidate.id === picks[question.id])
+      return `${question.id} = ${picks[question.id]}${choice === undefined ? '' : ` (${choice.label})`}`
+    })
+  const text = `selected ${parts.join('; ')}`
+  return note === '' ? text : `${text}: ${note}`
 }
 
 /** One requirement id from a patch, or `null` for `''`/`null`/absent. */
@@ -305,6 +331,35 @@ function sameImageRefs(before, next) {
 }
 
 /**
+ * Whether two question lists ask the same thing.
+ *
+ * Identity is the field-by-field reading of a question: its id, its prompt, and
+ * each choice's id, label, detail, and recommendation. Order is stored, so a
+ * reordered list is a change, and an absent field and an empty one mean the same
+ * thing because the write path stores neither.
+ * @param before - Stored questions, or undefined.
+ * @param next - Validated replacement questions.
+ * @returns `true` when nothing would change.
+ */
+function sameQuestions(before, next) {
+  const stored = Array.isArray(before) ? before : []
+  if (stored.length !== next.length) return false
+  return stored.every((question, index) => {
+    const candidate = next[index]
+    if (question.id !== candidate.id || question.prompt !== candidate.prompt) return false
+    const choices = Array.isArray(question.choices) ? question.choices : []
+    if (choices.length !== candidate.choices.length) return false
+    return choices.every((choice, at) => {
+      const other = candidate.choices[at]
+      return choice.id === other.id
+        && choice.label === other.label
+        && (choice.detail ?? '') === (other.detail ?? '')
+        && (choice.recommended === true) === (other.recommended === true)
+    })
+  })
+}
+
+/**
  * A short, bounded requirement line for prompt context and list summaries.
  *
  * `template` arrives already resolved to the requirement's pinned revision
@@ -352,6 +407,11 @@ function summarize(requirement, template, derived = {}) {
     // The refs travel with the summary so a list, a catch-up diff, and the panel
     // see the same pictures as `get`. The bytes stay outside the record.
     images: (requirement.images ?? []).map(ref => ({ ...ref })),
+    // A list row carries how much is being asked and how much is answered, not the
+    // questions themselves: the text belongs to the detail read, and a card that
+    // shipped every question of every decision would pay for prose it never shows.
+    optionsCount: (requirement.options ?? []).length,
+    answeredCount: Object.keys(requirement.answer ?? {}).length,
     blockedBy: [...(derived.blockedBy ?? [])],
     gated: derived.gated ?? false,
     effectivePriority: derived.effectivePriority ?? requirement.priority,
@@ -793,6 +853,16 @@ export class RequirementService {
     // A record written before pasted images existed validates without the field,
     // so every reader gets the same empty list instead of an absent key.
     presented.images = (requirement.images ?? []).map(ref => ({ ...ref }))
+    // A record written before structured options existed validates without them,
+    // so every reader gets the question list and the selection it means — none —
+    // rather than an absent key the panel would have to test for.
+    presented.options = (requirement.options ?? []).map(question => ({
+      ...question,
+      choices: question.choices.map(choice => ({ ...choice })),
+    }))
+    presented.answer = { ...(requirement.answer ?? {}) }
+    presented.answerNote = requirement.answerNote ?? ''
+    presented.answeredAt = requirement.answeredAt ?? null
     presented.children = [...(derived.children.get(requirement.id) ?? [])]
     presented.blockedBy = [...(gate?.blockedBy ?? [])]
     presented.gated = gate?.gated === true
@@ -1625,6 +1695,9 @@ export class RequirementService {
     const parentId = asOptionalId(input.parentId, 'parentId')
     const blocksOn = asLinks(input.blocksOn)
     this.#assertLinks({ id, parentId, blocksOn })
+    // A question is written with the requirement, so its shape is judged here
+    // rather than discovered by whoever has to answer it.
+    const questions = parseQuestions(input.options, 'options')
     const requirement = {
       id,
       title,
@@ -1650,6 +1723,9 @@ export class RequirementService {
       // `images` arrives as stored ids and leaves as the refs they name, so an
       // unknown id is refused before any part of the record is written.
       images: await this.#imageRefs(input.images),
+      // An absent question list is not stored: a requirement that asks nothing
+      // stays byte-identical to one written before options existed.
+      ...(questions.length === 0 ? {} : { options: questions }),
       parentId,
       blocksOn,
       nodes: {},
@@ -2537,6 +2613,27 @@ export class RequirementService {
       // before this ran, so an unknown id never reaches the write chain.
       if (!sameImageRefs(draft.images, patch.images)) assign('images', patch.images)
     }
+    if (patch.options !== undefined) {
+      const next = parseQuestions(patch.options, 'options')
+      if (!sameQuestions(draft.options, next)) {
+        // The question is what the person answers, so rewriting it under a
+        // selection would leave that selection naming a choice that no longer
+        // exists. The rewrite is refused rather than silently dropping the answer.
+        if (Object.keys(draft.answer ?? {}).length > 0) {
+          fail('conflict', `"${id}" already holds a person's selection: its questions cannot change while the selection stands`, {
+            reason: 'answered-options',
+            id,
+            answer: draft.answer,
+          })
+        }
+        if (next.length === 0) {
+          delete draft.options
+          changed = true
+        } else {
+          assign('options', next)
+        }
+      }
+    }
     let retemplated = false
     if (patch.templateId !== undefined) {
       const template = this.#template(asString(patch.templateId, 'templateId', { max: 64 }))
@@ -2629,6 +2726,65 @@ export class RequirementService {
       }, who.session, at)
       return this.#present(committed)
     })
+  }
+
+  /**
+   * Record the human's selection among a requirement's structured options (§5.7).
+   *
+   * Only the panel calls this, and only a person may: an AI session is refused
+   * with `forbidden{human-only}` before anything is read, because writing the
+   * answer is the act the decision requirement exists to reserve. The selections
+   * are resolved against the stored questions — an unknown question id or choice
+   * id is refused by name — and they are merged into what is already answered, so
+   * a requirement asking two questions may be answered one at a time. The one note
+   * the person writes is stored beside the selections, and one history entry names
+   * the choices in the order the questions ask them.
+   *
+   * Answering the last outstanding question ends the decision, so completion
+   * follows as one ordinary `complete` transition in a second write: it judges the
+   * same gates and records its own entry, and a gate that refuses it leaves the
+   * selections stored rather than lost. A requirement already settled keeps the
+   * selection it is given and is not moved again.
+   *
+   * @param id - Requirement id.
+   * @param input - `{ answer, note, expectedRev }`; `answer` maps question id to
+   * choice id and may name a subset of the questions.
+   * @param actor - `{ session, name }` of the caller; only `session === ''` (the
+   * panel, which is the person) is accepted.
+   * @returns the presented requirement.
+   */
+  async decideRequirement(id, input = {}, actor) {
+    const who = this.#actor(actor)
+    if (who.session !== '') {
+      fail('forbidden', 'only the human selects among a requirement\'s options: the panel is where a person answers it', {
+        reason: 'human-only',
+        id,
+      })
+    }
+    const at = nowIso()
+    const note = asString(input.note, 'note', { max: ANSWER_NOTE_MAX })
+    const committed = await this.#mutateRequirement(id, input.expectedRev, draft => {
+      const questions = draft.options ?? []
+      if (questions.length === 0) {
+        fail('invalid-argument', `"${id}" asks no question: there is nothing to select`, { reason: 'no-options', id })
+      }
+      const picks = parseAnswers(input.answer, questions)
+      draft.answer = { ...(draft.answer ?? {}), ...picks }
+      draft.answeredAt = at
+      if (note !== '') draft.answerNote = note
+      draft.history.push(lockEntry('decide', draft, at, who, describeSelections(questions, picks, note)))
+      return draft
+    }, who.session, at)
+    const questions = committed.options ?? []
+    const answered = committed.answer ?? {}
+    // Only a decision ends with its answer: an ordinary requirement that carries a
+    // structured question keeps working after the person chooses, because the
+    // choice is context for its work rather than the whole of it.
+    if (committed.status !== 'active' || (committed.kind ?? 'task') !== 'decision') return this.#present(committed)
+    if (!questions.every(question => answered[question.id] !== undefined)) return this.#present(committed)
+    // Every question is answered, so the decision itself is over: finishing the
+    // flow is the ordinary transition, with its own entry and its own gates.
+    return await this.transitionRequirement(id, { action: 'complete', note: 'every question answered' }, actor)
   }
 
   /**

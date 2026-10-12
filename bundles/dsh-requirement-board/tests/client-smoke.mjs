@@ -218,8 +218,11 @@ function createPrimitives(React) {
     ...(Array.isArray(children) ? children : children === undefined || children === null ? [] : [children]),
   ]
 
+  // `type` is applied before `rest` so a caller that names a submit control gets
+  // one, exactly as the real Button does; a control that names none is a plain
+  // button because that is the default the platform sets first.
   const Button = ({ variant, size, icon, className, children, ...rest }) =>
-    h('button', { ...rest, type: 'button', className }, ...body(icon, children))
+    h('button', { type: 'button', ...rest, className }, ...body(icon, children))
 
   const Pill = ({ active, className, children, onClick, ...rest }) => onClick === undefined
     ? h('span', { className }, children)
@@ -236,9 +239,13 @@ function createPrimitives(React) {
 
   const StateDot = ({ state, className }) => h('span', { className, 'data-state': state })
 
+  // The mask is the layer's own close target, as the real Modal's is: an
+  // aria-hidden element whose click command is `onClose`. Escape reaches the same
+  // command through the platform modal layer, which this stand-in cannot run.
   const Modal = ({ open, onClose, title, closeLabel, description, children, footer, className, headless = false }) => {
     if (!open) return null
     return h('div', { role: 'presentation', onKeyDownCapture: undefined },
+      h('div', { 'aria-hidden': 'true', onClick: onClose }),
       h('div', { role: 'dialog', 'aria-modal': 'true', 'aria-label': title, tabIndex: -1, className },
         ...(headless
           ? [children]
@@ -811,11 +818,16 @@ check('the projected last transition drives the summary line', page.html.include
 check('the page renders the selected node detail', page.html.includes('Node detail'))
 check('an active node offers the advance action', page.buttons.some(element => element.html === 'Finish and advance'))
 check('the active node offers neither rollback nor jump', !page.html.includes('Roll back here') && !page.html.includes('Jump here'))
-check('the page renders the filters with visible labels', ['Search', 'Owner', 'Session', 'Status', 'Priority', 'Role', 'Kind', 'Only claimable', 'Session (me)'].every(label => page.html.includes(label)), page.html.slice(0, 0) || 'a filter label is missing')
+// The filter area is folded until a reader opens it, so its labels are read
+// through the switch that shows them; closing it again restores the folded
+// reading the rest of this run reads from.
+const openedPage = openFilters()
+check('the page renders the filters with visible labels', ['Search', 'Owner', 'Session', 'Status', 'Priority', 'Role', 'Kind', 'Only claimable', 'Session (me)'].every(label => openedPage.html.includes(label)), openedPage.html.slice(0, 0) || 'a filter label is missing')
 check('the role filter is an ordinary host filter, with no local narrowing tag',
-  !page.collected.some(element => String(element.props?.className ?? '').includes('rb-local-tag'))
-  && !page.collected.some(element => String(element.props?.title ?? '').includes('no role filter yet')),
-  page.html.slice(0, 0) || 'a local narrowing tag survived')
+  !openedPage.collected.some(element => String(element.props?.className ?? '').includes('rb-local-tag'))
+  && !openedPage.collected.some(element => String(element.props?.title ?? '').includes('no role filter yet')),
+  openedPage.html.slice(0, 0) || 'a local narrowing tag survived')
+filterToggleOf(renderPage()).props.onClick()
 
 /* ------------------------------------------------ dependency graph topology */
 
@@ -947,7 +959,10 @@ const createDialog = renderPage()
 check('the create dialog renders its fields', createDialog.html.includes('标题') && createDialog.html.includes('流程模板') && createDialog.html.includes('所属会话'))
 check('the create dialog lists the templates', createDialog.html.includes('标准研发流程'))
 check('the create dialog offers the board\'s project names as suggestions',
-  createDialog.html.includes('圣女战棋') && createDialog.findInput(props => props.name === 'requirement.project') !== undefined)
+  // A `datalist` option carries its label as its own `value`, so the suggestion
+  // list is read from the list itself rather than from any rendered text.
+  datalistValues(createDialog, 'rb-project-suggestions-create').join(',') === '看板,圣女战棋'
+  && createDialog.findInput(props => props.name === 'requirement.project') !== undefined)
 check('an empty title disables the create action', createDialog.collected.some(element => element.html === '创建' && element.props.disabled === true))
 const titleInput = createDialog.findInput(props => props.name === 'requirement.title')
 titleInput.props.onChange({ target: { value: '新需求' } })
@@ -1068,6 +1083,54 @@ const checkboxFor = (page, label) => {
   }
   return undefined
 }
+/**
+ * Every checkbox a reader identifies by its visible label, in tree order.
+ *
+ * `checkboxFor` answers with the first one, which is all a single control needs;
+ * a row of choices each carrying an identical "recommended" label needs them all.
+ */
+function checkboxesLabelled(page, label) {
+  return page.collected.reduce((found, element, index) => {
+    if (element.type !== 'label' || element.html !== label) return found
+    for (let back = index; back >= 0; back -= 1) {
+      const candidate = page.collected[back]
+      if (candidate.type === 'input' && candidate.props.type === 'checkbox') return [...found, candidate]
+    }
+    return found
+  }, [])
+}
+/** The switch that folds the filter area. */
+function filterToggleOf(page) {
+  return page.collected.find(element => element.type === 'button' && element.props.name === 'filter.toggle')
+}
+/** Open the filter controls the way a reader does, and answer with the render. */
+function openFilters() {
+  const page = renderPage()
+  const toggle = filterToggleOf(page)
+  if (toggle === undefined) throw new Error('the filter area renders no switch')
+  if (toggle.props['aria-expanded'] !== true) {
+    toggle.props.onClick()
+    return renderPage()
+  }
+  return page
+}
+/**
+ * The names one `datalist` offers.
+ *
+ * A `datalist` option's label is its own `value` rather than a child, so the
+ * values are read off the options that precede the list in collection order.
+ */
+function datalistValues(page, id) {
+  const at = page.collected.findIndex(element => element.type === 'datalist' && element.props.id === id)
+  if (at < 0) return []
+  const values = []
+  for (let back = at - 1; back >= 0; back -= 1) {
+    const element = page.collected[back]
+    if (element.type !== 'option') break
+    values.unshift(element.props.value)
+  }
+  return values
+}
 
 renderPage().findButton(localeDicts.zh.templates).props.onClick()
 const drawer = await settledDrawer()
@@ -1124,6 +1187,24 @@ const byName = (page, name) => {
   if (found === undefined) throw new Error(`no button named "${name}"`)
   return found
 }
+/** The dialogs a page rendered. A parent is collected after its subtree, so the
+ * innermost layer comes first and the drawer behind it comes last. */
+const dialogs = page => page.collected.filter(element => element.props.role === 'dialog')
+/** The masks the platform Modal renders: each layer's own close target, outermost first. */
+const masks = page => page.collected.filter(element => element.props['aria-hidden'] === 'true'
+  && typeof element.props.onClick === 'function')
+/** Whether a named input renders inside the topmost dialog rather than the drawer behind it. */
+const insideTopDialog = (page, name) => {
+  const field = page.collected.findIndex(element => ['input', 'textarea'].includes(element.type)
+    && element.props.name === name)
+  const innermostMask = page.collected.indexOf(masks(page).at(-1))
+  return field >= 0 && dialogs(page).length >= 2 && innermostMask >= 0 && field > innermostMask
+}
+/** The innermost dialog: the form layer while one is open, otherwise the drawer. */
+const innerDialog = page => dialogs(page)[0]
+/** The elements a page rendered carrying the given class, as one of its classes. */
+const withClass = (page, name) => page.collected.filter(element =>
+  String(element.props.className ?? '').split(/\s+/).includes(name))
 
 byName(renderPage(), 'template.edit').props.onClick()
 const editor = renderPage()
@@ -1259,13 +1340,38 @@ const templateArchiveCall = requests.filter(request => String(request.url).inclu
   .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.archive')
 check('the archive action posts the archived flag', templateArchiveCall?.archived === true && templateArchiveCall?.id === 'tpl-standard', JSON.stringify(templateArchiveCall))
 
+/* ---------- the duplicate entry: the same second-layer form as a new template ---------- */
+
 byName(renderPage(), 'template.clone').props.onClick()
+const cloneForm = renderPage()
+check('the duplicate entry opens a second dialog layer, not an inline panel',
+  dialogs(cloneForm).length === 2 && String(innerDialog(cloneForm).props.className) === 'rb-dialog'
+  && insideTopDialog(cloneForm, 'template.clone.name'),
+  `dialogs ${String(dialogs(cloneForm).length)}, top ${String(innerDialog(cloneForm).props.className)}`)
+check('the duplicate form names the template it copies and keeps its hint',
+  cloneForm.html.includes(tst('templateCloneTitle', { name: templateFull.name }))
+  && cloneForm.html.includes(localeDicts.zh.templateCloneHint))
+check('the duplicate form carries the one field it owns, focused on entry by the layer',
+  cloneForm.findInput(props => props.name === 'template.clone.name') !== undefined
+  && cloneForm.findInput(props => props.name === 'template.clone.name').props['data-modal-autofocus'] === true)
+check('the duplicate submit is the form\'s own submit, disabled while it has no name',
+  cloneForm.collected.find(element => element.props.name === 'template.clone.confirm')?.props.type === 'submit'
+  && cloneForm.collected.find(element => element.props.name === 'template.clone.confirm')?.props.disabled === true)
+check('the duplicate form states the name it is waiting for, inside itself',
+  cloneForm.html.includes(localeDicts.zh.templateNameRequired))
 renderPage().findInput(props => props.name === 'template.clone.name').props.onChange({ target: { value: '标准流程副本' } })
-byName(renderPage(), 'template.clone.confirm').props.onClick()
+const cloneReady = renderPage()
+check('the duplicate field carries no click handler: submitting the form is what saves',
+  cloneReady.collected.find(element => element.props.name === 'template.clone.confirm')?.props.onClick === undefined
+  && cloneReady.collected.find(element => element.props.name === 'template.clone.confirm')?.props.disabled === false)
+cloneReady.collected.find(element => element.type === 'form').props.onSubmit({ preventDefault: () => {} })
 await settle()
 const cloneCall = requests.filter(request => String(request.url).includes('/command'))
   .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.clone')
 check('the clone action carries the new name', cloneCall?.name === '标准流程副本' && cloneCall?.id === 'tpl-standard', JSON.stringify(cloneCall))
+const clonedPage = renderPage()
+check('a successful duplicate closes the form and leaves the drawer in place',
+  dialogs(clonedPage).length === 1 && byName(clonedPage, 'template.clone') !== undefined)
 
 byName(renderPage(), 'template.delete').props.onClick()
 const deleteArmed = renderPage()
@@ -1291,22 +1397,140 @@ const templateDeleteCall = requests.filter(request => String(request.url).includ
   .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.delete')
 check('the armed delete forces the rebind', templateDeleteCall?.force === true && templateDeleteCall?.id === 'tpl-standard', JSON.stringify(templateDeleteCall))
 
-// Creating a template lives in the drawer now and parses the line grammar.
+/* ---------- the new-template form: layer, validation, refusal, unsaved draft ---------- */
+
+// One filter mark and one picked row, so the reading after the form closes can say
+// whether the drawer still holds them: the form is a layer beside the drawer, not a
+// replacement for it.
+checkboxFor(renderPage(), localeDicts.zh.includeArchived).props.onChange({ target: { checked: true } })
+await drain()
+const pickedBefore = renderPage().collected
+  .find(element => String(element.props.className ?? '').includes('rb-template-row-picked'))
+check('the drawer holds a filter mark and a picked row before the form opens',
+  checkboxFor(renderPage(), localeDicts.zh.includeArchived)?.props.checked === true && pickedBefore !== undefined)
+
 byName(renderPage(), 'template.new').props.onClick()
 const addForm = renderPage()
-check('the drawer offers the node-per-line create form', addForm.html.includes(localeDicts.zh.templateNodesHint))
-check('an empty create form cannot be sent', byName(addForm, 'template.create').props.disabled === true)
+check('the new-template entry opens a second dialog layer over the drawer',
+  dialogs(addForm).length === 2 && String(innerDialog(addForm).props.className) === 'rb-dialog',
+  `dialogs ${String(dialogs(addForm).length)}, top ${String(innerDialog(addForm).props.className)}`)
+check('the form is the top layer: its fields sit inside it, not in the drawer list column',
+  insideTopDialog(addForm, 'template.new.name') && insideTopDialog(addForm, 'template.new.nodes'))
+check('the form offers the node-per-line fields the inline form had',
+  addForm.html.includes(localeDicts.zh.templateNodesHint)
+  && addForm.findInput(props => props.name === 'template.new.description') !== undefined
+  && addForm.findInput(props => props.name === 'template.new.nodes') !== undefined)
+check('the form enters on its first field and only on that one',
+  addForm.findInput(props => props.name === 'template.new.name').props['data-modal-autofocus'] === true
+  && addForm.findInput(props => props.name === 'template.new.nodes').props['data-modal-autofocus'] === undefined)
+check('an empty form cannot be sent and says which field it is waiting for',
+  byName(addForm, 'template.create').props.disabled === true
+  && addForm.html.includes(localeDicts.zh.templateNameRequired)
+  && addForm.html.includes(localeDicts.zh.templateNodesRequired))
 addForm.findInput(props => props.name === 'template.new.nodes').props.onChange({
   target: { value: '需求评审 | 张三 | 范围明确;干系人确认\n方案设计 | 李四\n开发实现' },
 })
 renderPage().findInput(props => props.name === 'template.new.name').props.onChange({ target: { value: '三段流程' } })
-byName(renderPage(), 'template.create').props.onClick()
-await settle()
+const readyForm = renderPage()
+check('the required line drops each requirement as the draft meets it',
+  !readyForm.html.includes(localeDicts.zh.templateNameRequired)
+  && !readyForm.html.includes(localeDicts.zh.templateNodesRequired))
+check('the filled form submits through the form, with no click handler on the submit',
+  readyForm.collected.find(element => element.props.name === 'template.create')?.props.type === 'submit'
+  && readyForm.collected.find(element => element.props.name === 'template.create')?.props.onClick === undefined
+  && readyForm.collected.find(element => element.props.name === 'template.create')?.props.disabled === false)
+
+// A refusal stays where the draft is: the same failure the overlay toast used to
+// announce is stated inside the form, and the form is not closed by it.
+commandRefusals['template.create'] = { code: 'invalid-argument', message: 'template "nodes" must hold at most 50 entries' }
+await drain(6)
+const readsBeforeRefusal = commandBodies().filter(body => body.action === 'template.list').length
+renderPage().collected.find(element => element.type === 'form').props.onSubmit({ preventDefault: () => {} })
+await drain(6)
+const refusedCreate = renderPage()
+// The refusal posts nothing, and it leaves the panel with nothing further to
+// post: no list re-read, and no read of any other kind trailing it.
+check('a refused create re-reads nothing and posts nothing after it',
+  commandBodies().filter(body => body.action === 'template.list').length === readsBeforeRefusal
+  && commandBodies().at(-1)?.action === 'template.create',
+  `${String(commandBodies().filter(body => body.action === 'template.list').length)} vs ${String(readsBeforeRefusal)}, last ${String(commandBodies().at(-1)?.action)}`)
+check('a refused create is reported inside the form, in the Host\'s own words',
+  refusedCreate.html.includes(localeDicts.zh.templateFormError) && refusedCreate.html.includes('must hold at most 50 entries')
+  && refusedCreate.collected.some(element => element.props.name === 'template.form.error'))
+check('a refused create keeps the form and the draft on screen',
+  dialogs(refusedCreate).length === 2
+  && refusedCreate.collected.some(element => element.type === 'input' && element.props.name === 'template.new.name'
+    && element.props.value === '三段流程'))
+check('a refused create raises no toast of its own and no drawer notice of its own',
+  !renderToast().includes('must hold at most 50 entries')
+  && withClass(refusedCreate, 'rb-notice-error').length === 0,
+  `${renderToast()} / ${String(withClass(refusedCreate, 'rb-notice-error').length)}`)
+delete commandRefusals['template.create']
+
+// Cancel, Escape, and the mask are the same close path, and a changed draft makes
+// that path ask first. The question takes itself back rather than the input.
+byName(refusedCreate, 'template.form.cancel').props.onClick()
+const askedForm = renderPage()
+check('cancel on a changed draft asks before it discards anything',
+  dialogs(askedForm).length === 2 && byName(askedForm, 'template.discard.drop') !== undefined
+  && byName(askedForm, 'template.discard.keep') !== undefined
+  && askedForm.html.includes(localeDicts.zh.templateDiscardConfirm)
+  && askedForm.collected.some(element => element.type === 'input' && element.props.name === 'template.new.name'
+    && element.props.value === '三段流程'))
+byName(askedForm, 'template.discard.keep').props.onClick()
+const keptForm = renderPage()
+check('keeping the draft hides the question and keeps the input',
+  keptForm.collected.some(element => element.props.name === 'template.discard.drop') === false
+  && keptForm.collected.some(element => element.type === 'input' && element.props.name === 'template.new.name'
+    && element.props.value === '三段流程'))
+masks(keptForm).at(-1).props.onClick()
+const askedByMask = renderPage()
+check('the mask leaves through the same path as cancel, so it asks too',
+  byName(askedByMask, 'template.discard.drop') !== undefined)
+masks(askedByMask).at(-1).props.onClick()
+const backToInput = renderPage()
+check('the mask while the question is up takes the question back, not the input',
+  backToInput.collected.some(element => element.props.name === 'template.discard.drop') === false
+  && backToInput.collected.some(element => element.type === 'input' && element.props.name === 'template.new.name'
+    && element.props.value === '三段流程'))
+byName(backToInput, 'template.form.cancel').props.onClick()
+byName(renderPage(), 'template.discard.drop').props.onClick()
+const droppedForm = renderPage()
+check('an untouched form closes without asking', (() => {
+  byName(renderPage(), 'template.new').props.onClick()
+  const blank = renderPage()
+  byName(blank, 'template.form.cancel').props.onClick()
+  const closed = renderPage()
+  return dialogs(blank).length === 2 && dialogs(closed).length === 1
+    && closed.collected.some(element => element.props.name === 'template.discard.drop') === false
+})())
+check('an explicit discard closes the form and the drawer keeps its filter and its pick',
+  dialogs(droppedForm).length === 1 && byName(droppedForm, 'template.new') !== undefined
+  && checkboxFor(droppedForm, localeDicts.zh.includeArchived)?.props.checked === true
+  && droppedForm.collected.some(element => String(element.props.className ?? '').includes('rb-template-row-picked')))
+check('the opener is still in the tree after the form closes: it is what the layer hands focus back to',
+  droppedForm.collected.some(element => element.props.name === 'template.new'))
+
+// Creating is still the ordinary panel command: the same line grammar reaches
+// `template.create`, and a success closes the form and re-reads the list once.
+byName(renderPage(), 'template.new').props.onClick()
+const createForm = renderPage()
+createForm.findInput(props => props.name === 'template.new.nodes').props.onChange({
+  target: { value: '需求评审 | 张三 | 范围明确;干系人确认\n方案设计 | 李四\n开发实现' },
+})
+renderPage().findInput(props => props.name === 'template.new.name').props.onChange({ target: { value: '三段流程' } })
+const readsBeforeCreate = commandBodies().filter(body => body.action === 'template.list').length
+renderPage().collected.find(element => element.type === 'form').props.onSubmit({ preventDefault: () => {} })
+await drain()
 const templateCreateCall = requests.filter(request => String(request.url).includes('/command'))
   .map(request => JSON.parse(request.init.body)).find(body => body.action === 'template.create')
-check('the drawer create posts parsed nodes', templateCreateCall?.template?.nodes?.length === 3, JSON.stringify(templateCreateCall?.template))
+check('the form create posts parsed nodes', templateCreateCall?.template?.nodes?.length === 3, JSON.stringify(templateCreateCall?.template))
 check('a checklist node keeps its checklist', templateCreateCall?.template?.nodes?.[0]?.completion?.checklist?.length === 2)
 check('the create form carries the typed name', templateCreateCall?.template?.name === '三段流程')
+check('a successful create closes the form and re-reads the list once',
+  dialogs(renderPage()).length === 1
+  && commandBodies().filter(body => body.action === 'template.list').length === readsBeforeCreate + 1,
+  `dialogs ${String(dialogs(renderPage()).length)}`)
 
 // Closing the drawer clears it.
 renderPage().findButton(localeDicts.zh.close).props.onClick()
@@ -1458,6 +1682,87 @@ renderPage().findButton(localeDicts.zh.cancel).props.onClick()
 await settle()
 check('closing the create dialog clears it', !renderPage().html.includes(localeDicts.zh.pasteImageHint))
 
+/* ------------------------------------------- the create dialog's options */
+
+// The structured question is authored here rather than typed into the
+// description: a question, its choices with their costs, and the one choice the
+// author advises. The ids the board stores (q1, q2 …; A, B, …) belong to the
+// board and follow the order the rows are sent, so the editor never shows one.
+renderPage().findButton(localeDicts.zh.newRequirement).props.onClick()
+const blankOptionDialog = renderPage()
+check('the create dialog offers the structured-question block',
+  blankOptionDialog.collected.some(element => element.props.name === 'option.question.add')
+  && blankOptionDialog.html.includes(localeDicts.zh.optionsTitle)
+  && blankOptionDialog.html.includes(localeDicts.zh.optionNeedOneRecommended),
+  blankOptionDialog.html.slice(0, 0) || 'the option block is missing')
+check('the block starts with no question at all',
+  !blankOptionDialog.collected.some(element => String(element.props.name ?? '').startsWith('option.question.prompt.')))
+check('a requirement that asks nothing carries no options field',
+  textOnlyCall?.requirement?.options === undefined, JSON.stringify(textOnlyCall?.requirement?.options))
+
+blankOptionDialog.collected.find(element => element.props.name === 'option.question.add').props.onClick()
+const oneQuestion = renderPage()
+check('adding a question adds its prompt and the two choices it must offer',
+  oneQuestion.collected.some(element => element.props.name === 'option.question.prompt.0')
+  && oneQuestion.collected.some(element => element.props.name === 'option.item.label.0.0')
+  && oneQuestion.collected.some(element => element.props.name === 'option.item.label.0.1')
+  && oneQuestion.collected.some(element => element.props.name === 'option.item.detail.0.0'))
+check('a question cannot be cut down to a single choice',
+  oneQuestion.collected.find(element => element.props.name === 'option.item.remove.0.0')?.props.disabled === true
+  && oneQuestion.collected.find(element => element.props.name === 'option.item.remove.0.1')?.props.disabled === true)
+
+renderPage().findInput(props => props.name === 'requirement.title').props.onChange({ target: { value: '选项式需求' } })
+renderPage().findInput(props => props.name === 'requirement.summary').props.onChange({ target: { value: '让人在面板上选一个方案。' } })
+check('an unfinished question blocks the submit and says what is missing',
+  renderPage().collected.some(element => element.html === localeDicts.zh.create && element.props.disabled === true)
+  && renderPage().html.includes(localeDicts.zh.optionNeedQuestion))
+renderPage().findInput(props => props.name === 'option.question.prompt.0').props.onChange({ target: { value: '描边用几像素？' } })
+check('a question with fewer than two labelled choices still blocks the submit',
+  renderPage().collected.some(element => element.html === localeDicts.zh.create && element.props.disabled === true)
+  && renderPage().html.includes(localeDicts.zh.optionNeedItems))
+renderPage().findInput(props => props.name === 'option.item.label.0.0').props.onChange({ target: { value: '2px' } })
+renderPage().findInput(props => props.name === 'option.item.detail.0.0').props.onChange({ target: { value: '更轻，但边缘偏硬' } })
+renderPage().findInput(props => props.name === 'option.item.label.0.1').props.onChange({ target: { value: '3px' } })
+check('a complete question lets the submit through again',
+  renderPage().collected.some(element => element.html === localeDicts.zh.create && element.props.disabled === false))
+
+// The advice is one per question: ticking a second choice moves the mark rather
+// than adding another, which is the one shape the Host's own gate accepts.
+checkboxesLabelled(renderPage(), localeDicts.zh.optionRecommended)[1].props.onChange({ target: { checked: true } })
+check('ticking a choice marks it as the advice',
+  checkboxesLabelled(renderPage(), localeDicts.zh.optionRecommended)[1].props.checked === true)
+checkboxesLabelled(renderPage(), localeDicts.zh.optionRecommended)[0].props.onChange({ target: { checked: true } })
+const movedAdvice = checkboxesLabelled(renderPage(), localeDicts.zh.optionRecommended)
+check('ticking a second choice moves the advice instead of adding one',
+  movedAdvice[0].props.checked === true && movedAdvice[1].props.checked === false,
+  JSON.stringify(movedAdvice.map(box => box.props.checked)))
+
+renderPage().collected.find(element => element.props.name === 'option.question.add').props.onClick()
+renderPage().findInput(props => props.name === 'option.question.prompt.1').props.onChange({ target: { value: '要不要加投影？' } })
+renderPage().findInput(props => props.name === 'option.item.label.1.0').props.onChange({ target: { value: '加' } })
+renderPage().findInput(props => props.name === 'option.item.label.1.1').props.onChange({ target: { value: '不加' } })
+checkboxesLabelled(renderPage(), localeDicts.zh.optionRecommended)[3].props.onChange({ target: { checked: true } })
+renderPage().collected.find(element => element.props.name === 'option.item.add.1').props.onClick()
+check('a choice row can be added',
+  renderPage().collected.some(element => element.props.name === 'option.item.label.1.2'))
+renderPage().collected.find(element => element.props.name === 'option.item.remove.1.2').props.onClick()
+check('removing a choice takes its row away',
+  !renderPage().collected.some(element => element.props.name === 'option.item.label.1.2'))
+// The row comes back and stays blank: what a reader leaves unfinished must not
+// reach the Host, whose own gate refuses an empty label.
+renderPage().collected.find(element => element.props.name === 'option.item.add.1').props.onClick()
+renderPage().findButton(localeDicts.zh.create).props.onClick()
+await settle()
+const optionCall = commandBodies().filter(body => body.action === 'create').at(-1)
+check('the create payload carries both questions, their costs, the advice, and no blank row',
+  JSON.stringify(optionCall?.requirement?.options) === JSON.stringify([
+    { prompt: '描边用几像素？', choices: [{ label: '2px', detail: '更轻，但边缘偏硬', recommended: true }, { label: '3px' }] },
+    { prompt: '要不要加投影？', choices: [{ label: '加' }, { label: '不加', recommended: true }] },
+  ]),
+  JSON.stringify(optionCall?.requirement?.options))
+check('the dialog closes after an option-bearing create',
+  renderPage().html.includes(localeDicts.zh.optionsTitle) === false)
+
 // A stored image is visible again when the requirement is read back.
 snapshotPayload = boardSnapshot({
   requirements: [{
@@ -1557,7 +1862,9 @@ await new Promise(resolve => setTimeout(resolve, 0))
 const filterUrl = lastSnapshotUrl()
 check('filters travel to the route', filterUrl.includes('status=done') && filterUrl.includes('owner='), filterUrl)
 check('filters render into their controls', (() => {
-  const pageWithFilter = renderPage()
+  // A filter in force names itself in the folded summary; the control that states
+  // its value sits behind the switch, which is where a reader looks for it.
+  const pageWithFilter = openFilters()
   const selects = pageWithFilter.collected.filter(element => element.type === 'select')
   return selects.some(element => element.props.value === 'done')
 })())
@@ -1596,13 +1903,20 @@ face.setFilter({ role: 'human' })
 await settle()
 check('the human inbox is asked for by its reserved role',
   lastSnapshotUrl().includes('role=human') && renderPage().html.includes('是否走自研渲染'), lastSnapshotUrl())
+// The role filter is one compact control rather than a capsule per role: a board
+// with fifteen roles reads as one line instead of several wrapped rows.
+const humanInboxPage = renderPage()
+const roleFilterControl = humanInboxPage.findInput(props => props.name === 'filter.role')
 check('the human inbox is offered by the role filter',
-  renderPage().collected.some(element => element.props.name === 'filter.role.human'))
-check('the human inbox chip is the one that is on while its filter is in force',
-  String(renderPage().collected.find(element => element.props.name === 'filter.role.human')?.props.className ?? '').includes('rb-chip-on')
-  && !String(renderPage().collected.find(element => element.props.name === 'filter.role.all')?.props.className ?? '').includes('rb-chip-on'))
+  roleFilterControl.html.includes(localeDicts.zh.roleHuman)
+  && humanInboxPage.collected.some(element => element.type === 'option' && element.props.value === 'human'))
+check('the role control is the one control, showing the role in force',
+  humanInboxPage.collected.filter(element => element.props.name === 'filter.role').length === 1
+  && roleFilterControl.props.value === 'human')
+check('the role filter no longer renders one row per role',
+  !humanInboxPage.collected.some(element => String(element.props.className ?? '').includes('rb-chips')))
 check('the role filter no longer offers the unexpressible "no role" value',
-  !renderPage().collected.some(element => element.type === 'option' && String(element.props.value).includes('\u0000')))
+  !humanInboxPage.collected.some(element => element.type === 'option' && String(element.props.value).includes('\u0000')))
 face.setFilter({ role: 'unknown-role' })
 await settle()
 check('a legal role the host does not know lists nothing rather than failing',
@@ -1632,6 +1946,91 @@ check('a session that may take the work sees it', renderPage().html.includes('�
 face.setFilter({ claimable: false, me: '' })
 mePool = {}
 await settle()
+
+/* ------------------------------- the filter area: folded, and one line wide */
+
+// Nothing is filtered here, so the area is one line: the switch, the summary, and
+// the row count. The controls are not rendered at all until a reader opens them.
+// Start from the folded reading, whatever the run before left the switch at.
+if (filterToggleOf(renderPage())?.props['aria-expanded'] === true) filterToggleOf(renderPage()).props.onClick()
+const foldedFilters = renderPage()
+check('the filter area is folded while nothing is filtered',
+  foldedFilters.html.includes(localeDicts.zh.filterSummaryAll)
+  && filterToggleOf(foldedFilters)?.props['aria-expanded'] === false
+  && !foldedFilters.collected.some(element => element.props.name === 'project'),
+  foldedFilters.html.slice(0, 0) || 'the filter area is not folded')
+const openedFilters = openFilters()
+check('the switch opens every control without asking the host again',
+  openedFilters.collected.some(element => element.props.name === 'project')
+  && openedFilters.collected.some(element => element.props.name === 'filter.role'))
+
+// A filter in force opens the area by itself and names itself in the summary; the
+// chip is that one filter's own clearing affordance.
+face.setFilter({ status: 'done' })
+await settle()
+const summaryPage = renderPage()
+const statusChip = summaryPage.collected.find(element => element.props.name === 'filter.chip.status')
+check('a filter in force opens the area and names itself in the summary',
+  statusChip !== undefined && statusChip.html.includes(localeDicts.zh.statusDone),
+  summaryPage.html.slice(0, 0) || 'the status chip is missing')
+statusChip.props.onClick()
+await settle()
+check('a summary chip clears only the filter it names',
+  face.hooks.board.getSnapshot().filter.status === 'open'
+  && new URL(lastSnapshotUrl(), 'http://127.0.0.1:3080').searchParams.get('status') === 'open',
+  lastSnapshotUrl())
+check('an area the reader opened stays open once nothing is filtered',
+  renderPage().collected.some(element => element.props.name === 'project'))
+filterToggleOf(renderPage()).props.onClick()
+check('the switch folds the controls away again',
+  !renderPage().collected.some(element => element.props.name === 'project')
+  && renderPage().html.includes(localeDicts.zh.filterSummaryAll))
+
+// Fifteen roles stay one line, because their values live in the platform's own
+// scrolling dropdown. What the capsule row offered is offered here — every value
+// the Host may be asked for, each role's own open count, and the unrecorded ones
+// named as such.
+const manyRoles = Array.from({ length: 15 }, (_, index) => ({
+  id: `role-${index + 1}`, name: `角色${index + 1}`, duties: [], source: 'manual', ephemeral: false,
+  createdAt: iso(1000), updatedAt: iso(1000), dutiesMissing: false,
+  holders: { online: 0, idle: 0, running: 0 }, open: index,
+}))
+snapshotPayload = boardSnapshot({
+  roles: {
+    items: manyRoles,
+    unregistered: [{ id: 'ghost', dutiesMissing: true, holders: { online: 0, idle: 0, running: 0 }, open: 3 }],
+  },
+  stats: {
+    ...boardSnapshot().stats,
+    byRole: [...manyRoles.map((role, index) => ({ role: role.id, total: index })), { role: 'ghost', total: 3 }],
+  },
+})
+await face.refresh()
+await settle()
+const compactFilters = openFilters()
+const roleControl = compactFilters.findInput(props => props.name === 'filter.role')
+check('fifteen roles are still one control on one line, with no row per role',
+  compactFilters.collected.filter(element => element.props.name === 'filter.role').length === 1
+  && compactFilters.collected.filter(element => element.type === 'option' && String(element.props.value).startsWith('role-')).length === 15
+  && !compactFilters.collected.some(element => String(element.props.className ?? '').includes('rb-chips')))
+check('the role control offers each role with its own open count, and names the unrecorded one',
+  roleControl.html.includes(`${localeDicts.zh.filterRoleAll} (1)`)
+  && roleControl.html.includes(`${localeDicts.zh.roleHuman} (0)`)
+  && roleControl.html.includes('角色15 (role-15) (14)')
+  && roleControl.html.includes(`ghost · ${localeDicts.zh.roleUnregistered} (3)`),
+  roleControl.html)
+roleControl.props.onChange({ target: { value: 'role-15' } })
+await settle()
+check('the compact control filters exactly as the capsule row did',
+  lastSnapshotUrl().includes('role=role-15'), lastSnapshotUrl())
+
+snapshotPayload = boardSnapshot()
+face.setFilter({ query: '', status: 'open', priority: '', owner: '', session: '', kind: '', role: '', project: undefined, claimable: false, me: '' })
+await face.refresh()
+await settle()
+// The reader closes the area again: a manual fold stands too, and the folded
+// reading is what the rest of this run starts from.
+filterToggleOf(renderPage()).props.onClick()
 
 /* ------------------------------------------------------------------ locks */
 
@@ -1720,10 +2119,31 @@ check('dismissing retires the toast', renderToast() === '')
 
 /* -------------------------------------------------------- role management */
 
+// Role management answers an association question, so it reads as two columns:
+// the roles on the left, the presets that resolve to them on the right. Each
+// column owns its own search box and its own scroll body, each group heading
+// states its filtered count, every write reports where it was asked for rather
+// than through the app toast, and an unsaved draft is never dropped silently.
+
 boundLocale = 'zh'
 snapshotPayload = boardSnapshot()
 await face.refresh()
 await settle()
+
+/** The two role columns, left first. */
+const columns = page => withClass(page, 'rb-roles-col')
+/** Whether a page rendered an input under the given name. */
+const hasInput = (page, name) => page.collected.some(element => element.type === 'input' && element.props.name === name)
+/** The form layer among the dialogs, found by the role-id field only it has. */
+const formLayer = page => dialogs(page).find(element => element.html.includes(localeDicts.zh.roleId))
+/** The group headings and their counts, in render order. */
+const groupHeads = page => page.collected
+  .filter(element => element.type === 'h3' && String(element.props.className).includes('rb-group-head'))
+  .map(element => element.html)
+/** Click the role dialog's own close control: the footer button labelled exactly. */
+const closeRolesDialog = () => renderPage().collected.find(element => element.type === 'button'
+  && element.props.disabled !== true && element.html === localeDicts.zh.close).props.onClick()
+
 renderPage().findButton('角色管理').props.onClick()
 const rolesDialog = renderPage()
 check('the role dialog lists a role with its duties', rolesDialog.html.includes('美术') && rolesDialog.html.includes('资产规范'))
@@ -1739,34 +2159,29 @@ check('the role dialog states presence in two forms and drops the derived idle c
   return html.includes('2 人在线 · 1 执行中') && html.includes('暂无人在线') && html.includes('个未完成') && !html.includes('空闲 0')
 })())
 check('a temporary role offers no edit or delete', (() => {
-  const rows = rolesDialog.collected.filter(element => String(element.props.className ?? '').includes('rb-role-row'))
+  const rows = withClass(rolesDialog, 'rb-role-row')
   const temporary = rows.find(row => row.html.includes('临时'))
   return temporary !== undefined && !temporary.html.includes('编辑') && !temporary.html.includes('删除角色')
 })())
 
-rolesDialog.buttons.find(element => String(element.props.name ?? '').startsWith('role.edit.')).props.onClick()
-const editForm = renderPage()
-check('the role editor pins the id and loads its duties', editForm.collected.some(element => element.type === 'input'
-  && element.props.name === 'role.roleId' && element.props.value === 'art' && element.props.disabled === true))
-editForm.findInput(props => props.name === 'role.roleName').props.onChange({ target: { value: '美术组' } })
-renderPage().findInput(props => props.name === 'role.duties').props.onChange({ target: { value: '资产规范, 合规清单' } })
-renderPage().buttons.find(element => element.props.name === 'role.save').props.onClick()
-await settle()
-const putCall = commandBodies().find(body => body.action === 'role.put')
-check('saving posts role.put with the parsed duties',
-  putCall?.role?.roleId === 'art' && putCall?.role?.roleName === '美术组' && putCall?.role?.duties?.length === 2, JSON.stringify(putCall?.role))
+/* ---- D1: one wider dialog, two columns, each with its own search and scroll ---- */
 
-renderPage().buttons.find(element => String(element.props.name ?? '').startsWith('role.remove.')).props.onClick()
-const confirmRole = renderPage()
-check('deleting a role asks for confirmation first', confirmRole.html.includes('删除该角色？'))
-confirmRole.buttons.find(element => element.html === localeDicts.zh.confirm).props.onClick()
-await settle()
-const deleteCall = commandBodies().find(body => body.action === 'role.delete')
-check('confirming a role deletion posts role.delete', deleteCall?.id === 'art', JSON.stringify(deleteCall))
-renderPage().findButton('关闭').props.onClick()
-check('the role dialog closes again', !renderPage().html.includes('新建角色'))
+check('the role dialog takes its own width tier instead of one of the three defaults',
+  String(dialogs(rolesDialog)[0]?.props.className) === 'rb-dialog-roles',
+  String(dialogs(rolesDialog)[0]?.props.className))
+check('the body is one grid of two columns', withClass(rolesDialog, 'rb-roles-grid').length === 1
+  && withClass(rolesDialog, 'rb-roles-col').length === 2)
+check('each column owns its own search box and its own scroll body',
+  withClass(rolesDialog, 'rb-roles-scroll').length === 2
+  && hasInput(rolesDialog, 'role.search') && hasInput(rolesDialog, 'preset.search'))
+check('each column is titled apart from the groups under it',
+  withClass(rolesDialog, 'rb-roles-col-head').length === 2
+  && rolesDialog.html.includes(localeDicts.zh.rolesColumn) && rolesDialog.html.includes(localeDicts.zh.presetsColumn))
+check('the left column groups its rows under real headings, each with its filtered count',
+  JSON.stringify(groupHeads(rolesDialog)) === JSON.stringify(['已登记 1', '临时 1', '在用但未登记 1']),
+  groupHeads(rolesDialog).join(' | '))
 
-/* ---------------------------------------- role management: preset modes */
+/* ------------------------------------- role management: the preset column */
 
 // The catalogue is the read that ties a role to the preset it comes from: the
 // dialog asks for it on open, because the registry audits each preset as it
@@ -1786,6 +2201,7 @@ const presetCatalogue = registered => ({
   },
 })
 commandAnswers['role.list'] = presetCatalogue(false)
+closeRolesDialog()
 renderPage().findButton('角色管理').props.onClick()
 // The mount starts the read; the render after it lands shows the roster.
 renderPage()
@@ -1804,28 +2220,283 @@ check('a preset id that cannot be a role id offers nothing to register',
 check('a preset with no observed session states that its role is inferred', presetDialog.html.includes('按预设 id 推定'))
 check('the preset row keeps the activation diagnostic as its title',
   presetDialog.collected.some(element => element.props.title === 'row failed to activate'))
+check('the preset section states its filtered count on its heading',
+  groupHeads(presetDialog).includes('预设模式 3'), groupHeads(presetDialog).join(' | '))
 
-presetDialog.buttons.find(element => element.props.name === 'preset.register.qa').props.onClick()
+/* ---- D5: each column filters on its own, and a search never re-decides a state ---- */
+
+presetDialog.findInput(props => props.name === 'role.search').props.onChange({ target: { value: '资' } })
+const searchedRoles = renderPage()
+check('searching the left column keeps the matching role and drops the others', (() => {
+  const [left] = columns(searchedRoles)
+  return left !== undefined && left.html.includes('美术') && !left.html.includes('临时执行者') && !left.html.includes('qa')
+})())
+check('a left-column search leaves the other column alone',
+  columns(searchedRoles)[1].html.includes('美术预设') && columns(searchedRoles)[1].html.includes('非法 id 预设'))
+check('a left-column search recounts only that column',
+  JSON.stringify(groupHeads(searchedRoles)) === JSON.stringify(['已登记 1', '预设模式 3']),
+  groupHeads(searchedRoles).join(' | '))
+renderPage().findInput(props => props.name === 'role.search').props.onChange({ target: { value: '' } })
+renderPage().findInput(props => props.name === 'preset.search').props.onChange({ target: { value: '非法' } })
+const searchedPresets = renderPage()
+check('searching the preset column narrows its section and its heading count',
+  searchedPresets.html.includes('非法 id 预设') && !searchedPresets.html.includes('美术预设')
+  && groupHeads(searchedPresets).includes('预设模式 1'), groupHeads(searchedPresets).join(' | '))
+renderPage().findInput(props => props.name === 'preset.search').props.onChange({ target: { value: '无此预设' } })
+const noPresetMatch = renderPage()
+check('a preset search with no match says so instead of showing an empty section',
+  noPresetMatch.html.includes('没有预设匹配这个检索词') && groupHeads(noPresetMatch).includes('预设模式 0')
+  && !noPresetMatch.html.includes('预设名册里没有任何预设'))
+renderPage().findInput(props => props.name === 'preset.search').props.onChange({ target: { value: '' } })
+renderPage().findInput(props => props.name === 'role.search').props.onChange({ target: { value: '无此角色' } })
+const noRoleMatch = renderPage()
+check('a role search with no match says so apart from "no role is recorded"',
+  noRoleMatch.html.includes('没有角色匹配这个检索词') && !noRoleMatch.html.includes('还没有登记任何角色')
+  && !groupHeads(noRoleMatch).some(head => head.startsWith('已登记') || head.startsWith('临时') || head.startsWith('在用')),
+  groupHeads(noRoleMatch).join(' | '))
+renderPage().findInput(props => props.name === 'role.search').props.onChange({ target: { value: '' } })
+
+/* ---- D2/D3/D8: the form is a second dialog layer, duties one row each ---- */
+
+renderPage().buttons.find(element => element.props.name === 'role.edit.art').props.onClick()
+const editForm = renderPage()
+check('the form opens as a second dialog, titled with the role it edits',
+  dialogs(editForm).length === 2
+  && String(formLayer(editForm)?.props['aria-label']).includes('美术')
+  && String(formLayer(editForm)?.props['aria-label']).includes('art'),
+  dialogs(editForm).map(element => String(element.props['aria-label'])).join(' | '))
+check('the row the form addresses stays marked while it is open', (() => {
+  const row = withClass(editForm, 'rb-role-row').find(element => element.html.includes('美术'))
+  return row !== undefined && row.props['aria-current'] === 'true'
+    && String(row.props.className).includes('rb-role-row-editing')
+})())
+check('the form pins the id of the role it edits and loads its duties one row each',
+  editForm.collected.some(element => element.type === 'input' && element.props.name === 'role.roleId'
+    && element.props.value === 'art' && element.props.disabled === true)
+  && editForm.collected.some(element => element.type === 'input' && element.props.name === 'role.duty.0' && element.props.value === '资产规范')
+  && !hasInput(editForm, 'role.duties'))
+check('every duty marker is the control it claims to be', (() => {
+  const markers = editForm.collected.filter(element => String(element.props.name ?? '').startsWith('role.duty.'))
+  const entries = editForm.collected.filter(element => element.type === 'input' && String(element.props.name ?? '').startsWith('role.duty.'))
+  return markers.some(element => element.type === 'button' && element.props.name === 'role.duty.remove.0')
+    && markers.some(element => element.type === 'button' && element.props.name === 'role.duty.add')
+    && entries.length === 1 && entries[0].props.name === 'role.duty.0'
+})())
+const roleForm = editForm.collected.find(element => element.type === 'form')
+check('the form body is a form element, and the action row is inside it',
+  roleForm !== undefined && roleForm.html.includes(localeDicts.zh.save) && roleForm.html.includes(localeDicts.zh.cancel))
+check('saving is the form\'s own submit and cancelling an ordinary button',
+  editForm.collected.find(element => element.props.name === 'role.save')?.props.type === 'submit'
+  && editForm.collected.find(element => element.props.name === 'role.cancel')?.props.type === 'button')
+check('the duty editor states the count against its ceiling', editForm.html.includes('1/12'))
+
+renderPage().findInput(props => props.name === 'role.duty.0').props.onChange({ target: { value: '资产规范, 合规清单' } })
+renderPage().findInput(props => props.name === 'role.roleName').props.onChange({ target: { value: '美术组' } })
+const withDuty = renderPage()
+check('a duty keeps the comma it contains, and the title follows the draft',
+  withDuty.collected.some(element => element.type === 'input' && element.props.name === 'role.duty.0'
+    && element.props.value === '资产规范, 合规清单')
+  && String(formLayer(withDuty)?.props['aria-label']).includes('美术组'))
+withDuty.buttons.find(element => element.props.name === 'role.duty.add').props.onClick()
+const twoDuties = renderPage()
+check('adding a duty appends one empty row and the count follows',
+  twoDuties.collected.some(element => element.type === 'input' && element.props.name === 'role.duty.1' && element.props.value === '')
+  && twoDuties.html.includes('2/12'))
+renderPage().findInput(props => props.name === 'role.duty.1').props.onChange({ target: { value: '资产规范, 合规清单' } })
+check('a repeated duty is stated as merged, not as a failure', renderPage().html.includes('已合并 1 条重复职能'))
+renderPage().buttons.find(element => element.props.name === 'role.duty.remove.1').props.onClick()
+const oneDuty = renderPage()
+check('removing a duty drops exactly its own row',
+  !hasInput(oneDuty, 'role.duty.1') && oneDuty.html.includes('1/12') && !oneDuty.html.includes('已合并'))
+
+// The twelve-row ceiling is the Host's own entry limit, and the editor states it.
+for (let index = 0; index < 11; index += 1) {
+  renderPage().buttons.find(element => element.props.name === 'role.duty.add').props.onClick()
+}
+const fullDuties = renderPage()
+check('the duty editor stops offering rows at the twelve-row ceiling',
+  fullDuties.html.includes('12/12')
+  && fullDuties.buttons.find(element => element.props.name === 'role.duty.add').props.disabled === true)
+renderPage().buttons.find(element => element.props.name === 'role.cancel').props.onClick()
+renderPage().buttons.find(element => element.props.name === 'role.discard.drop').props.onClick()
+
+/* ---- D7: an unsaved draft is never dropped silently ---- */
+
+renderPage().buttons.find(element => element.props.name === 'role.edit.art').props.onClick()
+renderPage().findInput(props => props.name === 'role.roleName').props.onChange({ target: { value: '美术组' } })
+renderPage().buttons.find(element => element.props.name === 'role.cancel').props.onClick()
+const discardAsk = renderPage()
+check('closing a changed form asks before the draft is lost',
+  dialogs(discardAsk).length === 2
+  && discardAsk.html.includes(localeDicts.zh.roleDiscardConfirm)
+  && discardAsk.buttons.some(element => element.props.name === 'role.discard.drop')
+  && discardAsk.buttons.some(element => element.props.name === 'role.discard.keep'))
+check('the confirmation keeps the input on screen',
+  discardAsk.collected.some(element => element.type === 'input' && element.props.name === 'role.roleName' && element.props.value === '美术组'))
+// The layer's own close path (the mask; Escape is the platform's, over the same
+// command) joins cancel: while the confirmation is up it takes the confirmation
+// back rather than the input, so discarding stays an explicit act.
+masks(discardAsk).at(-1).props.onClick()
+const keptAsking = renderPage()
+check('the close path while the confirmation is up takes the confirmation back, not the input',
+  !keptAsking.html.includes(localeDicts.zh.roleDiscardConfirm)
+  && keptAsking.collected.some(element => element.type === 'input' && element.props.name === 'role.roleName' && element.props.value === '美术组'))
+renderPage().buttons.find(element => element.props.name === 'role.cancel').props.onClick()
+renderPage().buttons.find(element => element.props.name === 'role.discard.keep').props.onClick()
+check('keeping the edit hides the confirmation and keeps the draft',
+  !renderPage().html.includes(localeDicts.zh.roleDiscardConfirm)
+  && renderPage().collected.some(element => element.type === 'input' && element.props.name === 'role.roleName' && element.props.value === '美术组'))
+renderPage().buttons.find(element => element.props.name === 'role.cancel').props.onClick()
+renderPage().buttons.find(element => element.props.name === 'role.discard.drop').props.onClick()
+check('discarding closes the form and leaves the role dialog in place', dialogs(renderPage()).length === 1)
+check('an untouched form closes without asking', (() => {
+  renderPage().buttons.find(element => element.props.name === 'role.edit.art').props.onClick()
+  renderPage().buttons.find(element => element.props.name === 'role.cancel').props.onClick()
+  return dialogs(renderPage()).length === 1
+})())
+
+/* ---- D6/D8: a refusal lands in the form, and never in the app toast ---- */
+
+renderPage().buttons.find(element => element.props.name === 'role.edit.art').props.onClick()
+renderPage().findInput(props => props.name === 'role.roleName').props.onChange({ target: { value: '美术组' } })
+renderPage().findInput(props => props.name === 'role.duty.0').props.onChange({ target: { value: '资产规范, 合规清单' } })
+commandRefusals['role.put'] = { code: 'invalid-role', message: 'roleId "art" must match a lowercase id' }
+renderPage().collected.find(element => element.type === 'form').props.onSubmit({ preventDefault: () => {} })
+await settle()
+const refusedSave = renderPage()
+check('the submit control carries no click handler: submitting the form is what saves',
+  refusedSave.collected.find(element => element.props.name === 'role.save')?.props.onClick === undefined)
+check('a refused save is reported inside the form, in the Host\'s own words',
+  refusedSave.html.includes(localeDicts.zh.roleFormError) && refusedSave.html.includes('must match a lowercase id')
+  && refusedSave.collected.some(element => element.props.name === 'role.form.error'))
+check('a refused save keeps the form and the draft on screen',
+  dialogs(refusedSave).length === 2
+  && refusedSave.collected.some(element => element.type === 'input' && element.props.name === 'role.roleName' && element.props.value === '美术组'))
+check('a refused save raises no app toast', renderToast() === '', renderToast())
+
+// Saving is the ordinary panel put: the Host's own reader trims each duty, drops
+// the empty rows, and keeps the first occurrence of a repeat, so the panel states
+// the merge it is about to send and the form closes on success.
+delete commandRefusals['role.put']
+renderPage().buttons.find(element => element.props.name === 'role.duty.add').props.onClick()
+renderPage().findInput(props => props.name === 'role.duty.1').props.onChange({ target: { value: '资产规范, 合规清单' } })
+renderPage().buttons.find(element => element.props.name === 'role.duty.add').props.onClick()
+const readsBeforeSave = commandBodies().filter(body => body.action === 'role.list').length
+commandAnswers['role.list'] = presetCatalogue(true)
+renderPage().collected.find(element => element.type === 'form').props.onSubmit({ preventDefault: () => {} })
+await settle()
+const saved = renderPage()
+check('saving posts role.put with the drafted name and the merged duties', (() => {
+  const call = commandBodies().filter(body => body.action === 'role.put').at(-1)
+  return call?.role?.roleId === 'art' && call?.role?.roleName === '美术组'
+    && JSON.stringify(call?.role?.duties) === JSON.stringify(['资产规范, 合规清单'])
+})(), JSON.stringify(commandBodies().filter(body => body.action === 'role.put').at(-1)?.role))
+check('a successful save closes the form and re-reads the roster once',
+  dialogs(saved).length === 1
+  && commandBodies().filter(body => body.action === 'role.list').length === readsBeforeSave + 1)
+check('the row marker is gone once the form closes',
+  !withClass(saved, 'rb-role-row').some(element => element.props['aria-current'] === 'true'))
+
+/* ---- D2: registering from a preset opens the same form layer ---- */
+
+commandAnswers['role.list'] = presetCatalogue(false)
+closeRolesDialog()
+renderPage().findButton('角色管理').props.onClick()
+renderPage()
+await settle()
+renderPage().buttons.find(element => element.props.name === 'preset.register.qa').props.onClick()
 const prefilled = renderPage()
+check('a preset registers through the same form layer, titled with that preset',
+  dialogs(prefilled).length === 2
+  && String(formLayer(prefilled)?.props['aria-label']).includes(localeDicts.zh.presetRegister)
+  && String(formLayer(prefilled)?.props['aria-label']).includes('qa'))
 check('registering a preset prefills its role id and display name',
   prefilled.collected.some(element => element.type === 'input' && element.props.name === 'role.roleId' && element.props.value === 'qa')
   && prefilled.collected.some(element => element.type === 'input' && element.props.name === 'role.roleName' && element.props.value === 'qa'))
+check('the preset row it came from is marked while the form is open', (() => {
+  const row = withClass(prefilled, 'rb-preset-row').find(element => element.html.includes('qa'))
+  return row !== undefined && row.props['aria-current'] === 'true'
+})())
 
-// Saving is the ordinary panel put; the roster is read again afterwards, so the
-// registration the panel just made stops reading as one still to make.
-const readsBefore = commandBodies().filter(body => body.action === 'role.list').length
+const readsBeforeRegister = commandBodies().filter(body => body.action === 'role.list').length
 commandAnswers['role.list'] = presetCatalogue(true)
-prefilled.collected.find(element => element.type === 'button' && element.props.name === 'role.save').props.onClick()
+prefilled.collected.find(element => element.type === 'form').props.onSubmit({ preventDefault: () => {} })
 await settle()
-check('the register button posts the ordinary role put with the prefilled id',
+check('the register form posts the ordinary role put with the prefilled id',
   commandBodies().some(body => body.action === 'role.put' && body.role?.roleId === 'qa'))
-check('a successful put re-reads the preset roster',
-  commandBodies().filter(body => body.action === 'role.list').length === readsBefore + 1)
+check('a successful put re-reads the preset roster, once',
+  commandBodies().filter(body => body.action === 'role.list').length === readsBeforeRegister + 1)
 check('the registered preset stops offering the register action',
   !renderPage().buttons.some(element => element.props.name === 'preset.register.qa'))
 
+/* ---- D4: the delete confirmation opens inside the row that asked for it ---- */
+
+// A second recorded role is what shows that one row confirms at a time.
+snapshotPayload = boardSnapshot({
+  roles: {
+    items: [
+      { id: 'ops', name: '运维', duties: ['值班'], source: 'manual', ephemeral: false, createdAt: iso(86_400_000), updatedAt: iso(86_400_000), dutiesMissing: false, holders: { online: 0, idle: 0, running: 0 }, open: 0 },
+      ...boardSnapshot().roles.items,
+    ],
+    unregistered: [],
+  },
+})
+await face.refresh()
+await settle()
+renderPage().buttons.find(element => element.props.name === 'role.remove.art').props.onClick()
+const confirmArt = renderPage()
+check('deleting a role asks for confirmation inside that row', (() => {
+  const row = withClass(confirmArt, 'rb-role-row').find(element => element.html.includes('美术'))
+  return row !== undefined && row.html.includes(localeDicts.zh.removeRoleConfirm)
+    && row.html.includes(localeDicts.zh.confirm)
+})())
+check('the confirmation is one block, and it carries controls named for that row',
+  withClass(confirmArt, 'rb-role-confirm').length === 1
+  && confirmArt.buttons.some(element => element.props.name === 'role.confirm.art')
+  && confirmArt.buttons.some(element => element.props.name === 'role.confirm.cancel.art'))
+renderPage().buttons.find(element => element.props.name === 'role.remove.ops').props.onClick()
+const confirmOps = renderPage()
+check('asking about another row moves the confirmation instead of adding one', (() => {
+  const ops = withClass(confirmOps, 'rb-role-row').find(element => element.html.includes('运维'))
+  const art = withClass(confirmOps, 'rb-role-row').find(element => element.html.includes('美术'))
+  return withClass(confirmOps, 'rb-role-confirm').length === 1
+    && ops !== undefined && ops.html.includes(localeDicts.zh.removeRoleConfirm)
+    && art !== undefined && !art.html.includes(localeDicts.zh.removeRoleConfirm)
+})())
+renderPage().buttons.find(element => element.props.name === 'role.confirm.cancel.ops').props.onClick()
+const cancelledConfirm = renderPage()
+check('cancelling restores the row',
+  withClass(cancelledConfirm, 'rb-role-confirm').length === 0
+  && !cancelledConfirm.buttons.some(element => element.props.name === 'role.confirm.ops'))
+
+// A refused delete reports on its own row, and reaches no toast.
+renderPage().buttons.find(element => element.props.name === 'role.remove.ops').props.onClick()
+commandRefusals['role.delete'] = { code: 'forbidden', message: 'only the panel may delete this role' }
+renderPage().buttons.find(element => element.props.name === 'role.confirm.ops').props.onClick()
+await settle()
+const refusedDelete = renderPage()
+check('a refused delete is reported on the row that asked for it, in the Host\'s words', (() => {
+  const row = withClass(refusedDelete, 'rb-role-row').find(element => element.html.includes('运维'))
+  return row !== undefined && row.html.includes(localeDicts.zh.roleRowError)
+    && row.html.includes('only the panel may delete this role')
+})())
+check('the row error block is named for its row',
+  refusedDelete.collected.some(element => element.props.name === 'role.row.error.ops'))
+check('a refused delete raises no app toast', renderToast() === '', renderToast())
+delete commandRefusals['role.delete']
+renderPage().buttons.find(element => element.props.name === 'role.confirm.cancel.ops').props.onClick()
+renderPage().buttons.find(element => element.props.name === 'role.remove.art').props.onClick()
+renderPage().buttons.find(element => element.props.name === 'role.confirm.art').props.onClick()
+await settle()
+const deleteCalls = commandBodies().filter(body => body.action === 'role.delete')
+check('confirming a role deletion posts role.delete', deleteCalls.at(-1)?.id === 'art'
+  && deleteCalls.map(call => call.id).join(',') === 'ops,art', JSON.stringify(deleteCalls))
+closeRolesDialog()
+check('the role dialog closes again', !renderPage().html.includes(localeDicts.zh.newRole))
+
+/* --------------------------------- role management: degraded roster states */
+
 commandAnswers['role.list'] = { items: [], unregistered: [], presets: { items: [], unavailable: { code: 'service-absent' } } }
-renderPage().findButton('关闭').props.onClick()
 renderPage().findButton('角色管理').props.onClick()
 renderPage()
 await settle()
@@ -1833,14 +2504,14 @@ check('an absent preset registry is stated with its cause, not as an empty roste
   renderPage().html.includes('没有挂载预设注册表') && !renderPage().html.includes('预设名册里没有任何预设'))
 
 commandAnswers['role.list'] = { items: [], unregistered: [], presets: { items: [], unavailable: { code: 'read-failed', detail: 'roster exploded' } } }
-renderPage().findButton('关闭').props.onClick()
+closeRolesDialog()
 renderPage().findButton('角色管理').props.onClick()
 renderPage()
 await settle()
 check('a failed roster read is stated apart from an empty roster',
   renderPage().html.includes('读取预设名册失败') && renderPage().html.includes('roster exploded'))
 
-renderPage().findButton('关闭').props.onClick()
+closeRolesDialog()
 delete commandAnswers['role.list']
 
 snapshotPayload = boardSnapshot({ roles: { items: [], unregistered: [] } })
@@ -1848,7 +2519,7 @@ await face.refresh()
 await settle()
 renderPage().findButton('角色管理').props.onClick()
 check('an empty role table renders its empty state', renderPage().html.includes('还没有登记任何角色'))
-renderPage().findButton('关闭').props.onClick()
+closeRolesDialog()
 snapshotPayload = boardSnapshot()
 await face.refresh()
 await settle()
@@ -2118,6 +2789,96 @@ check('saving posts the priority and role patch with the expected revision',
   && updateCall?.expectedRev === decision.rev, JSON.stringify(updateCall))
 check('a saved edit is confirmed', renderToast().includes(localeDicts.zh.updateApplied), renderToast())
 check('the edit form closes after a successful save', !renderPage().collected.some(element => element.props.name === 'edit.save'))
+
+/* -------------------------------------------------------- option section */
+
+// A decision that asks two questions: the panel is where a person answers it, one
+// question at a time, and what the section shows as answered is always the
+// record's own answer rather than what the reader just typed.
+const asked = {
+  ...structuredClone(decision),
+  rev: 5,
+  options: [
+    { id: 'q1', prompt: '描边用几像素？', choices: [
+      { id: 'A', label: '2px', detail: '更轻，但边缘偏硬' },
+      { id: 'B', label: '3px', detail: '更稳，略重', recommended: true },
+    ] },
+    { id: 'q2', prompt: '要不要加投影？', choices: [
+      { id: 'A', label: '加' },
+      { id: 'B', label: '不加' },
+    ] },
+  ],
+}
+snapshotPayload = boardSnapshot({ requirements: [asked], total: 1 })
+await face.refresh()
+await settle()
+const askedDetail = renderPage()
+check('a decision that asks questions says it is waiting for a choice',
+  askedDetail.html.includes(localeDicts.zh.optionAwaitingHuman))
+check('the option section reads after the description and before the history', (() => {
+  const promptAt = askedDetail.html.indexOf('描边用几像素？')
+  return promptAt > askedDetail.html.indexOf(asked.description) && promptAt < askedDetail.html.indexOf(localeDicts.zh.history)
+})(), askedDetail.html.slice(0, 0) || 'the option section is not in its place')
+check('every choice is offered with its cost and the recommended mark',
+  askedDetail.html.includes('更轻，但边缘偏硬') && askedDetail.html.includes(localeDicts.zh.optionRecommended))
+
+/** One choice of one question, as the radio the harness collected. */
+const choiceOf = (page, question, choice) => page.collected.find(element => element.type === 'input'
+  && element.props.name === `options.pick.${question}` && element.props.value === choice)
+check('an unanswered question offers its choices enabled',
+  choiceOf(askedDetail, 'q1', 'A')?.props.disabled === false && choiceOf(askedDetail, 'q1', 'B')?.props.disabled === false)
+check('the submit waits for a choice',
+  askedDetail.collected.find(element => element.props.name === 'options.submit')?.props.disabled === true)
+choiceOf(askedDetail, 'q1', 'B').props.onChange({ target: {} })
+await settle()
+check('the picked choice is the one marked in force',
+  renderPage().collected.filter(element => element.props.name === 'options.pick.q1' && element.props.checked === true).length === 1)
+check('the submit arms once a choice is picked',
+  renderPage().collected.find(element => element.props.name === 'options.submit')?.props.disabled === false)
+renderPage().findInput(props => props.name === 'options.note').props.onChange({ target: { value: '按评审结论走' } })
+renderPage().collected.find(element => element.props.name === 'options.submit').props.onClick()
+await settle()
+const decideCall = commandBodies().filter(body => body.action === 'decide').at(-1)
+check('submitting sends only the questions still open, with the reason and the revision',
+  decideCall?.id === asked.id && decideCall?.expectedRev === asked.rev
+  && JSON.stringify(decideCall?.answer) === JSON.stringify({ q1: 'B' }) && decideCall?.note === '按评审结论走',
+  JSON.stringify(decideCall))
+check('a recorded answer is confirmed', renderToast().includes(localeDicts.zh.optionAnswerSaved), renderToast())
+
+// The Host answers with the record it wrote: one question settled and the other
+// still open, which is what the panel then reads.
+snapshotPayload = boardSnapshot({
+  requirements: [{ ...asked, rev: 6, answer: { q1: 'B' }, answerNote: '按评审结论走', answeredAt: iso(60_000) }],
+  total: 1,
+})
+await face.refresh()
+await settle()
+const halfAnswered = renderPage()
+check('an answered question keeps its choices, with the stored pick marked and closed to changes',
+  halfAnswered.collected.filter(element => element.props.name === 'options.pick.q1' && element.props.checked === true).length === 1
+  && halfAnswered.collected.filter(element => element.props.name === 'options.pick.q1').every(element => element.props.disabled === true))
+check('the answered question states its pick, its reason and when it was answered',
+  halfAnswered.html.includes(localeDicts.zh.optionAnsweredTag)
+  && halfAnswered.html.includes(localeDicts.zh.optionAnsweredAt)
+  && halfAnswered.html.includes('按评审结论走'))
+check('the question still open keeps its own choices and submit',
+  choiceOf(halfAnswered, 'q2', 'A')?.props.disabled === false
+  && halfAnswered.collected.some(element => element.props.name === 'options.submit'))
+
+// Answering the last question is the service's own completion, so the section
+// stops asking the moment the record reports every question settled.
+snapshotPayload = boardSnapshot({
+  requirements: [{ ...asked, status: 'done', rev: 7, answer: { q1: 'B', q2: 'A' }, answerNote: '按评审结论走', answeredAt: iso(60_000) }],
+  total: 1,
+})
+await face.refresh()
+await settle()
+const settledDetail = renderPage()
+check('a settled decision offers no submit and no open choice',
+  !settledDetail.collected.some(element => element.props.name === 'options.submit')
+  && settledDetail.collected.filter(element => String(element.props.name ?? '').startsWith('options.pick.')).every(element => element.props.disabled === true))
+check('a settled decision no longer says it waits for a choice',
+  !settledDetail.html.includes(localeDicts.zh.optionAwaitingHuman))
 
 /* --------------------------------------------------------- failure reasons */
 
@@ -2570,9 +3331,15 @@ check('the card carries the project as a tag',
   projectBoard.collected.some(element => String(element.props.className ?? '').includes('rb-card-project') && element.html === '看板'))
 check('a requirement belonging to no project renders no tag',
   !cardOf(projectBoard, loose.title).html.includes(localeDicts.zh.projectUnassigned))
+// Nothing is filtered here, so the area is still folded and its controls are not
+// rendered at all: the checks below open it the way a reader does.
+check('the folded filter area offers no control to read',
+  filterToggleOf(projectBoard)?.props['aria-expanded'] === false
+  && !projectBoard.collected.some(element => element.props.name === 'project'))
+const openedProjects = openFilters()
 check('the filter offers every project, including one no listed row carries',
-  projectBoard.html.includes('圣女战棋') && projectBoard.html.includes(localeDicts.zh.projectUnassigned))
-const projectSelect = projectBoard.findInput(props => props.name === 'project')
+  openedProjects.html.includes('圣女战棋') && openedProjects.html.includes(localeDicts.zh.projectUnassigned))
+const projectSelect = openedProjects.findInput(props => props.name === 'project')
 check('the project filter renders as its own control', projectSelect !== undefined)
 cardOf(projectBoard, filedA.title).props.onClick()
 await settle()
@@ -2591,12 +3358,12 @@ await settle()
 const unassignedURL = new URL(lastSnapshotUrl(), 'http://127.0.0.1:3080')
 check('asking for the unassigned requirements puts an empty project on the wire',
   unassignedURL.searchParams.has('project') && unassignedURL.searchParams.get('project') === '')
-renderPage().findInput(props => props.name === 'project').props.onChange({ target: { value: '' } })
+openFilters().findInput(props => props.name === 'project').props.onChange({ target: { value: '' } })
 await settle()
 check('every project drops the key instead of sending an empty one',
   new URL(lastSnapshotUrl(), 'http://127.0.0.1:3080').searchParams.has('project') === false)
 
-const groupToggle = checkboxFor(renderPage(), localeDicts.zh.groupProject)
+const groupToggle = checkboxFor(openFilters(), localeDicts.zh.groupProject)
 check('the board offers the grouped reading', groupToggle !== undefined)
 groupToggle.props.onChange({ target: { checked: true } })
 await settle()
@@ -2606,7 +3373,7 @@ const groupCounts = grouped.collected.filter(element => String(element.props.cla
 check('grouping splits the board into one section per project, the unassigned last',
   groupNames.join(',') === `看板,${localeDicts.zh.projectUnassigned}`, groupNames.join(','))
 check('each group states how many requirements it holds', groupCounts.join(',') === '2,1', groupCounts.join(','))
-checkboxFor(renderPage(), localeDicts.zh.groupProject).props.onChange({ target: { checked: false } })
+checkboxFor(openFilters(), localeDicts.zh.groupProject).props.onChange({ target: { checked: false } })
 await settle()
 check('leaving the grouped reading restores the flat list',
   renderPage().collected.filter(element => String(element.props.className ?? '') === 'rb-group-name').length === 0)
@@ -2749,18 +3516,123 @@ check('the page recovers when the origin is accepted again',
 // measurement, or a step of the type scale that is edited away fails here.
 const cssStart = source.indexOf(`const CSS = `)
 const cssRaw = source.slice(cssStart, source.indexOf(`\n${'`'}`, cssStart))
-const stylesheet = cssRaw.replace(/\/\*[\s\S]*?\*\//g, '')
+// The slice carries the literal's own opening line (`const CSS = ` + a backtick),
+// which is not CSS; the stylesheet starts after that backtick.
+const stylesheet = cssRaw.slice(cssRaw.indexOf('`') + 1).replace(/\/\*[\s\S]*?\*\//g, '')
 const registryLines = stylesheet.split('\n').filter(line => line.includes('--rb-'))
 const strayColours = stylesheet.split('\n')
   .map((line, index) => ({ line, number: index + 1 }))
   .filter(entry => !entry.line.includes('--rb-'))
   .flatMap(entry => [...entry.line.matchAll(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)/g)]
     .map(match => `${entry.number}:${match[0]}`))
-check('the stylesheet declares the accent once per theme arm',
-  (stylesheet.match(/--rb-accent:/g) ?? []).length === 2
-  && registryLines.some(line => line.includes('--rb-accent:#f06423;'))
-  && registryLines.some(line => line.includes('--rb-accent:#c2410c;')),
-  registryLines.filter(line => line.includes('--rb-accent:')).join(' | '))
+
+/* Every top-level rule of the panel stylesheet, as { selector, body }. The rules
+ * this block reads are flat, and an at-rule's nested text stays inside its body,
+ * so the parse is depth-counted rather than regex-guessed. */
+const cssRules = (() => {
+  const found = []
+  let index = 0
+  while (index < stylesheet.length) {
+    const open = stylesheet.indexOf('{', index)
+    if (open < 0) break
+    let depth = 1
+    let cursor = open + 1
+    while (cursor < stylesheet.length && depth > 0) {
+      if (stylesheet[cursor] === '{') depth += 1
+      else if (stylesheet[cursor] === '}') depth -= 1
+      cursor += 1
+    }
+    found.push({ selector: stylesheet.slice(index, open).trim(), body: stylesheet.slice(open + 1, cursor - 1) })
+    index = cursor
+  }
+  return found
+})()
+/**
+ * The values one selector declares for one variable: an array, so a duplicate is
+ * visible instead of silently collapsed, and empty when the rule or the variable
+ * is absent.
+ * @param selector the rule's selector text, exactly as written.
+ * @param variable the custom property name, including the leading dashes.
+ * @returns the declared values, in source order.
+ */
+const declarationsOf = (selector, variable) => cssRules
+  .filter(rule => rule.selector === selector)
+  .flatMap(rule => rule.body.split(';'))
+  .map(part => part.trim())
+  .filter(part => part.startsWith(`${variable}:`))
+  .map(part => part.slice(variable.length + 1).trim())
+const declaredOnce = (selector, variable) => {
+  const values = declarationsOf(selector, variable)
+  return values.length === 1 ? values[0] : null
+}
+
+// The two arms of the registry, and the two arms of the theme carrier that every
+// portaled surface inherits from. `.rb-root` owns the values for its own subtree;
+// the carrier repeats them so a Dialog the platform portals outside that subtree
+// reads the same colour instead of falling back to currentColor or transparent.
+// Both arms of both rules are pinned to their own literals, so a drifted value, a
+// dropped declaration, or a variable moved to `:root` fails here.
+const ERROR_TINT = 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent)'
+const ACCENT_ARMS = [
+  { registry: '.rb-root', carrier: 'body', accent: '#f06423', soft: 'rgba(240,100,35,.12)', line: 'rgba(240,100,35,.35)', strong: '#ff7733' },
+  { registry: 'body:not([data-ds-dark-theme]) .rb-root', carrier: 'body:not([data-ds-dark-theme])', accent: '#c2410c', soft: 'rgba(194,65,12,.10)', line: 'rgba(194,65,12,.35)', strong: '#9a3412' },
+]
+const ARM_VARIABLES = ['--rb-accent', '--rb-accent-soft', '--rb-accent-line', '--rb-accent-strong']
+const readArm = (selector, arm) => ARM_VARIABLES.map(name => `${name}=${String(declaredOnce(selector, name))}`).join(' ')
+
+/* The portal-reachable family, as a name set rather than a hand-written list of
+ * per-variable checks: whatever a Dialog portaled outside `.rb-root` consumes
+ * must be declared on the carrier, and every variable the registry declares is
+ * either in that set or in `NOT_CARRIED`, so adding a registry variable without
+ * deciding where it belongs fails here instead of shipping a second portal
+ * defect. `NOT_CARRIED` is not a list of oversights: each name has no consumer
+ * outside `.rb-root` at all, and the evidence per name is in DESIGN.md 16.5 --
+ * the portaled surfaces render none of them (measured, every `rb-*` element of
+ * the role dialog, both role form dialogs, the drawer, the template form and the
+ * migration dialog), and most have no consumer anywhere in the bundle. */
+const PORTAL_REACHABLE = ['--rb-accent', '--rb-accent-soft', '--rb-accent-line', '--rb-accent-strong',
+  '--rb-tint-error', '--rb-num']
+const NOT_CARRIED = ['--rb-accent-fill', '--rb-on-accent', '--rb-violet', '--rb-violet-soft',
+  '--rb-tint-success', '--rb-tint-warn', '--rb-tint-info', '--rb-mono']
+/** The variable names one selector declares, in source order and without repeats. */
+const declaredNames = (selector) => [...new Set(cssRules.filter(rule => rule.selector === selector)
+  .flatMap(rule => [...rule.body.matchAll(/--rb-[a-z0-9-]+(?=\s*:)/g)].map(match => match[0])))]
+const sameNameSet = (one, other) => one.length === other.length && one.every(name => other.includes(name))
+
+check('the registry declares the accent family once per theme arm, with that arm\'s own values',
+  ACCENT_ARMS.every(arm => declaredOnce(arm.registry, '--rb-accent') === arm.accent
+    && declaredOnce(arm.registry, '--rb-accent-soft') === arm.soft
+    && declaredOnce(arm.registry, '--rb-accent-line') === arm.line
+    && declaredOnce(arm.registry, '--rb-accent-strong') === arm.strong),
+  ACCENT_ARMS.map(arm => `${arm.registry}: ${readArm(arm.registry, arm)}`).join(' | '))
+check('the registry declares the error tint with the platform\'s own error token, in both arms',
+  declaredOnce('.rb-root', '--rb-tint-error') === ERROR_TINT
+  && [null, ERROR_TINT].includes(declaredOnce('body:not([data-ds-dark-theme]) .rb-root', '--rb-tint-error')),
+  `base=${String(declaredOnce('.rb-root', '--rb-tint-error'))} light=${String(declaredOnce('body:not([data-ds-dark-theme]) .rb-root', '--rb-tint-error'))}`)
+check('the theme carrier declares exactly the portal-reachable family, once per arm',
+  ACCENT_ARMS.every(arm => sameNameSet(declaredNames(arm.carrier), PORTAL_REACHABLE)
+    && PORTAL_REACHABLE.every(name => declarationsOf(arm.carrier, name).length === 1)),
+  ACCENT_ARMS.map(arm => `${arm.carrier}: ${declaredNames(arm.carrier).join(' ') || '(none)'}`).join(' | '))
+check('every variable the registry declares is either carried or deliberately left out',
+  sameNameSet(declaredNames('.rb-root'), [...PORTAL_REACHABLE, ...NOT_CARRIED])
+  && ACCENT_ARMS.every(arm => declaredNames(arm.registry).every(name => PORTAL_REACHABLE.includes(name) || NOT_CARRIED.includes(name)))
+  && PORTAL_REACHABLE.every(name => !NOT_CARRIED.includes(name)),
+  `registry: ${declaredNames('.rb-root').join(' ')}; unclassified: ${declaredNames('.rb-root')
+    .filter(name => !PORTAL_REACHABLE.includes(name) && !NOT_CARRIED.includes(name)).join(' ')}`)
+const registryValueFor = (arm, name) => (arm.registry === '.rb-root'
+  ? declaredOnce('.rb-root', name)
+  : (declaredOnce('body:not([data-ds-dark-theme]) .rb-root', name) ?? declaredOnce('.rb-root', name)))
+check('each carried variable repeats the value its own arm resolves to in the registry',
+  ACCENT_ARMS.every(arm => PORTAL_REACHABLE.every(name => declaredOnce(arm.carrier, name) === registryValueFor(arm, name))),
+  ACCENT_ARMS.map(arm => `${arm.carrier}: ${PORTAL_REACHABLE
+    .map(name => `${name}=${String(declaredOnce(arm.carrier, name))}`).join(' ')}`).join(' | '))
+check('the portaled duty counter reads the carried numeric family',
+  /\.rb-duty-count \{[^}]*font-family:var\(--rb-num\)/.test(stylesheet)
+  && /\.rb-duty-count \{[^}]*font-variant-numeric:tabular-nums/.test(stylesheet),
+  (stylesheet.match(/\.rb-duty-count \{[^}]*\}/) ?? ['(no .rb-duty-count rule)'])[0])
+check('no panel variable is declared on :root, which would leak it into every other panel',
+  !stylesheet.includes(':root') && cssRules.every(rule => rule.selector !== ':root'),
+  cssRules.filter(rule => rule.selector === ':root').map(rule => rule.body.slice(0, 120)).join(' | '))
 check('no colour outside the registered variables is written into the stylesheet',
   strayColours.length === 0, strayColours.join(', '))
 check('the reading faces keep the concept type scale',
@@ -2778,8 +3650,129 @@ check('the completion ring keeps its measured diameter',
   /\.rb-ring \{[^}]*width:56px; height:56px/.test(stylesheet))
 check('the two-column body keeps the queue at its measured width',
   /\.rb-list \{[^}]*width:330px/.test(stylesheet))
+const propertyOf = (selector, property) => cssRules
+  .filter(rule => rule.selector === selector)
+  .flatMap(rule => rule.body.split(';'))
+  .map(part => part.trim())
+  .filter(part => part.startsWith(`${property}:`))
+  .map(part => part.slice(property.length + 1).trim())
+/* A queue row carries a title, a status badge, a role badge and two buttons. None
+ * of those siblings shrinks below its content, so at a narrow panel width a row
+ * that cannot wrap overflows its card, its nowrap title collapses to a sliver, and
+ * the trailing button squeezes its label onto two lines. */
+check('a queue row wraps instead of overflowing, and its title keeps a readable basis',
+  propertyOf('.rb-queue-row', 'flex-wrap').includes('wrap')
+  && propertyOf('.rb-queue-row', 'row-gap').length === 1
+  && propertyOf('.rb-queue-title', 'flex').join(' ') === '1 1 160px',
+  `flex-wrap=[${propertyOf('.rb-queue-row', 'flex-wrap').join(' ')}] row-gap=[${propertyOf('.rb-queue-row', 'row-gap').join(' ')}] title flex=[${propertyOf('.rb-queue-title', 'flex').join(' ')}]`)
+check('a queue row keeps its badges and buttons at their own width, and never wraps a button label',
+  propertyOf('.rb-queue-row > *:not(.rb-queue-title)', 'flex-shrink').join(' ') === '0'
+  && propertyOf('.rb-queue-row .rb-btn', 'white-space').join(' ') === 'nowrap',
+  `sibling flex-shrink=[${propertyOf('.rb-queue-row > *:not(.rb-queue-title)', 'flex-shrink').join(' ')}] button white-space=[${propertyOf('.rb-queue-row .rb-btn', 'white-space').join(' ')}]`)
 check('the meta grid keeps its measured four columns',
   /\.rb-meta-grid \{[^}]*grid-template-columns:repeat\(4, minmax\(0,1fr\)\)/.test(stylesheet))
+
+/* ------------------------------------------------- button stroke coverage */
+
+// Every `h(Button, …)` call must carry the rb-btn marker on the element itself.
+// The platform primitive's class names are hashed, and a Dialog portals outside
+// .rb-root, so neither a platform class nor a panel subtree scope can reach a
+// panel button: the marker is the only thing that can. This scans the shipped
+// source, so a button added without it fails here instead of rendering
+// unstroked.
+const propsOfButtonAt = (start) => {
+  const brace = source.indexOf('{', start)
+  if (brace < 0) return null
+  let depth = 0
+  for (let index = brace; index < source.length; index += 1) {
+    const character = source[index]
+    if (character === `'` || character === `"` || character === '`') {
+      const quote = character
+      index += 1
+      while (index < source.length && source[index] !== quote) {
+        if (source[index] === '\\') index += 1
+        index += 1
+      }
+      continue
+    }
+    if (character === '{') depth += 1
+    else if (character === '}') {
+      depth -= 1
+      if (depth === 0) return source.slice(brace, index + 1)
+    }
+  }
+  return null
+}
+const buttonClasses = [...source.matchAll(/h\(Button,/g)].map((match) => {
+  const props = propsOfButtonAt(match.index)
+  const className = props === null ? null : /className\s*:\s*'([^']*)'/.exec(props)
+  return {
+    line: source.slice(0, match.index).split('\n').length,
+    tokens: className === null ? [] : className[1].split(/\s+/).filter(Boolean),
+    hasClassName: className !== null,
+  }
+})
+const unmarkedButtons = buttonClasses.filter((site) => !site.tokens.includes('rb-btn'))
+check('every Button usage point carries the rb-btn marker class',
+  buttonClasses.length >= 79 && unmarkedButtons.length === 0,
+  `${buttonClasses.length} sites, unmarked: ${unmarkedButtons.map((site) => site.line).join(', ')}`)
+check('no Button declares the marker twice',
+  buttonClasses.every((site) => site.tokens.filter((token) => token === 'rb-btn').length === 1))
+const padSites = buttonClasses.filter((site) => site.tokens.includes('rb-btn-pad'))
+const smSites = buttonClasses.filter((site) => site.tokens.includes('rb-btn-sm'))
+const primaryStrokeSites = buttonClasses.filter((site) => site.tokens.includes('rb-btn-primary-stroke'))
+// The accent-skinned primary states its own padding, so a pad marker on it would
+// leave two equally specific paddings resolving by source order. A danger site
+// may legitimately need the marker: the danger arm restates the stroke only, and
+// a danger button that was not the outline variant had no stroke before.
+check('the geometry bookkeeping never compensates a control that states its own padding',
+  padSites.length > 0 && padSites.every((site) => !site.tokens.includes('rb-btn-primary')),
+  `${padSites.length} pad-marked; offenders: ${padSites.filter((site) => site.tokens.includes('rb-btn-primary')).map((site) => site.line).join(', ')}`)
+check('the stroke-only primary marker excludes the accent-skinned primary',
+  primaryStrokeSites.length > 0 && primaryStrokeSites.every((site) => !site.tokens.includes('rb-btn-primary'))
+  && smSites.length > 0,
+  `${primaryStrokeSites.length} stroke-only primary sites, ${smSites.length} sm sites`)
+
+const ruleOf = (selector) => {
+  const index = stylesheet.indexOf(`\n${selector}`)
+  return index < 0 ? '' : stylesheet.slice(index + 1, stylesheet.indexOf('}', index) + 1)
+}
+const buttonRule = ruleOf('.rb-btn.rb-btn {')
+check('every panel Button takes a 1px stroke from a registered token',
+  /border:1px solid var\(--dsw-alias-border-l3\)/.test(buttonRule)
+  && /\.rb-btn\.rb-btn:hover \{[^}]*border-color:var\(--dsw-alias-border-l3\)/.test(stylesheet)
+  && /\.rb-btn\.rb-btn:active \{[^}]*border-color:var\(--dsw-alias-border-l3\)/.test(stylesheet)
+  && /\.rb-btn\.rb-btn:focus-visible \{[^}]*border-color:var\(--dsw-alias-border-l3\)/.test(stylesheet),
+  buttonRule)
+check('a disabled Button keeps an opaque neutral stroke through the platform opacity',
+  /\.rb-btn\.rb-btn:disabled \{[^}]*border-color:var\(--dsw-alias-label-tertiary\)/.test(stylesheet))
+check('the focus-visible arm never takes the focus ring from the platform',
+  !/\.rb-btn[^{]*:focus-visible \{[^}]*outline/.test(stylesheet)
+  && !/\.rb-btn-primary-stroke[^{]*:focus-visible \{[^}]*outline/.test(stylesheet))
+check('the variant arms restate the stroke at a specificity that cannot tie',
+  /\.rb-btn-primary\.rb-btn-primary\.rb-btn-primary \{[^}]*border:1px solid var\(--rb-accent-strong\)/.test(stylesheet)
+  && /\.rb-btn-danger\.rb-btn-danger\.rb-btn-danger \{[^}]*border:1px solid var\(--dsw-alias-state-error-primary\)/.test(stylesheet)
+  && /\.rb-btn-danger\.rb-btn-danger\.rb-btn-danger:disabled \{[^}]*border-color:var\(--dsw-alias-label-tertiary\)/.test(stylesheet))
+check('a primary Button that keeps the platform fill takes the stroke but not the accent skin',
+  /\.rb-btn-primary-stroke\.rb-btn-primary-stroke \{[^}]*border-color:var\(--rb-accent-strong\)/.test(stylesheet))
+check('the detail row keeps the stroke it already had',
+  /\.rb-detail-actions \.rb-btn\.rb-btn \{[^}]*border:1px solid var\(--dsw-alias-border-l2\)/.test(stylesheet))
+check('the pad arms take the border back out of the horizontal padding',
+  /\.rb-btn-pad\.rb-btn-pad \{[^}]*padding:0 13px/.test(stylesheet)
+  && /\.rb-btn-pad\.rb-btn-pad\.rb-btn-sm\.rb-btn-sm \{[^}]*padding:0 9px/.test(stylesheet)
+  && /\.rb-header \.rb-btn-primary\.rb-btn-primary\.rb-btn-primary \{[^}]*padding:0 12px/.test(stylesheet))
+// The theme carrier's carried family is pinned structurally, by selector and
+// value, in the visual-language block above (`the theme carrier repeats the
+// portal-reachable family once per arm, matching its own arm`). That block
+// replaced the literal one-line spelling this check used to require, and it is
+// strictly stronger: it reads both arms by their real selectors and pins five
+// variables with exactly one declaration each, not one variable by its spacing.
+check('non-button controls do not pick up the button stroke',
+  ['.rb-chip', '.rb-card', '.rb-node', '.rb-seg'].every((selector) => {
+    const escaped = selector.replace('.', '\\.')
+    return !new RegExp(`${escaped}[^{]*\\{[^}]*border:1px solid var\\(--dsw-alias-border-l3\\)`).test(stylesheet)
+  })
+  && stylesheet.includes('.rb-card-selected {') && stylesheet.includes('.rb-node-active {'))
 
 /* --------------------------------------------------------------- teardown */
 

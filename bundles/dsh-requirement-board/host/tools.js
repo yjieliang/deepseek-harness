@@ -72,6 +72,32 @@ const BOARD_PARAMETERS = {
       description: 'Session ids that share this requirement. Used by `create` and `update`; replaces the stored list. Your own session is added automatically on create.',
     },
     labels: { type: 'array', items: { type: 'string' }, description: 'Free-form labels. Used by `create` and `update`.' },
+    options: {
+      type: 'array',
+      description: 'The structured question a requirement puts to a person, used by `create` and `update` (on a decision requirement an agent may rewrite it, because it is the question and never the answer). One entry per question: `{ id, prompt, choices: [{ id, label, detail?, recommended? }] }`. Question ids default to `q1`, `q2`, … and choice ids to `A`, `B`, …; `label` is the choice as the person reads it, `detail` its cost or benefit, and at most one choice may carry `recommended: true`. Pass `[]` to ask nothing, and note that the questions cannot change once a person has selected an answer. Write the choices a person would want to pick between — declare the cost of each and mark the one you advise. The response repeats `options` and carries `answer` once a person has selected in the board panel; an agent cannot select, and an agent passing `answer` is refused.',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Question id an answer names; defaults to `q1`, `q2`, … in order. Must be unique within the requirement.' },
+          prompt: { type: 'string', description: 'The question as the person reads it, at most 300 characters.' },
+          choices: {
+            type: 'array',
+            description: 'The choices this question offers, at least two and at most eight.',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'Choice id an answer names; defaults to `A`, `B`, … in order. Must be unique within the question.' },
+                label: { type: 'string', description: 'The choice as the person reads it, at most 80 characters.' },
+                detail: { type: 'string', description: 'What choosing it costs and buys, at most 600 characters.' },
+                recommended: { type: 'boolean', description: 'Mark the one choice you advise; at most one choice per question may set it.' },
+              },
+              required: ['label'],
+            },
+          },
+        },
+        required: ['prompt', 'choices'],
+      },
+    },
     images: {
       type: 'array',
       items: { type: 'string' },
@@ -227,6 +253,7 @@ async function runBoardAction(service, args, exec) {
         sessions: args.sessions,
         labels: args.labels,
         images: args.images,
+        options: args.options,
         parentId: args.parentId,
         blocksOn: args.blocksOn,
         note: args.note,
@@ -266,6 +293,7 @@ async function runBoardAction(service, args, exec) {
         ...(args.sessions === undefined ? {} : { sessions: args.sessions }),
         ...(args.labels === undefined ? {} : { labels: args.labels }),
         ...(args.images === undefined ? {} : { images: args.images }),
+        ...(args.options === undefined ? {} : { options: args.options }),
         ...(args.parentId === undefined ? {} : { parentId: args.parentId }),
         ...(args.blocksOn === undefined ? {} : { blocksOn: args.blocksOn }),
         ...(args.expectedRev === undefined ? {} : { expectedRev: args.expectedRev }),
@@ -325,7 +353,7 @@ export function registerTools(ctx, service) {
       'To hand one requirement to a sub-session you own, use "delegate": it mints a temporary role for that task, and the sub-session claims the requirement through that delegation. Delegate only after you created the sub-session, tell it the requirement id, and end the delegation with "delegate" and `revoke: true` when it should stop.',
       'Every requirement carries `summary`: one or two plain-language sentences a person reads instead of the full `description`, which the panel keeps behind a fold. `create` requires it — at most 300 characters, and no implementation detail, since a summary that needs the detail has become the description.',
       'A requirement may also carry `project`, a short label that groups it with the work it belongs to — the panel filters and groups by it. It is optional: write it when the requirement is part of a larger effort, keep one spelling per project, and pass `project: ""` to take a requirement out of its project.',
-      'A requirement created with `kind: "decision"` is a question for the human: no session may claim, advance, delegate, archive, delete, or queue it, its `kind` never changes, and the panel is where a person answers it. Create one when a choice is genuinely the human\'s, and describe the options, their costs, and a default.',
+      'A requirement created with `kind: "decision"` is a question for the human: no session may claim, advance, delegate, archive, delete, or queue it, its `kind` never changes, and the panel is where a person answers it. Create one when a choice is genuinely the human\'s — for two questions, one decision requirement carrying two entries of `options` — and pass the choices as structured `options` (`options`, above) rather than as prose in the description: each choice gets its label and its cost, and the one you advise carries `recommended: true`. The person selects in the panel; `answer` comes back on the requirement and is never an argument an agent sends.',
       'The lock is required before advancing, ticking a checklist, blocking, archiving, deleting, or changing the role, flow template, parent, or blockers; a lock left untouched for the configured lease is taken over by the next claimant.',
       'Give a requirement `blocksOn` when other requirements must finish first: "advance" and "complete" are then refused until each of them is done — an archived blocker still blocks, because shelving work is not finishing it — unless you pass `force`, which records the gate it overrode in the history. The requirement\'s own flow node prerequisites are judged before those blockers, so an unmet node prerequisite reports `dependency-not-met` and only a cleared one reports `invalid-transition`. `parentId` groups work under a parent requirement, which "get" reports back as `children`.',
       '"get" and "list" report `gated`/`blockedBy` and the priority a requirement reads at: `effectivePriority` rises while the work it holds up is urgent, and `escalated` marks it as `[high↑]`. `claimable` and `advanceable` in those results are answered for the calling session: `claimable` means you could take it now, `advanceable` means you hold its lock and it is not `gated` and its node prerequisites are met — the same verdict "transition" gives without `force`, short of the node\'s own completion condition.',

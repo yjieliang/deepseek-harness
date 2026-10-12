@@ -246,6 +246,16 @@ async function dispatch(service, body) {
     case 'checklist':
       if (id === undefined) fail('invalid-argument', '"id" is required for checklist')
       return await service.setChecklist(id, body, actor)
+    // Selecting among a requirement's options is the person's act, so this
+    // command exists only here: no tool declares it, and the actor is the panel's
+    // empty session, which nothing else can present (§5.7).
+    case 'decide':
+      if (id === undefined) fail('invalid-argument', '"id" is required for decide')
+      return await service.decideRequirement(id, {
+        answer: body.answer,
+        note: body.note,
+        expectedRev: body.expectedRev,
+      }, actor)
     // The panel releases a lock (its own or a stuck session's) but never claims
     // one: a lock owned by the human's empty session id would refuse every AI
     // session until the lease ran out.

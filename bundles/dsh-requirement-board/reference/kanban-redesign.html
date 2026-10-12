@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>需求看板 · Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ================= Design Tokens ================= */
+:root {
+  --bg-0: #101012;
+  --bg-1: #161619;
+  --bg-2: #1d1d21;
+  --bg-3: #242429;
+  --line: #28282e;
+  --line-soft: #202025;
+
+  --text-1: #f2f0eb;
+  --text-2: #a9a69e;
+  --text-3: #6e6b63;
+
+  --accent: #f06423;
+  --accent-hover: #ff7733;
+  --accent-soft: rgba(240, 100, 35, .12);
+  --accent-line: rgba(240, 100, 35, .35);
+
+  --ok: #4cb578;
+  --ok-soft: rgba(76, 181, 120, .12);
+  --warn: #e5a13c;
+  --warn-soft: rgba(229, 161, 60, .12);
+  --danger: #e5534b;
+  --danger-soft: rgba(229, 83, 75, .12);
+  --info: #5aa2e8;
+  --info-soft: rgba(90, 162, 232, .12);
+  --violet: #9b8cf2;
+  --violet-soft: rgba(155, 140, 242, .12);
+
+  --font-ui: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-num: "Space Grotesk", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+
+  --ease: cubic-bezier(.22, 1, .36, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { -webkit-font-smoothing: antialiased; }
+
+body {
+  background: var(--bg-0);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(1200px 500px at 70% -10%, rgba(240, 100, 35, .05), transparent 60%);
+}
+
+::selection { background: var(--accent-soft); }
+
+button { font-family: inherit; cursor: pointer; }
+
+/* ================= App Frame ================= */
+.app { max-width: 1440px; margin: 0 auto; padding: 0 28px 64px; }
+
+/* ---------- Top Bar ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 14px;
+  height: 64px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.logo {
+  width: 30px; height: 30px; border-radius: 8px; flex: none;
+  background: linear-gradient(135deg, var(--accent), #b8430f);
+  display: grid; place-items: center;
+  font-family: var(--font-num); font-weight: 700; font-size: 15px; color: #fff;
+  box-shadow: 0 0 0 1px rgba(240,100,35,.4), 0 4px 14px -4px rgba(240,100,35,.5);
+}
+.topbar h1 {
+  font-size: 16px; font-weight: 600; letter-spacing: .01em;
+}
+.topbar .sub {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-3);
+}
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 6px rgba(76,181,120,.8);
+  animation: pulse 2.4s infinite;
+}
+@keyframes pulse { 50% { opacity: .4; } }
+.topbar .spacer { flex: 1; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 13px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-size: 13px; font-weight: 500;
+  transition: all .18s var(--ease);
+}
+.btn:hover { color: var(--text-1); border-color: #3a3a42; background: var(--bg-3); }
+.btn--primary {
+  background: var(--accent); border-color: transparent; color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 10px -2px rgba(240,100,35,.5);
+}
+.btn--primary:hover { background: var(--accent-hover); color: #fff; transform: translateY(-1px); }
+.btn--icon { width: 32px; padding: 0; justify-content: center; }
+
+/* ---------- View Tabs ---------- */
+.viewtabs {
+  display: flex; align-items: center; gap: 16px;
+  margin: 18px 0 20px;
+}
+.segmented {
+  display: inline-flex; padding: 3px; gap: 2px;
+  background: var(--bg-1); border: 1px solid var(--line-soft);
+  border-radius: 9px;
+}
+.segmented button {
+  height: 28px; padding: 0 16px;
+  border: none; background: transparent;
+  color: var(--text-3); font-size: 13px; font-weight: 500;
+  border-radius: 6px;
+  transition: all .18s var(--ease);
+}
+.segmented button:hover { color: var(--text-2); }
+.segmented button.active {
+  background: var(--bg-3); color: var(--text-1);
+  box-shadow: 0 1px 3px rgba(0,0,0,.4), inset 0 0 0 1px var(--line);
+}
+.viewtabs .hint { font-size: 12px; color: var(--text-3); }
+
+/* ---------- KPI Band ---------- */
+.kpi-band {
+  display: grid;
+  grid-template-columns: 300px repeat(5, 1fr) 220px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.kpi {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  transition: border-color .18s var(--ease), transform .18s var(--ease);
+}
+.kpi:hover { border-color: var(--line); transform: translateY(-1px); }
+.kpi .label {
+  font-size: 12px; color: var(--text-3); font-weight: 500;
+  display: flex; align-items: center; gap: 6px;
+}
+.kpi .value {
+  font-family: var(--font-num);
+  font-size: 26px; font-weight: 600;
+  line-height: 1.2; margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi .value.dim { color: var(--text-3); }
+
+/* hero completion */
+.kpi--hero { display: flex; align-items: center; gap: 14px; }
+.ring { position: relative; width: 56px; height: 56px; flex: none; }
+.ring svg { transform: rotate(-90deg); }
+.ring .pct {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-family: var(--font-num); font-size: 14px; font-weight: 700;
+  color: var(--accent);
+}
+.kpi--hero .frac { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.kpi--hero .frac b { color: var(--text-2); font-family: var(--font-num); }
+
+/* alert tile */
+.kpi--alert {
+  border-color: rgba(229,161,60,.3);
+  background: linear-gradient(180deg, rgba(229,161,60,.07), var(--bg-1));
+  cursor: pointer;
+}
+.kpi--alert .value { color: var(--warn); }
+.kpi--alert .label { color: var(--warn); }
+.kpi--alert .go { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* secondary metrics strip */
+.kpi-sub {
+  display: flex; flex-wrap: wrap; gap: 6px 20px;
+  padding: 2px 4px 18px;
+  font-size: 12px; color: var(--text-3);
+}
+.kpi-sub b { font-family: var(--font-num); color: var(--text-2); font-weight: 500; margin-left: 4px; }
+
+/* ---------- Filter Chips ---------- */
+.filters {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.filters .flabel { font-size: 12px; color: var(--text-3); margin-right: 4px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 26px; padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  font-size: 12px; color: var(--text-2);
+  transition: all .16s var(--ease);
+}
+.chip:hover { border-color: #3c3c44; color: var(--text-1); }
+.chip .n { font-family: var(--font-num); color: var(--text-3); font-size: 11px; }
+.chip--on {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.chip--on .n { color: var(--accent); opacity: .8; }
+.chip .x { opacity: .6; font-size: 13px; line-height: 1; }
+.chip .x:hover { opacity: 1; }
+.filters .clear {
+  margin-left: auto; border: none; background: none;
+  font-size: 12px; color: var(--text-3);
+}
+.filters .clear:hover { color: var(--accent); }
+
+/* ---------- Main Split ---------- */
+.main {
+  display: grid;
+  grid-template-columns: 330px 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-top: 6px;
+}
+
+/* ---- Left: queue ---- */
+.panel {
+  background: var(--bg-1);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.panel-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.panel-head h2 { font-size: 13px; font-weight: 600; }
+.panel-head .count {
+  font-family: var(--font-num); font-size: 11px; font-weight: 600;
+  color: var(--violet); background: var(--violet-soft);
+  border-radius: 999px; padding: 1px 8px;
+}
+.panel-body { padding: 14px 16px; }
+
+.queue-note {
+  font-size: 12px; color: var(--text-3); line-height: 1.7;
+  padding: 10px 12px;
+  background: var(--bg-2);
+  border-radius: var(--r-sm);
+  border-left: 2px solid var(--violet);
+  margin-bottom: 14px;
+}
+.session-id {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-2);
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  word-break: break-all;
+}
+.session-id .copy {
+  flex: none; border: none; background: none;
+  color: var(--text-3); font-size: 11px;
+  padding: 2px 6px; border-radius: 4px;
+}
+.session-id .copy:hover { color: var(--accent); background: var(--accent-soft); }
+
+.queue-item {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px;
+  background: var(--bg-2);
+  transition: border-color .16s var(--ease);
+}
+.queue-item:hover { border-color: #3a3a42; }
+.queue-item .qtop {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.queue-item .qname { font-size: 13px; font-weight: 500; }
+.tag {
+  display: inline-flex; align-items: center;
+  height: 20px; padding: 0 8px;
+  border-radius: 5px;
+  font-size: 11px; font-weight: 500;
+}
+.tag--violet { color: var(--violet); background: var(--violet-soft); }
+.queue-item .qmeta { display: flex; gap: 6px; flex-wrap: wrap; }
+.mini {
+  font-size: 11px; color: var(--text-3);
+  background: var(--bg-1); border: 1px solid var(--line-soft);
+  border-radius: 4px; padding: 1px 7px;
+}
+.mini.on { color: var(--ok); border-color: rgba(76,181,120,.3); }
+
+.side-group { margin-top: 18px; }
+.side-group h3 {
+  font-size: 11px; font-weight: 600; color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .08em;
+  margin-bottom: 8px; padding: 0 2px;
+}
+.def-row {
+  display: flex; gap: 10px; padding: 7px 2px;
+  font-size: 12.5px;
+  border-bottom: 1px dashed var(--line-soft);
+}
+.def-row:last-child { border-bottom: none; }
+.def-row dt { flex: none; width: 56px; color: var(--text-3); }
+.def-row dd { color: var(--text-2); }
+
+/* ---- Right: detail ---- */
+.detail { padding: 22px 26px 26px; }
+
+.detail-top {
+  display: flex; align-items: flex-start; gap: 12px;
+  margin-bottom: 6px;
+}
+.badges { display: flex; gap: 6px; flex: none; padding-top: 3px; }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  border: 1px solid transparent;
+}
+.badge--info { color: var(--info); background: var(--info-soft); border-color: rgba(90,162,232,.3); }
+.badge--warn { color: var(--warn); background: var(--warn-soft); border-color: rgba(229,161,60,.3); }
+.badge i {
+  width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+}
+.detail-title {
+  font-size: 19px; font-weight: 600; line-height: 1.45;
+  letter-spacing: .01em;
+}
+.detail-title .mono { font-family: var(--font-num); font-weight: 600; color: var(--accent); }
+.detail-actions { margin-left: auto; display: flex; gap: 6px; flex: none; }
+.act {
+  height: 28px; padding: 0 11px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: transparent; color: var(--text-2);
+  font-size: 12px;
+  transition: all .16s var(--ease);
+}
+.act:hover { color: var(--text-1); border-color: #3c3c44; background: var(--bg-2); }
+.act--danger { color: var(--danger); border-color: rgba(229,83,75,.3); }
+.act--danger:hover { background: var(--danger-soft); color: var(--danger); border-color: rgba(229,83,75,.5); }
+
+.state-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 16px; }
+.stag {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 24px; padding: 0 10px;
+  border-radius: 6px;
+  font-size: 11.5px; font-weight: 500;
+  border: 1px solid var(--line);
+  color: var(--text-2); background: var(--bg-2);
+}
+.stag.ok { color: var(--ok); border-color: rgba(76,181,120,.3); background: var(--ok-soft); }
+.stag.mut { color: var(--text-3); }
+.stag.vio { color: var(--violet); border-color: rgba(155,140,242,.3); background: var(--violet-soft); }
+
+.reserve-banner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--violet-soft);
+  border: 1px solid rgba(155,140,242,.25);
+  font-size: 12px; color: var(--violet);
+  margin-bottom: 18px;
+}
+.reserve-banner .mono { font-family: var(--font-mono); font-size: 11px; opacity: .85; }
+
+.meta-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+.meta-cell { background: var(--bg-1); padding: 10px 14px; }
+.meta-cell .k { font-size: 11px; color: var(--text-3); margin-bottom: 2px; }
+.meta-cell .v { font-size: 12.5px; color: var(--text-1); font-weight: 500; }
+.meta-cell .v.mono { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--text-2); }
+.meta-cell .v.hi { color: var(--warn); }
+
+/* sections */
+.sec { margin-bottom: 20px; }
+.sec > h3 {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600;
+  margin-bottom: 10px;
+}
+.sec > h3::before {
+  content: ""; width: 3px; height: 13px;
+  border-radius: 2px; background: var(--accent);
+}
+.sec > h3 .en {
+  font-family: var(--font-num); font-size: 10px; font-weight: 500;
+  color: var(--text-3); letter-spacing: .06em; text-transform: uppercase;
+}
+.sec-body {
+  font-size: 13px; color: var(--text-2); line-height: 1.85;
+}
+.sec-body p + p { margin-top: 6px; }
+.sec-body b { color: var(--text-1); font-weight: 600; }
+.sec-body code {
+  font-family: var(--font-mono); font-size: 11.5px;
+  background: var(--bg-2); border: 1px solid var(--line-soft);
+  border-radius: 4px; padding: 1px 5px;
+  color: #d8d5cd;
+}
+.numlist { counter-reset: it; display: grid; gap: 8px; }
+.numlist li {
+  counter-increment: it;
+  list-style: none;
+  position: relative;
+  padding-left: 30px;
+}
+.numlist li::before {
+  content: counter(it);
+  position: absolute; left: 0; top: 2px;
+  width: 20px; height: 20px;
+  display: grid; place-items: center;
+  font-family: var(--font-num); font-size: 11px; font-weight: 600;
+  color: var(--accent); background: var(--accent-soft);
+  border-radius: 6px;
+}
+
+details.fold {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: var(--bg-1);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+details.fold summary {
+  cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  font-size: 13px; font-weight: 500;
+  transition: background .15s;
+}
+details.fold summary::-webkit-details-marker { display: none; }
+details.fold summary:hover { background: var(--bg-2); }
+details.fold summary .caret {
+  margin-left: auto; color: var(--text-3);
+  transition: transform .2s var(--ease);
+  font-size: 11px;
+}
+details.fold[open] summary .caret { transform: rotate(90deg); }
+details.fold .fold-body {
+  padding: 4px 16px 14px 16px;
+  font-size: 13px; color: var(--text-2); line-height: 1.85;
+}
+
+/* gate table */
+.gate { display: grid; gap: 8px; }
+.gate-row {
+  display: flex; align-items: baseline; gap: 14px;
+  padding: 10px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  font-size: 12.5px;
+}
+.gate-row .gk { flex: none; width: 110px; color: var(--text-3); font-size: 12px; }
+.gate-row .gv { color: var(--text-2); }
+.gate-row .gv .none { color: var(--text-3); }
+.req-link {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--info); background: var(--info-soft);
+  padding: 1px 7px; border-radius: 4px;
+  cursor: pointer; border: 1px solid transparent;
+  transition: border-color .15s;
+}
+.req-link:hover { border-color: rgba(90,162,232,.4); }
+.gate-row.blocking { border-color: rgba(229,83,75,.3); background: linear-gradient(180deg, rgba(229,83,75,.05), var(--bg-2)); }
+.gate-row.blocking .gk { color: var(--danger); }
+
+/* empty state */
+.empty {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 30px 20px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-md);
+  color: var(--text-3);
+}
+.empty .ico {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: var(--bg-2); border: 1px solid var(--line-soft);
+  display: grid; place-items: center; font-size: 15px;
+  margin-bottom: 2px;
+}
+.empty .t { font-size: 13px; font-weight: 500; color: var(--text-2); }
+.empty .d { font-size: 12px; }
+
+/* footer mark */
+.foot {
+  margin-top: 40px; padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--text-3);
+  font-family: var(--font-num);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1180px) {
+  .kpi-band { grid-template-columns: repeat(4, 1fr); }
+  .kpi--hero { grid-column: span 2; }
+  .kpi--alert { grid-column: span 2; }
+  .main { grid-template-columns: 1fr; }
+  .meta-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 720px) {
+  .app { padding: 0 16px 48px; }
+  .kpi-band { grid-template-columns: repeat(2, 1fr); }
+  .kpi--hero, .kpi--alert { grid-column: span 2; }
+  .detail { padding: 16px; }
+  .detail-top { flex-wrap: wrap; }
+  .detail-actions { margin-left: 0; }
+  .topbar .sub { display: none; }
+  .btn:not(.btn--primary):not(.btn--icon) { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ Top Bar ============ -->
+  <header class="topbar">
+    <div class="logo">需</div>
+    <h1>需求看板</h1>
+    <span class="sub"><span class="live-dot"></span>Harness · 全部会话共享</span>
+    <div class="spacer"></div>
+    <button class="btn btn--icon" title="刷新">↻</button>
+    <button class="btn">角色管理</button>
+    <button class="btn">流程模板管理</button>
+    <button class="btn btn--primary">＋ 新建需求</button>
+  </header>
+
+  <!-- ============ View Tabs ============ -->
+  <nav class="viewtabs">
+    <div class="segmented" id="seg">
+      <button class="active">看板</button>
+      <button>队列</button>
+      <button>要我挂板</button>
+    </div>
+    <span class="hint">每个队列的队头与顺序由服务端给出，面板不重排</span>
+  </nav>
+
+  <!-- ============ KPI Band ============ -->
+  <section class="kpi-band">
+    <div class="kpi kpi--hero">
+      <div class="ring">
+        <svg width="56" height="56" viewBox="0 0 56 56">
+          <circle cx="28" cy="28" r="24" fill="none" stroke="#242429" stroke-width="5"/>
+          <circle cx="28" cy="28" r="24" fill="none" stroke="#f06423" stroke-width="5"
+                  stroke-linecap="round" stroke-dasharray="150.8" stroke-dashoffset="39.2"/>
+        </svg>
+        <span class="pct">74%</span>
+      </div>
+      <div>
+        <div class="label">完成率</div>
+        <div class="frac"><b>23</b> / 31 已完成 · 未结束 <b>8</b></div>
+      </div>
+    </div>
+    <div class="kpi"><div class="label">进行中</div><div class="value">8</div></div>
+    <div class="kpi"><div class="label">执行中</div><div class="value">4</div></div>
+    <div class="kpi"><div class="label">排队中</div><div class="value">1</div></div>
+    <div class="kpi"><div class="label">被预留</div><div class="value">1</div></div>
+    <div class="kpi"><div class="label">阻塞</div><div class="value dim">0</div></div>
+    <div class="kpi kpi--alert" title="查看未召回事件">
+      <div class="label">⚠ 未召回事件</div>
+      <div class="value">3489</div>
+      <div class="go">需要处理 →</div>
+    </div>
+  </section>
+  <div class="kpi-sub">
+    <span>停滞项<b>0</b></span>
+    <span>阻塞项<b>0</b></span>
+    <span>决策<b>0</b></span>
+    <span>任务<b>8</b></span>
+    <span>关键路径<b>0</b></span>
+    <span>待接派发<b>0</b></span>
+    <span>孤儿额<b>0</b></span>
+    <span>规则缺口<b>0</b></span>
+  </div>
+
+  <!-- ============ Filters ============ -->
+  <div class="filters">
+    <span class="flabel">筛选</span>
+    <button class="chip chip--on">按角色：未结束 <span class="x">×</span></button>
+    <button class="chip">未指定角色 <span class="n">4</span></button>
+    <button class="chip">ccgs-studio <span class="n">1</span></button>
+    <button class="chip">骁缈AI · Godot 引擎开发专家 <span class="n">1</span></button>
+    <button class="chip">Godot 项目评审团 <span class="n">1</span></button>
+    <button class="chip">洞溪达 · Godot 着色器开发者 <span class="n">1</span></button>
+    <button class="clear">清除全部</button>
+  </div>
+
+  <!-- ============ Main ============ -->
+  <div class="main">
+
+    <!-- ===== Left: Queue ===== -->
+    <aside>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>预留队列</h2>
+          <span class="count">1 项</span>
+        </div>
+        <div class="panel-body">
+          <div class="queue-note">
+            预留是软占用：被预留的需求不会出现在「可接手池」里。
+          </div>
+          <div class="session-id">
+            session-6d3932f6-6d91-436c-8751-83d02d2a1ded
+            <button class="copy" onclick="copyId(this)">复制</button>
+          </div>
+          <div class="queue-item">
+            <div class="qtop">
+              <span class="qname">已预留 1 项</span>
+              <span class="tag tag--violet">预留中</span>
+            </div>
+            <div class="qmeta">
+              <span class="mini">下一个</span>
+              <span class="mini on">执行中</span>
+              <span class="mini">ccgs-studio</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-top:14px">
+        <div class="panel-head"><h2>资格口径</h2></div>
+        <div class="panel-body" style="padding-top:6px">
+          <dl>
+            <div class="def-row"><dt>口径</dt><dd>面板</dd></div>
+            <div class="def-row"><dt>可接手</dt><dd>不可接手</dd></div>
+            <div class="def-row"><dt>可推进</dt><dd>推不动 —— 「可推进」= 持有执行锁且门禁已清，和「可接手」是两个口径。</dd></div>
+          </dl>
+        </div>
+      </section>
+    </aside>
+
+    <!-- ===== Right: Detail ===== -->
+    <section class="panel detail">
+      <div class="detail-top">
+        <div class="badges">
+          <span class="badge badge--info"><i></i>Proposed</span>
+          <span class="badge badge--warn">优先级 · 高</span>
+        </div>
+        <div class="detail-actions">
+          <button class="act">编辑</button>
+          <button class="act">归档</button>
+          <button class="act act--danger">删除</button>
+        </div>
+      </div>
+
+      <h2 class="detail-title">
+        起单 <span class="mono">ADR-0007</span>：S1 寻路搜索层路线裁定 + 修订 navigation.md §1
+      </h2>
+
+      <div class="state-chips">
+        <span class="stag ok">● 进行中</span>
+        <span class="stag">ccgs-studio</span>
+        <span class="stag mut">不可接手</span>
+        <span class="stag mut">推不动</span>
+        <span class="stag vio">被占 1 项</span>
+        <span class="stag vio">等待 1 项</span>
+      </div>
+
+      <div class="reserve-banner">
+        ◈ 已被预留 <span class="mono">session-6d3932f6-6d91-436c-8751-83d02d2a1ded</span>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-cell"><div class="k">类型</div><div class="v">任务</div></div>
+        <div class="meta-cell"><div class="k">流程模板</div><div class="v">文档产出</div></div>
+        <div class="meta-cell"><div class="k">负责人</div><div class="v" style="color:var(--text-3)">未分配</div></div>
+        <div class="meta-cell"><div class="k">版本</div><div class="v">v1</div></div>
+        <div class="meta-cell"><div class="k">所属会话</div><div class="v mono">session-6d3932f6…1ded</div></div>
+        <div class="meta-cell"><div class="k">提出者</div><div class="v mono">session-6d3932f6…1ded</div></div>
+        <div class="meta-cell"><div class="k">更新于</div><div class="v">2026/10/9 01:06:37</div></div>
+        <div class="meta-cell"><div class="k">优先级</div><div class="v hi">高</div></div>
+      </div>
+
+      <!-- 正文：结构化折叠分节 -->
+      <div class="sec">
+        <h3>需求正文 <span class="en">Body</span></h3>
+
+        <details class="fold" open>
+          <summary>【做什么】路线裁定与文档修订 <span class="caret">▶</span></summary>
+          <div class="fold-body">
+            起草 <code>docs/architecture/adr-0007-*.md</code>（Status = <b>Proposed</b>），在
+            <b>① 自写 A*</b> 与 <b>② AStar2D + 可采纳 _estimate_cost</b> 之间裁定 S1 的搜索层路线，
+            并一并修订 <code>docs/engine-reference/godot/modules/navigation.md</code> §1 被推翻的「无需自写 A*」结论。
+            裁定依据「逐字引用」<code>production/probe-plan-M0b P6.md</code> §5（事先钉死的硬判据 2ms 与裁定档 T1–T4）+ §8（原始读数）；
+            不得事后改档、不得编造读数。范围：只写文档。不改 <code>src/</code>、不写 A* 代码、不建 <code>tests/</code>。
+          </div>
+        </details>
+
+        <details class="fold" open>
+          <summary>【验收标准】三张结构表 + 正文锚点 <span class="caret">▶</span></summary>
+          <div class="fold-body">
+            <ol class="numlist">
+              <li>三张结构表齐全且非空：<b>Engine Compatibility</b>（含 Godot 4.7.2 · Risk HIGH 的知识缺口声明）、<b>ADR Dependencies</b>（非空 —— accept 模式的前置）、<b>GDD Requirements Addressed</b>（具名 <code>design/gdd/iso-grid-and-pathfinding.md</code>，不得写 NOT ASSESSED）。</li>
+              <li>正文含 <b>Decision</b> / <b>Alternatives Considered</b>（两条路线的证据与代价）/ <b>Consequences</b> / <b>Risks</b> / <b>Performance Implications</b> / <b>Migration Plan</b> / <b>Validation Criteria</b> / <b>Implementation Guidelines</b>（must / must never，供 /create-stories 与 /dev-story 逐字读取）。</li>
+              <li>返回父 review 快速验收：生成 <code>docs/architecture/adr-0007-*.md</code> §2 + §1 §2 §3**（未闭环的两条），并写明落成后它们如何闭环。</li>
+              <li>三处 NOT 评估快速验收：判 <code>navgrid-informed-v1</code> §1 与 §2 §3** 的修订注记，同时标注 TD-ADR7（technical director 委派在本机不可用 ⇒ NOT ASSESSED，不是通过；不得静默通过；已配置 ⇒ 报 Risk HIGH 并附知识缺口）。</li>
+              <li>不擅自验收：ADR 只产 Proposed；Accepted 只能走 <code>/architecture-decision accept</code>，且必须由用户本人确认。</li>
+            </ol>
+          </div>
+        </details>
+
+        <details class="fold">
+          <summary>【交付到哪】产出路径 <span class="caret">▶</span></summary>
+          <div class="fold-body">
+            <p>→ <code>docs/architecture/adr-0007-&lt;slug&gt;.md</code>（用户批准后创建）</p>
+            <p>→ <code>docs/engine-reference/godot/modules/navigation.md</code> §1 的修订（由本 ADR 统一落地，防两处口径分叉）</p>
+            <p>→ <code>design/gdd/iso-grid-and-pathfinding.md</code> 的「引擎侧实现约束」(a)/(d)/(e) + A8 的裁定回写 · 下游解锁：F-S1 第 2 轮复评（<span class="req-link">req_52fcaaf4e1</span>）与 F-S1 排期</p>
+          </div>
+        </details>
+      </div>
+
+      <!-- 门禁 -->
+      <div class="sec">
+        <h3>门禁 <span class="en">Gates</span></h3>
+        <div class="gate">
+          <div class="gate-row"><span class="gk">父需求</span><span class="gv"><span class="none">无</span></span></div>
+          <div class="gate-row"><span class="gk">子需求</span><span class="gv"><span class="none">无</span></span></div>
+          <div class="gate-row">
+            <span class="gk">前置需求（我依赖）</span>
+            <span class="gv">跑 P-6 寻路微基准并回写读数（自写 A* vs AStar2D 的性能 + tie-break 证据）<span class="req-link">req_b10af7bfa3</span></span>
+          </div>
+          <div class="gate-row blocking">
+            <span class="gk">⛔ 当前阻挡</span>
+            <span class="gv">跑 P-6 寻路微基准并回写读数（自写 A* vs AStar2D 的性能 + tie-break 证据）<span class="req-link">req_b10af7bfa3</span></span>
+          </div>
+          <div class="gate-row">
+            <span class="gk">说明</span>
+            <span class="gv" style="color:var(--text-3)">推进要等前置的未完成工作；把挡路的需求归档并不等于完成它。</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 执行单元 -->
+      <div class="sec" style="margin-bottom:0">
+        <h3>执行单元 <span class="en">Execution Units</span></h3>
+        <div class="empty">
+          <div class="ico">◇</div>
+          <div class="t">这条需求当前没有执行单元</div>
+          <div class="d">前置需求完成后，执行单元将在此出现</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <span>KANBAN · REDESIGN CONCEPT</span>
+    <span>UI DESIGNER · 像素君</span>
+  </footer>
+</div>
+
+<script>
+// segmented tabs
+document.getElementById('seg').addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#seg button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+});
+
+// filter chips toggle
+document.querySelectorAll('.filters .chip').forEach(c => {
+  c.addEventListener('click', () => c.classList.toggle('chip--on'));
+});
+
+// copy session id
+function copyId(btn) {
+  const text = btn.parentElement.textContent.replace('复制', '').trim();
+  navigator.clipboard && navigator.clipboard.writeText(text);
+  btn.textContent = '已复制';
+  setTimeout(() => btn.textContent = '复制', 1200);
+}
+</script>
+</body>
+</html>
