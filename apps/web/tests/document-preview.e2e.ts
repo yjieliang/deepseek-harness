@@ -663,6 +663,18 @@ else process.exit(1);
         <form><math><mtext></form><form><mglyph><style></math><a id="mutation-link" href="https://blocked-preview.invalid/mutation">Mutation link</a>
         </body></html>`),
       writeFile(join(cwd, 'smoke.md'), markdownText),
+      writeFile(join(cwd, 'diagrams.md'), [
+        '# Mermaid smoke', '',
+        'A settled fence draws in place.', '',
+        '```mermaid',
+        'graph TD',
+        '  alpha[Start] --> beta[Finish]',
+        '```', '',
+        '```mermaid',
+        'graph TD',
+        '  unfinished[[[',
+        '```', '',
+      ].join('\n')),
       writeFile(join(cwd, 'pages.ts'), codeLines.join('\n')),
       writeFile(join(cwd, 'notes.unknown'), 'UNKNOWN_SUFFIX\nPlain fallback.'),
       writeFile(join(cwd, 'smoke.html'), [
@@ -811,6 +823,26 @@ else process.exit(1);
       `- Viewers: ${markdownViewers.join(' -> ')}`,
       `- Same tab: ${String(await markdownTab.getAttribute('data-dockkit-tab') === markdownTabId)}`,
     ].join('\n'))
+
+    await openFile('diagrams.md')
+    await preview.getByRole('heading', { name: 'Mermaid smoke', exact: true }).waitFor({ timeout: 15_000 })
+    const diagram = preview.locator('[data-mermaid-diagram]')
+    const diagramSvg = diagram.locator('svg')
+    await expect.poll(() => diagramSvg.count(), { timeout: 20_000 }).toBe(1)
+    await expect.poll(() => diagramSvg.getByText('Start', { exact: true }).count()).toBe(1)
+    await expect.poll(() => diagramSvg.getByText('Finish', { exact: true }).count()).toBe(1)
+    // The rejected fence keeps its highlighted code card rather than an error graphic.
+    const rejected = preview.locator('[data-code-block-content]').filter({ hasText: 'unfinished[[[' })
+    await expect.poll(() => rejected.count()).toBe(1)
+    const lightDiagram = await diagramSvg.innerHTML()
+    await successShot(page, 'mermaid-light')
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await expect.poll(() => page.locator('body').getAttribute('data-ds-dark-theme')).toBe('')
+    await expect.poll(() => diagramSvg.count(), { timeout: 20_000 }).toBe(1)
+    // The palette flip redraws the mounted diagram with the dark theme's token colors.
+    await expect.poll(async () => await diagramSvg.innerHTML() === lightDiagram).toBe(false)
+    await successShot(page, 'mermaid-dark')
+    await page.emulateMedia({ colorScheme: 'light' })
 
     await openFile('hostile.html')
     const hostileFrame = page.frameLocator('[data-html-preview]')

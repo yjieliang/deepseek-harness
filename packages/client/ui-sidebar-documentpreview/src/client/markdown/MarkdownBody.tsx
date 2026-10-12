@@ -28,6 +28,7 @@ export type MarkdownBodyProps = DocumentPreviewProps & PropsLocale<'documentMark
  * Render one accumulated document; EOF completes the primitive's full parse.
  * A leading YAML frontmatter block renders as a field list instead of Markdown; its
  * verbatim source stands in while the field-list chunk loads or when it fails.
+ * ```mermaid fences become diagrams once the document reaches EOF.
  * @param props - owner-loaded contents and localized primitive labels.
  * @returns Markdown content, or nothing for a non-text delivery.
  */
@@ -51,7 +52,7 @@ export function MarkdownBody({ content, resourceAddress, useResource, t }: Markd
   return (
     <div className={css.document} data-document-markdown>
       {split === undefined ? null : <FrontmatterBox source={split.source} />}
-      <MarkdownText text={split?.body ?? text} streaming={!content.eof} labels={labels} pathImages={pathImages} />
+      <MarkdownText text={split?.body ?? text} streaming={!content.eof} labels={labels} pathImages={pathImages} diagrams />
     </div>
   )
 }

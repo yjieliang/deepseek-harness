@@ -1,0 +1,18 @@
+/* A diagram sits in the prose flow like the website's own Mermaid rendering:
+   no card chrome, so the SVG's node fills carry the structure. */
+
+.diagram {
+  margin: 16px 0;
+  overflow-x: auto;
+}
+
+.diagram:not(:last-child) {
+  margin-bottom: 11px;
+}
+
+.diagram :where(svg) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}

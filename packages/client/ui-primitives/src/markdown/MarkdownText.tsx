@@ -32,6 +32,7 @@ function renderSettled(
   labels: MarkdownLabels,
   fileMentions: MarkdownFileMentions | undefined,
   pathImages: MarkdownPathImages | undefined,
+  diagrams: boolean,
 ): ReactNode[] {
   const root = parseGfmWithMath(text)
   const targets = createReferenceTargets()
@@ -39,6 +40,7 @@ function renderSettled(
   const context: MarkdownRenderContext = {
     streaming: false,
     labels,
+    diagrams,
     fileMentions,
     pathImages,
     targets,
@@ -162,7 +164,10 @@ class StreamingRenderer {
  * streaming message's vocabulary is not final and frozen cached elements
  * must not bake in handlers that could go stale. A surrounding
  * `MarkdownDelegateProvider` can delegate ordinary HTTP(S) activation while
- * modified clicks retain native behavior. `variant="compact"` uses secondary
+ * modified clicks retain native behavior. `diagrams` renders ```mermaid fences
+ * as diagrams once the source settles — a fence still growing, an unparsable
+ * source, and every document that leaves the flag off keep their code block.
+ * `variant="compact"` uses secondary
  * text sizing, uniform bold headings, and tight block spacing; the default
  * `body` variant uses the full document typography.
  * The provider's `openFile` enables local Markdown links in settled messages,
@@ -172,7 +177,7 @@ class StreamingRenderer {
  * absolute HTTP(S) images render directly.
  */
 export const MarkdownText = memo(function MarkdownText({
-  text, streaming = false, labels, fileMentions, pathImages, variant = 'body',
+  text, streaming = false, labels, fileMentions, pathImages, variant = 'body', diagrams = false,
 }: {
   text: string
   streaming?: boolean
@@ -180,20 +185,21 @@ export const MarkdownText = memo(function MarkdownText({
   fileMentions?: MarkdownFileMentions | undefined
   pathImages?: MarkdownPathImages | undefined
   variant?: 'body' | 'compact'
+  diagrams?: boolean | undefined
 }) {
   const streamRef = useRef<StreamingRenderer | null>(null)
   const streamLabelsRef = useRef<MarkdownLabels>(labels)
   const children = useMemo(() => {
     if (!streaming) {
       streamRef.current = null
-      return renderSettled(text, labels, fileMentions, pathImages)
+      return renderSettled(text, labels, fileMentions, pathImages, diagrams)
     }
     if (streamRef.current === null || streamLabelsRef.current !== labels) {
       streamRef.current = new StreamingRenderer(labels)
       streamLabelsRef.current = labels
     }
     return streamRef.current.render(text)
-  }, [text, streaming, labels, fileMentions, pathImages])
+  }, [text, streaming, labels, fileMentions, pathImages, diagrams])
   return <div className={clsx(css.markdown, variant === 'compact' && css.compact)}
     data-markdown-variant={variant === 'compact' ? variant : undefined}>{children}</div>
 })

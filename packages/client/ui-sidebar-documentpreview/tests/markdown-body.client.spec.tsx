@@ -1,11 +1,17 @@
 // @vitest-environment jsdom
 /** Markdown preview uses one accumulated document across page arrivals and EOF. */
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { MarkdownBody, type MarkdownBodyProps } from '../src/client/markdown/MarkdownBody.tsx'
 import { en, zh } from '../src/client/markdown/locales.ts'
 import type { DocumentContent } from '../src/client/document/contract.ts'
+
+const mermaid = vi.hoisted(() => ({ initialize: vi.fn(), render: vi.fn() }))
+
+vi.mock('mermaid', () => ({ default: mermaid }))
+
+beforeEach(() => { mermaid.initialize.mockClear(); mermaid.render.mockReset() })
 
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
@@ -181,6 +187,24 @@ describe('MarkdownBody', () => {
     const view = render(<MarkdownBody {...props(content([text], true))} />)
     expect(view.container.querySelector('[data-document-frontmatter]')).toBeNull()
     expect(view.getByText('Body.')).toBeDefined()
+  })
+
+  it('renders a mermaid fence as a diagram once the document reaches EOF', async () => {
+    mermaid.render.mockResolvedValue({ svg: '<svg data-testid="diagram"></svg>' })
+    const fence = '```mermaid\ngraph TD\n  a-->b\n```'
+    const view = render(<MarkdownBody {...props(content([fence], true))} />)
+
+    await waitFor(() => { expect(view.container.querySelector('[data-mermaid-diagram]')).not.toBeNull() })
+    expect(mermaid.initialize).toHaveBeenCalledWith(expect.objectContaining({ securityLevel: 'strict' }))
+  })
+
+  it('keeps a mermaid fence as a code block while the document is still arriving', () => {
+    const fence = '```mermaid\ngraph TD\n  a-->b\n```'
+    const view = render(<MarkdownBody {...props(content([fence], false))} />)
+
+    expect(view.container.querySelector('[data-mermaid-diagram]')).toBeNull()
+    expect(view.container.querySelector('[data-code-block-content]')?.textContent).toContain('graph TD')
+    expect(mermaid.render).not.toHaveBeenCalled()
   })
 
   it('renders empty text and leaves non-text deliveries to their selected implementation', () => {

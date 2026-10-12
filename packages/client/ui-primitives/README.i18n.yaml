@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-primitives/README.md
 /:
-  en: 6da33cc935e210c4
-  zh: 752948e68a6e2c32
+  en: f735313d906ab02f
+  zh: 4392de642833db06
 /deepseek-ai-dsh-client-ui-primitives:
   en: e39769cae26393b8
   zh: 8743c8cf561fec35
 /deepseek-ai-dsh-client-ui-primitives/summary:
-  en: a05472dce901d64f
-  zh: 6747ad81824a5c0d
+  en: 375b010c5d97781d
+  zh: e6a2235836c954b4
 /deepseek-ai-dsh-client-ui-primitives/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
@@ -18,14 +18,14 @@
   en: 7bae72c97d0449f5
   zh: 4589ecc2b216edc5
 /deepseek-ai-dsh-client-ui-primitives/use-this-package/component-catalog:
-  en: f093268cd20a1c14
-  zh: 861c1fae527264fb
+  en: ad7174b19b40ca90
+  zh: fd2651a9547f2228
 /deepseek-ai-dsh-client-ui-primitives/use-this-package/controls-and-icons:
   en: f0e54915b896af5a
   zh: 2047520fd321be90
 /deepseek-ai-dsh-client-ui-primitives/use-this-package/rendering-agent-output:
-  en: d79e20306593c4bf
-  zh: 5c0f1100e2cd6fcc
+  en: f9cfa653033b45af
+  zh: 865e0da4ad962f2d
 /deepseek-ai-dsh-client-ui-primitives/use-this-package/localizing-copy:
   en: 4aef65dea11de083
   zh: abc22cd7c65cdf38
@@ -33,8 +33,8 @@
   en: 0b4082dbb778476f
   zh: b6daaaf9de675b57
 /deepseek-ai-dsh-client-ui-primitives/understand-the-implementation/source-map:
-  en: 44eb32370cbeafe8
-  zh: 728009c66375c6bb
+  en: 8c513fb0393d749c
+  zh: c1a98fe0fe79b3fc
 /deepseek-ai-dsh-client-ui-primitives/understand-the-implementation/input-modality:
   en: cb61e1a37d6c27e5
   zh: 1f3fa79dd5ab2e45
@@ -54,8 +54,8 @@
   en: ca75c51c89c2c9b0
   zh: de54f3467ef3b9be
 /deepseek-ai-dsh-client-ui-primitives/known-limitations-and-deferred-work:
-  en: 2f14f1e9d3239316
-  zh: c3fdaafc4c591dff
+  en: f36053390c7d0297
+  zh: 0e3c25a1d21a4e3e
 /deepseek-ai-dsh-client-ui-primitives/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: 3bb0c20c93f16f98
