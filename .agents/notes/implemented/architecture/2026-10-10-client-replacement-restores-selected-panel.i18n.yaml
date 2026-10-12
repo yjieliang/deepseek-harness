@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-10-client-replacement-restores-selected-panel.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-10-client-replacement-restores-selected-panel.md
+/agent-note-a-replaced-client-plugin-keeps-the-reader-s-main-panel-selected:
+  en: e2c02f9cbce98dc2
+  zh: 5d98e869407a629e
+/agent-note-a-replaced-client-plugin-keeps-the-reader-s-main-panel-selected/problem:
+  en: dde8a4c5a9a162ec
+  zh: 0feeb49f705e2cd6
+/agent-note-a-replaced-client-plugin-keeps-the-reader-s-main-panel-selected/decision:
+  en: 0e0f7f29a4d7b364
+  zh: 504712b0e480d22d
+/agent-note-a-replaced-client-plugin-keeps-the-reader-s-main-panel-selected/alternatives-considered:
+  en: baa157b9b44fd724
+  zh: 892ae0e767c41e2c
+/agent-note-a-replaced-client-plugin-keeps-the-reader-s-main-panel-selected/consequences:
+  en: 57132a4a8c7c0714
+  zh: da4e75354209051d

@@ -127,6 +127,24 @@ describe('ui-layout client apply', () => {
     expect(pending.aborted).toBe(true)
   })
 
+  it('brings a selected panel back when a code replacement re-registers its key', async () => {
+    const { ctx, slots, rendererHost } = await bench()
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    const layout = ctx.get('layout') as LayoutController
+    const panelInfo = rendererHost().root.getSnapshot().hooks.panelInfo!
+    const panelId = 'panel-a' as MainPanelId
+    const disposePreviousCode = slots.register({ name: 'main', key: panelId }, () => null)
+    layout.selectPanel(panelId)
+    // Replacing a Client entry echoes through the slot registry: the old
+    // registrations go, the new code declares the same key.
+    disposePreviousCode()
+    await vi.waitFor(() => { expect(panelInfo.getSnapshot()).toEqual({ activePanelId: null }) })
+    slots.register({ name: 'main', key: panelId }, () => null)
+    await vi.waitFor(() => { expect(panelInfo.getSnapshot()).toEqual({ activePanelId: panelId }) })
+    await fiber.dispose()
+  })
+
   it('theme presenter applies the initial snapshot, follows theme/change, and unwinds on dispose', async () => {
     const { ctx } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })

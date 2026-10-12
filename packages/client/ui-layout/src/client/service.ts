@@ -30,6 +30,10 @@ export interface ILayout {
   readonly panelInfo: HostObservable<PanelInfo>
   /**
    * Select a global central panel without changing the current Session.
+   *
+   * An explicit selection also forgets a panel that a registration gap dropped
+   * while it was selected, so a choice made during that gap survives the
+   * panel's return.
    * @param panelId - registered main key, or null to show the Conversation.
    * @throws if the selected main key is not registered; preserves the current selection.
    */

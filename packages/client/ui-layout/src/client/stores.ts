@@ -1,5 +1,6 @@
 /**
- * Root-owned frame measurement, panel preferences, and presentation reports.
+ * Root-owned frame measurement, panel preferences, presentation reports, and
+ * selected main panel (kept across a registration gap).
  * The registration supplies a fresh store and binds its actions to ctx.layout.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
@@ -18,6 +19,17 @@ type LayoutState = {
     /** Null selects the Conversation; global panels keep the current Session intact. */
     activePanelId: MainPanelId | null
   }
+  /**
+   * Main panel a registration gap dropped while it was selected.
+   *
+   * Replacing a Client entry's code disposes its registrations and imports the
+   * new code in one sequence, so the panel disappears and returns without the
+   * reader having chosen anything. The dropped key is remembered here and
+   * selected again once it is registered; an explicit `selectPanel` clears it
+   * first, so a choice made during the gap outranks the restore, and a panel
+   * removed for good never comes back.
+   */
+  restorePanelId: MainPanelId | null
   layoutInfo: LayoutInfo
 }
 
@@ -79,6 +91,7 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
   const handle = defineStore({
     init: (): LayoutState => ({
       panelInfo: { activePanelId: null },
+      restorePanelId: null,
       layoutInfo: {
         sidebar: SIDEBAR_DEFAULT,
         viewportWidth: window.innerWidth,
@@ -93,10 +106,19 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
     actions: {
       selectPanel: (d, panelId: MainPanelId | null) => {
         d.panelInfo.activePanelId = panelId
+        // An explicit choice outranks a panel the registry may still bring back.
+        d.restorePanelId = null
       },
+      // A registry gap (a Client code replacement) is not a deselection: fall
+      // back to the Conversation now, then follow the same key's return.
       retainMainPanels: (d, panelIds: readonly string[]) => {
         if (d.panelInfo.activePanelId !== null && !panelIds.includes(d.panelInfo.activePanelId)) {
+          d.restorePanelId = d.panelInfo.activePanelId
           d.panelInfo.activePanelId = null
+        }
+        if (d.restorePanelId !== null && panelIds.includes(d.restorePanelId)) {
+          d.panelInfo.activePanelId = d.restorePanelId
+          d.restorePanelId = null
         }
       },
       setSidebar: (d, px: number) => {

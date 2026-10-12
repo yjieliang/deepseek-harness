@@ -12,6 +12,7 @@ describe('createLayoutStore', () => {
     const { store } = createLayoutStore().create()
     expect(store.getSnapshot()).toEqual({
       panelInfo: { activePanelId: null },
+      restorePanelId: null,
       layoutInfo: {
         sidebar: 280,
         viewportWidth: 1920,
@@ -117,6 +118,49 @@ describe('main panel selection', () => {
     actions.retainMainPanels(['conversation', panelB])
     expect(store.getSnapshot().panelInfo).toEqual({ activePanelId: null })
     expect(store.getSnapshot().layoutInfo).toBe(selected.layoutInfo)
+  })
+
+  it('restores a dropped panel when the same key is registered again, once', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.selectPanel(panelA)
+    const selected = store.getSnapshot()
+    actions.retainMainPanels(['conversation', panelB])
+    expect(store.getSnapshot().panelInfo).toEqual({ activePanelId: null })
+    expect(store.getSnapshot().restorePanelId).toBe(panelA)
+    actions.retainMainPanels(['conversation', panelA, panelB])
+    expect(store.getSnapshot().panelInfo).toEqual({ activePanelId: panelA })
+    expect(store.getSnapshot().restorePanelId).toBeNull()
+    expect(store.getSnapshot().layoutInfo).toBe(selected.layoutInfo)
+    const restored = store.getSnapshot()
+    actions.retainMainPanels(['conversation', panelA, panelB])
+    expect(store.getSnapshot()).toBe(restored)
+  })
+
+  it('stays on the Conversation while the dropped panel is still absent', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.selectPanel(panelA)
+    actions.retainMainPanels(['conversation'])
+    actions.retainMainPanels(['conversation', panelB])
+    expect(store.getSnapshot().panelInfo).toEqual({ activePanelId: null })
+    expect(store.getSnapshot().restorePanelId).toBe(panelA)
+  })
+
+  it('keeps a return to the Conversation made while the panel was absent', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.selectPanel(panelA)
+    actions.retainMainPanels(['conversation'])
+    actions.selectPanel(null)
+    actions.retainMainPanels(['conversation', panelA])
+    expect(store.getSnapshot()).toEqual(expect.objectContaining({ panelInfo: { activePanelId: null }, restorePanelId: null }))
+  })
+
+  it('keeps another panel selected while the dropped one was absent', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.selectPanel(panelA)
+    actions.retainMainPanels(['conversation'])
+    actions.selectPanel(panelB)
+    actions.retainMainPanels(['conversation', panelA, panelB])
+    expect(store.getSnapshot().panelInfo).toEqual({ activePanelId: panelB })
   })
 
   it.each(['setSidebar', 'toggleSidebar', 'setViewportWidth', 'setRightbar', 'openRightbar', 'closeRightbar'] as const)(
