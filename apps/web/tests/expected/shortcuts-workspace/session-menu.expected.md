@@ -4,3 +4,4 @@
   - menuitem "Copy session name"
   - menuitem "Fork session"
   - menuitem "Archive session"
+  - menuitem "Copy Session ID"
