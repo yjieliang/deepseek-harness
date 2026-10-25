@@ -522,7 +522,11 @@ describe('SQLite session search', () => {
     const phrase = await ctx.sessionQuery.searchSessions({ query: 'alpha beta' })
     expect(phrase.items.map(item => item.header.id)).toEqual([SessionId('b'), SessionId('d'), SessionId('a')])
     expect(phrase.items.every(item => Array.from(item.bestMatch.snippet).length <= 5)).toBe(true)
-    await expect(ctx.sessionQuery.searchSessions({ query: 'AI' })).resolves.toEqual({ items: [] })
+    // A two-code-point ASCII word now takes the literal scan route, so it recalls the
+    // substring inside `BRAID` that the tokenizer deliberately cannot reach. This is the
+    // documented widening of that shape, not a token match.
+    await expect(ctx.sessionQuery.searchSessions({ query: 'AI' }))
+      .resolves.toMatchObject({ items: [{ header: { id: SessionId('a') } }] })
     await expect(ctx.sessionQuery.searchSessions({ query: 'needle OR absent' }))
       .resolves.toMatchObject({ items: [{ header: { id: SessionId('operator') } }] })
     await expect(ctx.sessionQuery.searchSessions({ query: 'say "needle"' }))

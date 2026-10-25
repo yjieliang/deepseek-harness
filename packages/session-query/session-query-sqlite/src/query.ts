@@ -224,6 +224,184 @@ export function quoteFtsData(query: string): string {
   return `"${query.replaceAll('"', '""')}"`
 }
 
+/** Fewest code points a trigram index can match; shorter queries need a substring scan. */
+export const SQLITE_TRIGRAM_MIN_CODEPOINTS = 3
+
+/**
+ * Most code points whose separator-free ASCII word still needs the scan route.
+ *
+ * A trigram `MATCH` needs {@link SQLITE_TRIGRAM_MIN_CODEPOINTS} code points, so a
+ * shorter separator-free ASCII word has no index that can answer it: the word is too
+ * long to be a single token boundary the primary index could reach when a CJK run has
+ * swallowed it, and too short for the companion trigram. Exactly two code points is
+ * the whole of that gap — see {@link isShortSeparatorFreeAsciiWord}.
+ */
+export const SQLITE_ASCII_SUBSTRING_MAX_CODEPOINTS = 2
+
+/**
+ * CJK ranges whose contiguous runs `unicode61` folds into a single token.
+ *
+ * The property escape covers every `Script=Han` ideograph, including the
+ * supplementary-plane CJK extension blocks (U+20000 and above), because an
+ * extension ideograph adjacent to a common one still forms one unmatchable
+ * token. Japanese kana and Hangul ranges are listed explicitly: they behave the
+ * same way under `unicode61` and are not part of `Script=Han`.
+ *
+ * Deliberately absent, so a future reader does not assume "CJK-adjacent" means
+ * covered: Bopomofo (U+3105–U+312F, U+31A0–U+31BF), ideographic description
+ * characters (U+2FF0–U+2FFF), Yijing hexagram symbols (U+4DC0–U+4DFF), enclosed
+ * CJK letters and months (U+3200–U+32FF), CJK strokes (U+31C0–U+31EF), and
+ * vertical punctuation (U+FE10–U+FE19). Those characters keep the primary
+ * `unicode61` route, so an unseparated run containing them stays one token.
+ */
+/** Explicit non-Han CJK-adjacent ranges, kept separate to bound the pattern width. */
+const CJK_COMPANION_RANGES = '\u1100-\u11ff\u2e80-\u2fdf\u3000-\u30ff\u3130-\u318f\ua960-\ua97f\uac00-\ud7ff\ufe30-\ufe4f\uff00-\uffef'
+
+const CJK_PATTERN = new RegExp(`[\\p{Script=Han}${CJK_COMPANION_RANGES}]`, 'u')
+
+/**
+ * Whether text contains a character the primary tokenizer folds into a CJK run.
+ * @param text - extracted document text.
+ * @returns true when the companion trigram index must also carry this document.
+ */
+export function containsCjk(text: string): boolean {
+  return CJK_PATTERN.test(text)
+}
+
+/** Which engine answers one normalized query. */
+export type SqliteQueryRoute =
+  /** CJK substring match through the companion contentless trigram index. */
+  | 'cjk-trigram'
+  /** CJK query shorter than a trigram: a substring scan over the primary table. */
+  | 'cjk-substring'
+  /** The primary `unicode61` full-text index; token-adjacency semantics, unchanged. */
+  | 'primary'
+  /**
+   * The primary `unicode61` index UNION a companion trigram probe — additive, never
+   * a replacement. It exists for the one shape whose primary hits must be kept while
+   * a neighbouring CJK run may have swallowed it: see
+   * {@link widensToCompanionTrigram}.
+   */
+  | 'primary-cjk-trigram'
+  /**
+   * A literal substring scan of the primary table for a separator-free ASCII word too
+   * short for the companion trigram, UNIONed with the primary `MATCH` — additive, never a
+   * replacement, so a two-code-point query keeps whatever the tokenizer already answered
+   * while gaining the glued-in-CJK hits it could not reach: see
+   * {@link isShortSeparatorFreeAsciiWord}.
+   */
+  | 'ascii-substring'
+
+/**
+ * A word spelled only with ASCII letters and digits: no whitespace, no separator.
+ *
+ * This is the shape a reader means as one word, and the shape `unicode61` folds
+ * together with an adjacent CJK run.
+ */
+const SEPARATOR_FREE_ASCII_WORD = /^[0-9A-Za-z]+$/u
+
+/**
+ * Whether a non-CJK query must ALSO probe the companion trigram index.
+ *
+ * `unicode61` folds an unseparated run such as `本次DSH会话检索修复已完成` into the
+ * single token `本次dsh会话检索修复已完成`, so `DSH` is unreachable through the
+ * primary index even though the document plainly contains it.
+ *
+ * The widening is deliberately limited to a separator-free ASCII word of at least
+ * {@link SQLITE_TRIGRAM_MIN_CODEPOINTS} code points, because that shape is both
+ * unambiguous — no token boundary is being reinterpreted — and indexable. Every
+ * other non-CJK query keeps `primary`, and that is what "no regression" means
+ * concretely:
+ *
+ * - a separator-bearing query (`session-query`, `packages/session-query`, `v2.1`,
+ *   `a_b`) keeps token-adjacency semantics the literal trigram engine cannot
+ *   express — it matches a document spelled `SESSION_QUERY` through neighbouring
+ *   tokens, which a substring engine would lose;
+ * - a query with an internal space (`DSH tool`) is a phrase, not one word;
+ * - a two-code-point word (`AI`, `v2`) cannot use trigram at all, because a trigram
+ *   `MATCH` against fewer than three code points returns the empty set without error.
+ *
+ * The pairing predicate is additive, never a replacement: the primary `MATCH` and the
+ * companion probe each contribute row ids, and the union drives the scan, so the
+ * result set only ever grows, and only inside documents the companion index holds. It
+ * is a row-id union rather than a single `... OR ...` predicate because SQLite refuses
+ * a `MATCH` that sits inside an `OR` in this statement shape.
+ * @param query - normalized caller query that contains no CJK.
+ * @returns true when the caller must also probe the companion index.
+ */
+export function widensToCompanionTrigram(query: string): boolean {
+  return Array.from(query).length >= SQLITE_TRIGRAM_MIN_CODEPOINTS
+    && SEPARATOR_FREE_ASCII_WORD.test(query)
+}
+
+/**
+ * Whether a non-CJK query must fall back to a literal substring scan.
+ *
+ * A separator-free ASCII word shorter than {@link SQLITE_TRIGRAM_MIN_CODEPOINTS} has no
+ * index that can answer it. `unicode61` folds an unseparated run such as
+ * `实时AI推理已完成` into the single token `实时ai推理已完成`, so the primary index cannot
+ * reach `AI` inside it; the companion trigram index cannot help either, because a
+ * trigram `MATCH` against fewer than three code points returns the empty set rather
+ * than an error. This is the residual gap left by {@link widensToCompanionTrigram},
+ * and the case the requirement names (`AI`, `v2`, `5G`).
+ *
+ * The scan is deliberately limited to exactly two code points of an unseparated ASCII
+ * word, because that shape is the smallest one a reader spells as a word:
+ *
+ * - a single code point is not bounded here; it is left on the primary route so a
+ *   one-character query keeps whatever the tokenizer already answers (`a` still matches
+ *   the token `a`), rather than scanning the whole index;
+ * - three or more code points already widen additively through the companion trigram,
+ *   which is indexable and keeps the primary hits;
+ * - a separator-bearing query (`session-query`, `v2.1`, `a_b`) is not one word, and its
+ *   token-adjacency semantics must stay on the primary index.
+ *
+ * The scan is **case-sensitive**, which is a deliberate semantic, not an oversight:
+ * SQLite's `LIKE` folds ASCII case and, in the same breath, treats `%`/`_` as wildcards
+ * and matches inside longer words. `instr()` is a literal, case-sensitive test, so `AI`
+ * matches `实时AI推理已完成` without also matching `plain ascii document` or `本次ai工具`.
+ * The cost is that a case-mismatched spelling reaches the caller unmarked, exactly as the
+ * additive route already documents for its companion-only rows.
+ * @param query - normalized caller query that contains no CJK.
+ * @returns true when the caller must scan the primary table instead of matching it.
+ */
+export function isShortSeparatorFreeAsciiWord(query: string): boolean {
+  const length = Array.from(query).length
+  return SEPARATOR_FREE_ASCII_WORD.test(query)
+    && length > 1
+    && length <= SQLITE_ASCII_SUBSTRING_MAX_CODEPOINTS
+}
+
+/**
+ * Route a normalized query to the engine that can answer it.
+ *
+ * Only queries containing CJK leave the primary index entirely. CJK queries shorter
+ * than {@link SQLITE_TRIGRAM_MIN_CODEPOINTS} cannot use `MATCH` at all — a trigram
+ * `MATCH` against fewer than three code points returns the empty set without error —
+ * so they fall back to a substring scan. A non-CJK query leaves the primary index
+ * additively through `primary-cjk-trigram` for the shape
+ * {@link widensToCompanionTrigram} accepts, and entirely through `ascii-substring` for
+ * the shorter shape {@link isShortSeparatorFreeAsciiWord} accepts.
+ * @param query - normalized caller query.
+ * @returns the route whose predicate and bindings must be used.
+ */
+export function routeSqliteQuery(query: string): SqliteQueryRoute {
+  if (!CJK_PATTERN.test(query)) {
+    if (isShortSeparatorFreeAsciiWord(query)) return 'ascii-substring'
+    return widensToCompanionTrigram(query) ? 'primary-cjk-trigram' : 'primary'
+  }
+  return Array.from(query).length < SQLITE_TRIGRAM_MIN_CODEPOINTS ? 'cjk-substring' : 'cjk-trigram'
+}
+
+/**
+ * Escape caller text for a `LIKE` pattern with `ESCAPE '\'`.
+ * @param query - normalized caller query.
+ * @returns pattern-safe body; callers wrap it in `%` themselves.
+ */
+export function escapeLikePattern(query: string): string {
+  return query.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
+}
+
 /**
  * Remove reserved marker collisions before text enters FTS5 or MATCH.
  * @param text - extracted document text or normalized caller query.

@@ -5,7 +5,7 @@ import { mkdir, open } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 
 /** Current derived-index schema version. Incompatible versions reset in place. */
-export const SESSION_QUERY_SQLITE_SCHEMA_VERSION = 8
+export const SESSION_QUERY_SQLITE_SCHEMA_VERSION = 9
 
 /** SQLite application id protecting unrelated databases from derived resets. */
 export const SESSION_QUERY_SQLITE_APPLICATION_ID = 0x44534851
@@ -22,7 +22,39 @@ const DERIVED_USER_TABLES = new Set([
   'persisted_docs_content',
   'persisted_docs_docsize',
   'persisted_docs_config',
+  'persisted_docs_cjk',
+  'persisted_docs_cjk_data',
+  'persisted_docs_cjk_idx',
+  'persisted_docs_cjk_docsize',
+  'persisted_docs_cjk_config',
 ])
+
+/**
+ * Contentless trigram companion index over CJK-bearing documents.
+ *
+ * It is deliberately keyed by the primary FTS5 rowid and stores no text of its
+ * own: the primary table owns the text, `highlight()`, and every projected
+ * column, so this index only answers "which row ids contain this CJK substring".
+ * A contentless FTS5 table cannot carry `UNINDEXED` companion columns, so the
+ * rowid is the only join key.
+ *
+ * `contentless_delete=1` is mandatory, not an optimization: a bare
+ * `content=''` table refuses row deletion, and the replacement path deletes a
+ * session's rows before reinserting them.
+ * @param table - primary table name whose rowids this index mirrors.
+ * @returns DDL for the companion index, including its optional temp qualifier.
+ */
+export function cjkIndexTableSql(table: string): string {
+  const qualified = table === 'live_docs' ? `temp.${table}_cjk` : `${table}_cjk`
+  return `
+    CREATE VIRTUAL TABLE IF NOT EXISTS ${qualified} USING fts5(
+      text,
+      tokenize = 'trigram',
+      content = '',
+      contentless_delete = 1
+    )
+  `
+}
 
 /**
  * Exclusively create a missing database file with owner-only permissions.
@@ -102,6 +134,7 @@ function resetDerivedSchema(db: DatabaseSync, userTables: readonly string[]): vo
 
 function ensurePersistentSchema(db: DatabaseSync): void {
   db.exec(`PRAGMA application_id = ${SESSION_QUERY_SQLITE_APPLICATION_ID}`)
+  db.exec(cjkIndexTableSql('persisted_docs'))
   db.exec(`
     CREATE TABLE IF NOT EXISTS search_state (
       singleton         INTEGER PRIMARY KEY CHECK (singleton = 1),
@@ -166,6 +199,7 @@ function ensureTemporarySchema(db: DatabaseSync): void {
       tokenize = 'unicode61'
     )
   `)
+  db.exec(cjkIndexTableSql('live_docs'))
 }
 
 function quoteIdentifier(value: string): string {

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use this package to add ranked SQLite FTS5 search across session history, either across sessions or within one session, with cursor pagination. It indexes live and persisted history in a separate derived database, so searches reflect current state without modifying the session-persistence store. Exact reads, filters, and traces remain available through the same query API. Search is opt-in in shipped compositions; configure `openAt` to open the index at startup, on first search, or never. Results match tokens and phrases rather than arbitrary substrings, and each index path has a single process owner.
+Use this package to add ranked SQLite FTS5 search across session history, either across sessions or within one session, with cursor pagination. It indexes live and persisted history in a separate derived database, so searches reflect current state without modifying the session-persistence store. Exact reads, filters, and traces remain available through the same query API. Search is opt-in in shipped compositions; configure `openAt` to open the index at startup, on first search, or never. Non-CJK results match tokens and phrases rather than arbitrary substrings, while CJK queries match substrings inside a continuous run; each index path has a single process owner.
 
 ## Table of Contents
 
@@ -62,6 +62,8 @@ Ranking is deterministic: more actual FTS5 highlighted-match spans first, then s
 
 The `unicode61` tokenizer matches tokens and phrases, not arbitrary substrings: `AI` does not match the token `BRAID`. Use `ctx.sessionQuery.filterEvents()` with a `text` clause when a literal whitespace-flexible substring scan is required.
 
+Queries containing CJK take a different route, because `unicode61` folds a continuous CJK run into one token and would miss any word inside it. A CJK query of three or more code points matches as a literal substring through a companion trigram index: `生产实测` finds the event that contains `本次全分辨率生产实测覆盖待机`. A CJK query of one or two code points cannot use a trigram at all and falls back to a substring scan over the index, so it stays correct but costs more. Two consequences follow. First, CJK substring matching is literal, so a query whose separator differs from the text does not match: `看板 升级` does not find `看板-升级`, where the primary tokenizer's adjacency rule once did. Second, an ASCII term inside a CJK run without separation remains one token, so `DSH` still does not find `本次DSH会话检索修复已完成`; write it separated (`本次 DSH 会话检索`) or use `filterEvents()`.
+
 ### When to defer or disable search
 
 With `openAt: first-search`, the service activates without importing `node:sqlite` or opening the index, deferring SQLite's experimental warning until the first actual search; an invalid database fails that first search instead of service activation. With `openAt: never`, full-text search is off for the deployment: `searchSessions` and `searchEvents` fail with `SESSION_QUERY_SEARCH_DISABLED` before any request normalization, while every inherited exact read, filter, and trace keeps working. Requests that exceed the compiled-predicate budget (14 combined predicates across sessions, 13 within a session) or SQLite's portable 32,766-binding limit fail with `SESSION_QUERY_INVALID_FILTER` before statement preparation.
@@ -105,7 +107,7 @@ Persisted FTS rows live in a dedicated derived database and survive restarts; li
 
 ### Schema ownership
 
-The database carries an application id and schema version 8. Opening refuses a file owned by another application or a canonical database, rejects unknown user tables, and only a recognized incompatible derived schema resets in place — so an unrelated or session-persistence database is never touched. On POSIX filesystems, missing directories and database files are created owner-only (`0700` and `0600` before the process umask). Exactly one service in one process owns a derived-index path; generations and TEMP shadow state are connection-owned.
+The database carries an application id and schema version 9. Opening refuses a file owned by another application or a canonical database, rejects unknown user tables, and only a recognized incompatible derived schema resets in place — so an unrelated or session-persistence database is never touched. On POSIX filesystems, missing directories and database files are created owner-only (`0700` and `0600` before the process umask). Exactly one service in one process owns a derived-index path; generations and TEMP shadow state are connection-owned.
 
 </details>
 
@@ -142,7 +144,7 @@ These limits define when this package is a poor fit or needs special operational
 
 - **No caller authorization** — this is a trusted context-wide service; a model tool or UI must enforce its own access policy.
 - **Synchronous query execution** — `DatabaseSync` blocks the JavaScript thread during MATCH execution and cannot interrupt a statement already running.
-- **Token recall, not arbitrary substrings** — the `unicode61` tokenizer does not match substrings inside a larger token; use `filterEvents()` for literal scans.
+- **Token recall for non-CJK queries** — the `unicode61` tokenizer does not match substrings inside a larger token, so an unseparated ASCII term inside a CJK run stays unsearchable; CJK queries do match substrings, and a separator-sensitive CJK query needs `filterEvents()` for a whitespace-flexible scan.
 - **Single-owner derived index** — one service in one process must own each index path; external writers and multi-process sharing are unsupported.
 
 <a id="dev-note"></a>
@@ -155,6 +157,6 @@ This Dev Note is working context for maintainers: open design questions and dire
 
 #### Future: alternate tokenizers and search providers
 
-The `unicode61` tokenizer choice trades substring recall for index size and two-character token support; the trigram alternative was measured and rejected. Switching tokenizers or adding another search backend would change indexed recall and require its own reconciliation and generation story.
+The `unicode61` tokenizer choice trades substring recall for index size and two-character token support. CJK substring recall is now served by a companion contentless trigram index beside the primary table, written and reset with it; the primary tokenizer is unchanged, so non-CJK queries keep their token-adjacency semantics. Switching the primary tokenizer, or adding a further search backend, would still change indexed recall and require its own reconciliation and generation story.
 
 </details>

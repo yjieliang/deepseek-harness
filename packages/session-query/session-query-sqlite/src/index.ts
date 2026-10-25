@@ -44,17 +44,21 @@ import {
 import {
   type NormalizedEventRequest,
   type NormalizedSessionRequest,
+  type SqliteQueryRoute,
   FTS_HIGHLIGHT_END,
   FTS_HIGHLIGHT_START,
   assertFts5OuterPredicateCount,
   assertPortableBindingCount,
   buildEventWhere,
   buildSessionWhere,
+  containsCjk,
+  escapeLikePattern,
   makeSnippet,
   normalizeEventRequest,
   normalizeSessionRequest,
   quoteFtsData,
   requestFingerprint,
+  routeSqliteQuery,
   sanitizeFtsText,
   SQLITE_MAX_PAGE_LIMIT,
 } from './query.ts'
@@ -281,7 +285,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
       const offset = normalized.cursor === undefined
         ? 0
         : decodeCursor(normalized.cursor, this._instance, 'sessions', fingerprint, generation)
-      const rows = this._querySessions(normalized, offset, persistenceBinding)
+      const rows = this._querySessions(normalized, offset, persistenceBinding, routeSqliteQuery(normalized.query))
       return page(rows, normalized.limit, row => this._sessionHit(row), cursorOffset => encodeCursor({
         version: 1,
         instance: this._instance,
@@ -309,7 +313,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
       const offset = normalized.cursor === undefined
         ? 0
         : decodeCursor(normalized.cursor, this._instance, 'events', fingerprint, target.generation)
-      const rows = this._queryEvents(normalized, offset, persistenceBinding)
+      const rows = this._queryEvents(normalized, offset, persistenceBinding, routeSqliteQuery(normalized.query))
       return {
         session: target.header,
         ...page(rows, normalized.limit, row => this._eventHit(row), cursorOffset => encodeCursor({
@@ -571,9 +575,17 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
   private _deleteSession(source: 'persisted' | 'live', id: SessionId): void {
     const db = this._requireDb()
     if (source === 'persisted') {
+      // The companion index stores no session column, so it is pruned by the
+      // primary rowids while those rows still exist.
+      db.prepare(
+        'DELETE FROM persisted_docs_cjk WHERE rowid IN (SELECT rowid FROM persisted_docs WHERE session_id = ?)',
+      ).run(id)
       db.prepare('DELETE FROM persisted_docs WHERE session_id = ?').run(id)
       db.prepare('DELETE FROM persisted_sessions WHERE id = ?').run(id)
     } else {
+      db.prepare(
+        'DELETE FROM temp.live_docs_cjk WHERE rowid IN (SELECT rowid FROM temp.live_docs WHERE session_id = ?)',
+      ).run(id)
       db.prepare('DELETE FROM temp.live_docs WHERE session_id = ?').run(id)
       db.prepare('DELETE FROM temp.live_sessions WHERE id = ?').run(id)
     }
@@ -599,9 +611,10 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
       INSERT INTO persisted_docs (text, session_id, seq, type, time, surface, codepoint_length)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
+    const insertCjk = db.prepare('INSERT INTO persisted_docs_cjk (rowid, text) VALUES (?, ?)')
     for (const document of entry.documents) {
       const text = sanitizeFtsText(document.text)
-      insert.run(
+      const { lastInsertRowid } = insert.run(
         text,
         document.sessionId,
         document.seq,
@@ -610,6 +623,9 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
         document.surface,
         Array.from(text).length,
       )
+      // Only CJK-bearing documents can answer a trigram query, so the companion
+      // index stays a strict subset keyed by the primary table's rowid.
+      if (containsCjk(text)) insertCjk.run(lastInsertRowid, text)
     }
   }
 
@@ -630,9 +646,10 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
       INSERT INTO temp.live_docs (text, session_id, seq, type, time, surface, codepoint_length)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
+    const insertCjk = db.prepare('INSERT INTO temp.live_docs_cjk (rowid, text) VALUES (?, ?)')
     for (const document of entry.documents) {
       const text = sanitizeFtsText(document.text)
-      insert.run(
+      const { lastInsertRowid } = insert.run(
         text,
         document.sessionId,
         document.seq,
@@ -641,6 +658,7 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
         document.surface,
         Array.from(text).length,
       )
+      if (containsCjk(text)) insertCjk.run(lastInsertRowid, text)
     }
   }
 
@@ -648,14 +666,19 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
     request: NormalizedSessionRequest,
     offset: number,
     persistenceBinding: PersistenceBinding,
+    route: SqliteQueryRoute,
   ): SearchRow[] {
-    const selected = selectedDocumentsSql()
+    const selected = selectedDocumentsSql(
+      route,
+      request.query,
+      persistenceBinding.service !== undefined,
+    )
     const sessionWhere = buildSessionWhere(request.sessionFilters)
     const eventWhere = buildEventWhere(request.eventFilters)
     assertFts5OuterPredicateCount(sessionWhere.predicateCount + eventWhere.predicateCount)
     const where = [sessionWhere.sql, eventWhere.sql].filter(Boolean).join(' AND ')
     const bindings = [
-      ...selectedDocumentsParams(request.query, persistenceBinding.service !== undefined),
+      ...selected.params,
       ...sessionWhere.params,
       ...eventWhere.params,
       request.limit + 1,
@@ -685,13 +708,18 @@ export class SqliteSessionQueryEngine extends SessionQueryEngine {
     request: NormalizedEventRequest,
     offset: number,
     persistenceBinding: PersistenceBinding,
+    route: SqliteQueryRoute,
   ): SearchRow[] {
-    const selected = selectedDocumentsSql()
+    const selected = selectedDocumentsSql(
+      route,
+      request.query,
+      persistenceBinding.service !== undefined,
+    )
     const eventWhere = buildEventWhere(request.filters)
     assertFts5OuterPredicateCount(1 + eventWhere.predicateCount)
     const where = ['session_id = ?', eventWhere.sql].filter(Boolean).join(' AND ')
     const bindings = [
-      ...selectedDocumentsParams(request.query, persistenceBinding.service !== undefined),
+      ...selected.params,
       request.sessionId,
       ...eventWhere.params,
       request.limit + 1,
@@ -794,9 +822,342 @@ function headerBindings(
   ]
 }
 
-function selectedDocumentsSql(): { sql: string } {
-  return {
-    sql: `WITH candidates AS (
+/** Suffix of the contentless trigram companion index over CJK-bearing documents. */
+const CJK_INDEX_SUFFIX = '_cjk'
+
+/**
+ * Routes that reduce their candidate branch with a `WHERE` predicate.
+ *
+ * The additive routes are excluded on purpose: in this statement's shape their widening
+ * cannot be written as one predicate, so they select their rows through a row-id union
+ * instead. Narrowing the type here keeps that separation a compile error rather than a
+ * runtime one.
+ */
+type PredicateRoute = Exclude<SqliteQueryRoute, 'primary-cjk-trigram' | 'ascii-substring'>
+/** The routes spelled as a row-id union rather than a predicate. */
+type UnionRoute = Exclude<SqliteQueryRoute, PredicateRoute>
+
+/**
+ * Whether a route drives its scan from a row-id union prelude.
+ * @param route - engine chosen for this query.
+ * @returns true for the two additive routes.
+ */
+function isUnionRouteSql(route: SqliteQueryRoute): route is UnionRoute {
+  return route === 'primary-cjk-trigram' || route === 'ascii-substring'
+}
+
+/**
+ * WITH-clause prelude for a union route's two candidates, or an empty string for every
+ * other route.
+ *
+ * The widening cannot be spelled as one predicate **in this statement's shape**.
+ * `primary MATCH ? OR <probe>` is rejected with "unable to use function MATCH in the
+ * requested context" once the branch also joins the session header, unions the live
+ * branch, and guards the live shadow — which is precisely the statement this engine
+ * builds. A bare `SELECT` over the same table with the same `OR` does construct, so
+ * the blocker is that combination rather than `OR` on its own; independent review
+ * isolated it. `MATCH` is separately always illegal inside a `CASE`, and illegal as a
+ * direct arm on both sides of an `OR`.
+ *
+ * So the two engines produce their row ids separately — each engine's test a top-level
+ * conjunct of its own SELECT — and `UNION` (not `UNION ALL`) drives the scan, so a
+ * document both engines select is visited exactly once.
+ *
+ * `persisted_primary`/`live_primary` exist because `highlight()` marks only the rows
+ * the same query selected through the FTS table's own `MATCH`. Marking them
+ * `MATERIALIZED` keeps the planner from flattening them into the outer query, which
+ * has no `MATCH` at all; review dropped materialization and saw the output unchanged,
+ * so treat it as a plan-level guarantee rather than a currently observable
+ * requirement. Each CTE is keyed by the primary rowid and joined with `LEFT JOIN`, so
+ * the primary marking survives for the rows that have one and stays NULL for the rows
+ * only the widening found, which fall back to literal substring marking.
+ *
+ * The two union routes share this shape and differ only in their second engine: the
+ * additive route probes the companion trigram index with a `MATCH`, while the short-word
+ * route scans the primary text with `instr()`.
+ * @returns the four CTE definitions, in declaration order, or an empty string.
+ */
+function additivePreludeCtes(route: SqliteQueryRoute): string {
+  const widening = route === 'primary-cjk-trigram'
+    ? 'SELECT rowid AS rid FROM persisted_docs_cjk WHERE persisted_docs_cjk MATCH ?'
+    : route === 'ascii-substring'
+      ? 'SELECT rowid AS rid FROM persisted_docs WHERE instr(text, ?) > 0'
+      : undefined
+  const liveWidening = route === 'primary-cjk-trigram'
+    ? 'SELECT rowid AS rid FROM temp.live_docs_cjk WHERE live_docs_cjk MATCH ?'
+    : route === 'ascii-substring'
+      ? 'SELECT rowid AS rid FROM temp.live_docs WHERE instr(text, ?) > 0'
+      : undefined
+  if (widening === undefined || liveWidening === undefined) return ''
+  return `persisted_primary AS MATERIALIZED (
+      SELECT rowid AS rid, highlight(persisted_docs, 0, ?, ?) AS marked_text
+      FROM persisted_docs WHERE persisted_docs MATCH ?
+    ),
+    persisted_targets AS (
+      SELECT rowid AS rid FROM persisted_docs WHERE persisted_docs MATCH ?
+      UNION
+      ${widening}
+    ),
+    live_primary AS MATERIALIZED (
+      SELECT rowid AS rid, highlight(live_docs, 0, ?, ?) AS marked_text
+      FROM temp.live_docs WHERE live_docs MATCH ?
+    ),
+    live_targets AS (
+      SELECT rowid AS rid FROM temp.live_docs WHERE live_docs MATCH ?
+      UNION
+      ${liveWidening}
+    ),
+    `
+}
+
+/**
+ * Bindings for {@link additivePreludeCtes}, in declaration order.
+ *
+ * The primary `MATCH` is bound three times per branch — once for the marking CTE, once
+ * for the target union, once for the live-shadow guard the outer statement adds — and
+ * the widening once. The two `highlight()` calls contribute two markers each.
+ * @param route - engine chosen for this query.
+ * @param expression - quoted FTS5 phrase for the primary engine.
+ * @param query - normalized caller query, bound to the short-word route's `instr()` probe.
+ * @returns the prelude's bindings, or an empty array for every other route.
+ */
+function additivePreludeBindings(
+  route: SqliteQueryRoute,
+  expression: string,
+  query: string,
+): Array<string | number> {
+  if (route === 'primary-cjk-trigram') {
+    return [
+      FTS_HIGHLIGHT_START, FTS_HIGHLIGHT_END, expression,
+      expression, expression,
+      FTS_HIGHLIGHT_START, FTS_HIGHLIGHT_END, expression,
+      expression, expression,
+    ]
+  }
+  if (route === 'ascii-substring') {
+    return [
+      FTS_HIGHLIGHT_START, FTS_HIGHLIGHT_END, expression,
+      expression, query,
+      FTS_HIGHLIGHT_START, FTS_HIGHLIGHT_END, expression,
+      expression, query,
+    ]
+  }
+  return []
+}
+
+/**
+ * FROM clause selecting one branch's candidate rows.
+ *
+ * Every other route scans the primary table directly and lets the predicate reduce
+ * it. The additive route instead scans the row-id union and joins back to the primary
+ * table by rowid, which keeps the scan proportional to the matched set.
+ * @param route - engine chosen for this query.
+ * @param alias - candidate branch table alias (`pd` or `ld`).
+ * @returns the branch's FROM and JOIN clauses, without a WHERE.
+ */
+function candidateSourceSql(route: SqliteQueryRoute, alias: 'pd' | 'ld'): string {
+  if (isUnionRouteSql(route)) {
+    return alias === 'pd'
+      ? `FROM persisted_targets AS pt
+      JOIN persisted_docs AS pd ON pd.rowid = pt.rid
+      JOIN persisted_sessions AS ps ON ps.id = pd.session_id
+      LEFT JOIN persisted_primary AS ppm ON ppm.rid = pt.rid`
+      : `FROM live_targets AS lt
+      JOIN temp.live_docs AS ld ON ld.rowid = lt.rid
+      JOIN temp.live_sessions AS ls ON ls.id = ld.session_id
+      LEFT JOIN live_primary AS lpm ON lpm.rid = lt.rid`
+  }
+  return alias === 'pd'
+    ? `FROM persisted_docs AS pd
+      JOIN persisted_sessions AS ps ON ps.id = pd.session_id`
+    : `FROM temp.live_docs AS ld
+      JOIN temp.live_sessions AS ls ON ls.id = ld.session_id`
+}
+
+/**
+ * Marker expression for one candidate branch.
+ *
+ * `highlight()` alone belongs to the primary route, because FTS5 marks only the rows the
+ * same table's `MATCH` selected within the same statement. Neither CJK route carries a
+ * `MATCH` on the text table: `cjk-substring` reduces candidates with `LIKE`, and
+ * `cjk-trigram` reduces them with a probe against the companion trigram index, which is
+ * `content=''` and therefore cannot be highlighted either. Both would otherwise hand the
+ * caller `marked_text` byte-identical to the document — a `match_count` of zero, and a
+ * snippet cut from the head of the document instead of around the word that matched — so
+ * both mark the literal query exactly as the additive route's fallback does.
+ *
+ * `primary-cjk-trigram` needs its own shape: a row can be selected by the companion
+ * probe alone, so a companion-only row falls back to that same literal marking while a
+ * row the primary `MATCH` selected keeps the marking precomputed in the joined CTE.
+ *
+ * Neither this expression nor the predicate it accompanies may carry `MATCH` in the
+ * additive route: in this statement's shape the additive predicate cannot hold one
+ * (SQLite reports "unable to use function MATCH in the requested context"), which is
+ * what forces the row-id union in {@link additivePreludeCtes} instead of a plain
+ * `primary OR companion` predicate.
+ * @param route - engine chosen for this query.
+ * @param alias - candidate branch table alias (`pd` or `ld`).
+ * @param ftsTable - FTS5 table name to pass to `highlight()`.
+ * @returns SQL that yields text with `FTS_HIGHLIGHT_START`/`_END` around matches.
+ */
+function markedTextSql(route: SqliteQueryRoute, alias: string, ftsTable: string): string {
+  if (route === 'cjk-substring' || route === 'cjk-trigram') return literalMarkerSql(alias)
+  if (isUnionRouteSql(route)) {
+    // A row the primary index matched carries its `highlight()` text from the joined
+    // CTE; a row only the widening found has none, so it falls back to literal
+    // substring marking. `highlight()` cannot be called here at all: SQLite refuses a
+    // `MATCH` inside an `OR`, which is why neither this expression nor the predicate
+    // may contain one — see {@link additivePreludeCtes}.
+    const marked = alias === 'pd' ? 'ppm' : 'lpm'
+    return `COALESCE(${marked}.marked_text, ${literalMarkerSql(alias)})`
+  }
+  return `highlight(${ftsTable}, 0, ?, ?)`
+}
+
+/**
+ * Literal substring marking, the shape every route that cannot call `highlight()` shares.
+ *
+ * The needle is the caller's query verbatim, never a `%query%` `LIKE` pattern: `replace()`
+ * is a literal substitution, so the pattern a `LIKE` predicate is bound to never occurs
+ * in a document and injects no marker at all. Both passes replace the query rather than
+ * the text they just wrote, so the second still finds the needle; consuming it in the
+ * first pass would leave a lone start marker — a `match_count` of 1 describing text that
+ * no longer shows what matched.
+ * @param alias - candidate branch table alias (`pd` or `ld`).
+ * @returns SQL whose `?` placeholders are, in order, the needle, the needle followed by
+ *   the end marker, the needle again, and the start marker followed by the needle.
+ */
+function literalMarkerSql(alias: string): string {
+  return `replace(replace(${alias}.text, ?, ?), ?, ?)`
+}
+
+/**
+ * Predicate selecting one branch's matching documents.
+ *
+ * The persisted branch carries the persistence-visibility placeholder; the live
+ * branch does not, because a live row is visible by definition and the statement
+ * consumes the visibility flag exactly once per candidate branch. The companion
+ * index stores no text and cannot carry companion columns, so the CJK route joins
+ * it by primary rowid. A contentless FTS5 `MATCH` must name a bare table name,
+ * never a schema-qualified one, which is why the temp companion is matched as
+ * `live_docs_cjk` while being referenced as `temp.live_docs_cjk`.
+ * @param route - engine chosen for this query.
+ * @param alias - candidate branch table alias (`pd` or `ld`).
+ * @param ftsTable - FTS5 table name for the `MATCH` left-hand side.
+ * @returns SQL fragment for the branch `WHERE` clause.
+ */
+function candidatePredicateSql(route: PredicateRoute, alias: string, ftsTable: string): string {
+  const live = alias !== 'pd'
+  switch (route) {
+    case 'primary':
+      return live ? `${ftsTable} MATCH ?` : `${ftsTable} MATCH ? AND ? = 1`
+    case 'cjk-trigram': {
+      const companion = `${ftsTable}${CJK_INDEX_SUFFIX}`
+      const probe = `${alias}.rowid IN (SELECT rowid FROM ${alias === 'pd' ? '' : 'temp.'}${companion} WHERE ${companion} MATCH ?)`
+      return live ? probe : `${probe} AND ? = 1`
+    }
+    case 'cjk-substring':
+      return `${alias}.text LIKE ? ESCAPE '\\'`
+    /* v8 ignore next 2 -- unreachable while the route union and its switches stay in sync */
+    default:
+      return unreachableRoute(route)
+  }
+}
+
+/* v8 ignore next -- unreachable while the route union and its switches stay in sync */
+function unreachableRoute(route: never): never {
+  throw new SessionQueryError(
+    `session-search query route "${String(route)}" is unsupported`,
+    'SESSION_QUERY_INVALID_QUERY',
+  )
+}
+
+/**
+ * Marked-text bindings for one branch.
+ *
+ * Every route whose marking is the literal fallback binds the caller's query itself,
+ * because none of them can hand `highlight()` the `MATCH` it needs — see
+ * {@link markedTextSql}; only the primary route binds the marker pair. Each list is
+ * ordered to match its expression exactly.
+ *
+ * The literal substitution is case-sensitive, matching like for like. A query whose case
+ * differs from the document (`dsh` against `本次DSH会话检索修复已完成`) is still
+ * selected — the trigram engine folds case exactly as `unicode61` does — but reaches
+ * the caller unmarked, so its snippet starts at the head of the document.
+ * @param route - engine chosen for this query.
+ * @param query - normalized caller query.
+ * @returns values consumed by {@link markedTextSql} in declaration order.
+ */
+function markedTextBindings(route: SqliteQueryRoute, query: string): Array<string | number> {
+  if (route !== 'primary') {
+    return [query, `${query}${FTS_HIGHLIGHT_END}`, query, `${FTS_HIGHLIGHT_START}${query}`]
+  }
+  return [FTS_HIGHLIGHT_START, FTS_HIGHLIGHT_END]
+}
+
+/**
+ * Predicate bindings for one branch.
+ *
+ * The persisted branch consumes the visibility flag after the phrase; the live
+ * branch consumes only the phrase, mirroring {@link candidatePredicateSql}.
+ * @param route - engine chosen for this query.
+ * @param live - whether this is the `temp.live_docs` branch.
+ * @param expression - quoted FTS5 phrase, unused by the substring route.
+ * @param visible - persistence-visibility flag, unused by the substring route.
+ * @param likePattern - escaped `%query%` pattern, unused by the FTS5 routes.
+ * @returns values consumed by {@link candidatePredicateSql} in declaration order.
+ */
+function candidatePredicateBindings(
+  route: PredicateRoute,
+  live: boolean,
+  expression: string,
+  visible: number,
+  likePattern: string,
+): Array<string | number> {
+  if (route === 'cjk-substring') return [likePattern]
+  return live ? [expression] : [expression, visible]
+}
+
+/**
+ * Build the candidate-selection SQL and its bindings for one route.
+ *
+ * Column list, live/persisted union, `match_count` derivation, and the ranking in
+ * `_querySessions`/`_queryEvents` are identical across routes; only the source, the
+ * predicate, and the marked-text expression change, and each route supplies its own
+ * exact binding list, so no positional arithmetic is shared between routes.
+ *
+ * The additive route needs one more difference: its persisted branch gates on the
+ * visibility flag inside its `WHERE` instead of inside a predicate, because its rows
+ * arrive from a row-id union rather than from a `MATCH` on the branch table. The flag
+ * is still consumed exactly once per branch.
+ * @param route - engine chosen for this query.
+ * @param query - normalized caller query.
+ * @param persistenceVisible - whether persisted documents are visible to callers.
+ * @returns complete statement text and its ordered bindings.
+ */
+function selectedDocumentsSql(
+  route: SqliteQueryRoute,
+  query: string,
+  persistenceVisible: boolean,
+): { sql: string; params: Array<string | number> } {
+  const expression = quoteFtsData(query)
+  const visible = persistenceVisible ? 1 : 0
+  const likePattern = `%${escapeLikePattern(query)}%`
+  const markerBytes = Buffer.byteLength(FTS_HIGHLIGHT_START, 'utf8')
+
+  const union = isUnionRouteSql(route)
+  const persistedPredicate = union
+    ? '? = 1'
+    : candidatePredicateSql(route, 'pd', 'persisted_docs')
+  const liveWhere = union
+    ? ''
+    : `
+      WHERE ${candidatePredicateSql(route, 'ld', 'live_docs')}`
+  // Called for every route, exactly like `additivePreludeCtes`: it contributes
+  // bindings only where it contributes SQL.
+  const preludeBindings = additivePreludeBindings(route, expression, query)
+
+  const sql = `WITH ${additivePreludeCtes(route)}candidates AS (
       SELECT
         pd.session_id AS session_id,
         ps.version AS version,
@@ -812,12 +1173,10 @@ function selectedDocumentsSql(): { sql: string } {
         pd.type AS type,
         CAST(pd.time AS INTEGER) AS time,
         pd.surface AS surface,
-        highlight(persisted_docs, 0, ?, ?) AS marked_text,
+        ${markedTextSql(route, 'pd', 'persisted_docs')} AS marked_text,
         CAST(pd.codepoint_length AS INTEGER) AS document_length
-      FROM persisted_docs AS pd
-      JOIN persisted_sessions AS ps ON ps.id = pd.session_id
-      WHERE persisted_docs MATCH ?
-        AND ? = 1
+      ${candidateSourceSql(route, 'pd')}
+      WHERE ${persistedPredicate}
         AND NOT EXISTS (SELECT 1 FROM temp.live_sessions AS ls WHERE ls.id = pd.session_id)
       UNION ALL
       SELECT
@@ -835,11 +1194,9 @@ function selectedDocumentsSql(): { sql: string } {
         ld.type AS type,
         CAST(ld.time AS INTEGER) AS time,
         ld.surface AS surface,
-        highlight(live_docs, 0, ?, ?) AS marked_text,
+        ${markedTextSql(route, 'ld', 'live_docs')} AS marked_text,
         CAST(ld.codepoint_length AS INTEGER) AS document_length
-      FROM temp.live_docs AS ld
-      JOIN temp.live_sessions AS ls ON ls.id = ld.session_id
-      WHERE live_docs MATCH ?
+      ${candidateSourceSql(route, 'ld')}${liveWhere}
     ), matched AS (
       SELECT *,
         (
@@ -847,25 +1204,59 @@ function selectedDocumentsSql(): { sql: string } {
           - length(CAST(replace(marked_text, ?, '') AS BLOB))
         ) / ? AS match_count
       FROM candidates
-    )`,
-  }
+    )`
+
+  const params = union
+    ? [
+      ...preludeBindings,
+      ...markedTextBindings(route, query),
+      visible,
+      // The live branch's `persisted` projection reads the same visibility flag, so
+      // the statement consumes it once here, exactly as the other routes do.
+      visible,
+      ...markedTextBindings(route, query),
+      FTS_HIGHLIGHT_START,
+      markerBytes,
+    ]
+    : [
+      ...preludeBindings,
+      ...markedTextBindings(route, query),
+      // The persisted branch consumes the phrase and then the visibility flag; the
+      // live branch consumes only the phrase, and its `persisted` projection reads the
+      // same flag through the `visible` binding below. Both are ordered as the SQL
+      // reads them.
+      ...candidatePredicateBindings(route, false, expression, visible, likePattern),
+      visible,
+      ...markedTextBindings(route, query),
+      ...candidatePredicateBindings(route, true, expression, visible, likePattern),
+      FTS_HIGHLIGHT_START,
+      markerBytes,
+    ]
+  assertStatementArity(sql, params)
+  return { sql, params }
 }
 
-function selectedDocumentsParams(query: string, persistenceVisible: boolean): Array<string | number> {
-  const expression = quoteFtsData(query)
-  const visible = persistenceVisible ? 1 : 0
-  return [
-    FTS_HIGHLIGHT_START,
-    FTS_HIGHLIGHT_END,
-    expression,
-    visible,
-    visible,
-    FTS_HIGHLIGHT_START,
-    FTS_HIGHLIGHT_END,
-    expression,
-    FTS_HIGHLIGHT_START,
-    Buffer.byteLength(FTS_HIGHLIGHT_START, 'utf8'),
-  ]
+/**
+ * Refuse a candidate statement whose placeholders and bindings disagree.
+ *
+ * Every route lists its bindings explicitly rather than deriving them positionally, so a
+ * route that consumes the visibility flag a different number of times than its predicate
+ * contributes is exactly the mistake this catches. Without it the mismatch is silent:
+ * SQLite binds the extra placeholder to NULL and the route returns no rows at all, which
+ * reads like a recall bug rather than a wiring bug. Exported so the regression can be
+ * pinned directly instead of only through a route that happens to expose it.
+ * @param sql - the complete candidate statement.
+ * @param params - the bindings the statement will be executed with.
+ * @returns nothing; the statement is rejected when the counts disagree.
+ */
+export function assertStatementArity(sql: string, params: readonly (string | number)[]): void {
+  const placeholders = (sql.match(/\?/g) ?? []).length
+  if (placeholders !== params.length) {
+    throw new SessionQueryError(
+      `session-search candidate statement arity mismatch: ${placeholders} placeholders but ${params.length} bindings`,
+      'SESSION_QUERY_INVALID_QUERY',
+    )
+  }
 }
 
 function observeLive(session: Session): ObservedSession {
