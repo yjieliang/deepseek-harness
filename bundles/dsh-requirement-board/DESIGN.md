@@ -143,7 +143,10 @@ defineDomain({
 
 `action ∈ create|retemplate|advance|rollback|jump|complete|reopen|block|unblock|archive|restore|update|claim|release|delegate|revoke-delegation`。
 `checklist`、`queue`、`unqueue` **不写** history（前者只改节点检查项，后两者只写 `queues` 表）。
-`durationMs` 是"在上一个节点停留了多久"，节点耗时统计直接聚合它。
+`durationMs` 是"在上一个节点停留了多久"，节点耗时统计直接聚合它。它是**停留**而非**工作**时长：
+节点在 `create`（或上一次换节点）时就盖了 `enteredAt`，原地 `claim` 不重置它，所以没人接单的那段等待
+也计入 `avg`/`min`/`max`；进度视图的耗时表头下有一行 `durationHint` 把这一点写给读者（面板口径不改，
+"停留多久"也正是 `stalled` 判定的同一根时间轴）。
 
 ### 3.5 角色与队列记录
 
@@ -1251,7 +1254,22 @@ DESIGN §13.4 把 `--check` 记为「改一边不改另一边应报 DIFFERS」�
 | `--rb-accent-fill` | `.rb-btn-primary`(1) | 0 | 全局只有页头「新建需求」一个使用点（`client.js:5742`）；弹层里的主按钮是平台 `variant:'primary'`，描边用 `--rb-accent-strong`（§13.6 已补） |
 | `--rb-on-accent` | `.rb-btn-primary`(1)、`.rb-logo`(1) | 0 | 同上；`.rb-logo` 只在页头 |
 
-**死 CSS 的处理**：`--rb-mono` 的 `rb-session-id` / `rb-code`、`--rb-violet*` 的 `rb-tag` / `rb-stag-vio` / `rb-reserve`、`--rb-tint-success` 的 `rb-stag-ok`、`--rb-tint-warn` 的 `rb-stag-warn` 在 `client.js` 里没有任何命名点（全表 34 个，`rollout/_s16-usage.json` 的 `dead`）。它们不是本条的删除对象（清死 CSS 会动到 §12/§14 已定的结构面，且需求明确不碰），但它们是「这个变量的消费方根本不存在」的一部分证据，所以逐个点名。
+**死 CSS 的处理**：`--rb-mono` 的 `rb-session-id` / `rb-code`、`--rb-violet*` 的 `rb-tag` / `rb-stag-vio` / `rb-reserve`、`--rb-tint-success` 的 `rb-stag-ok`、`--rb-tint-warn` 的 `rb-stag-warn` 在 `client.js` 里没有任何命名点（全表 34 个，`rollout/_s16-usage.json` 的 `dead`）。它们不是本条的删除对象（清死 CSS 会动到 §12/§14 已定的结构面，且需求明确不碰），但它们是「这个变量的消费方根本不存在」的一部分证据，所以逐个点名。**v3（2026-10-19，C-4）已删除这批死规则**：其中 `rb-count-chip` 与 `rb-def-row` 在 v3 复活为工具条计数与口径定义行，其余随规则块移除；变量裁决不变（消费方仍为零的变量照旧不随载体进 portal）。名单与勘误见 UI-REDESIGN §10。
+
+**v3 增补裁决（2026-10-19，v3 优化轮）**：v3 引入的文字档 ink 族与填充强档按同一判据裁决：
+
+| 变量 | 消费它的类 | 弹层里的实例 | 裁决 |
+|---|---|---|---|
+| `--rb-ink-err` | `.rb-notice-error`/`.rb-notice-auth`/`.rb-notice-force`（toast，`shell.overlay` 传送）、`.rb-form-error`/`.rb-role-confirm`（角色对话框，Modal 传送） | ≥1 | **补**：传送面消费 |
+| `--rb-ink-warn` | `.rb-notice-stale`/`.rb-notice-sync`（toast 传送） | ≥1 | **补**：传送面消费 |
+| `--rb-accent-fill-strong` | `.rb-btn-primary:hover`（仅页头） | 0 | 不补 |
+| `--rb-ink-ok` | `.rb-mini-on`、`.rb-check-done`、`.rb-node-done .rb-node-mark`（面板内） | 0 | 不补 |
+| `--rb-ink-info` | `.rb-req-link`（面板详情列） | 0 | 不补 |
+| `--rb-ink-vio` | `.rb-count`、`.rb-tag`、`.rb-reserve`（面板内） | 0 | 不补 |
+| `--rb-ink-accent` | `.rb-trigger-on`、`.rb-toggle-on`、`.rb-status-opt-on`（面板工具条） | 0 | 不补 |
+| `--rb-radius-md` | `.rb-summary`（面板详情列；v3 补定义修复 C-2 直角） | 0 | 不补 |
+
+对应 `tests/client-smoke.mjs` 的 `PORTAL_REACHABLE` 增加 `--rb-ink-err` / `--rb-ink-warn`，`NOT_CARRIED` 增加其余六项；载体两臂各补两条 ink 声明，值取同臂注册表表达式。
 
 ### 16.6 实现落点与门
 
@@ -1259,8 +1277,8 @@ DESIGN §13.4 把 `--check` 记为「改一边不改另一边应报 DIFFERS」�
 
 **源码门 `tests/client-smoke.mjs`**：删掉 §15 留下的那条「载体与注册表臂一致」判据，换成四条：
 
-1. `the theme carrier declares exactly the portal-reachable family, once per arm` —— 用 `declaredNames(selector)` 从解析出的规则体里读出每个选择器声明的 `--rb-*` 名字集合，要求 `body` 与 `body:not([data-ds-dark-theme])` 两臂的名字集合都恰好等于 `PORTAL_REACHABLE`（`--rb-accent`、`--rb-accent-soft`、`--rb-accent-line`、`--rb-accent-strong`、`--rb-tint-error`、`--rb-num`）。
-2. `every variable the registry declares is either carried or deliberately left out` —— `.rb-root` 基础臂声明的名字集合必须等于 `PORTAL_REACHABLE ∪ NOT_CARRIED`（八个明确不补的），两个集合互不相交且都不能为空；亮臂注册表只能是基础臂的子集。**这条是「新漏一个变量就会红」的那个门**：注册表里多一个变量而没人裁决补不补，集合等式立刻不成立。
+1. `the theme carrier declares exactly the portal-reachable family, once per arm` —— 用 `declaredNames(selector)` 从解析出的规则体里读出每个选择器声明的 `--rb-*` 名字集合，要求 `body` 与 `body:not([data-ds-dark-theme])` 两臂的名字集合都恰好等于 `PORTAL_REACHABLE`（`--rb-accent`、`--rb-accent-soft`、`--rb-accent-line`、`--rb-accent-strong`、`--rb-tint-error`、`--rb-num`，v3 起再加 `--rb-ink-err`、`--rb-ink-warn`）。
+2. `every variable the registry declares is either carried or deliberately left out` —— `.rb-root` 基础臂声明的名字集合必须等于 `PORTAL_REACHABLE ∪ NOT_CARRIED`（v3 起十四个明确不补的），两个集合互不相交且都不能为空；亮臂注册表只能是基础臂的子集。**这条是「新漏一个变量就会红」的那个门**：注册表里多一个变量而没人裁决补不补，集合等式立刻不成立。
 3. `each carried variable repeats the value its own arm resolves to in the registry` —— 载体上每条声明必须逐字等于它自己那一臂的注册表值（亮臂没有该变量时按基础臂）。
 4. `the portaled duty counter reads the carried numeric family` —— 样式表里 `.rb-duty-count` 规则体必须同时含 `font-family:var(--rb-num)` 与 `font-variant-numeric:tabular-nums`。
 

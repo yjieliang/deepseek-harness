@@ -309,3 +309,69 @@
 - **F6 写被拒就收回刚铸造的临时角色**：需求写链拒绝（CAS 版本不符、并发委托、锁变动）后 `delegate` 重读需求，**只有 `role !== tmp-<任务id>`**（证明写没落地）才删该行；删失败只 warn，随后原样抛原错误。启动 sweep 仍是兜底，不再是第一道防线。
 - **证据**：`tests/roles.mjs` **260/260**（新增 3 案 × 2 后端）、`tests/delegate.mjs` **372/372**（新增 2 案 × 2 后端 + 适配器案扩到 15 条/后端）、`tests/dispatch.mjs`、`tests/client-smoke.mjs`、`g-receipts` 5/5、`g-anchors` 3/3 全绿。F1 的正向证据是"运行期 owner 被换掉后仍按会话头判定"（`caseOwnershipAdapter`）。**未验证**：真机上"按需物化的 continuable 子会话"这条仍没在受控 profile 里真跑（与 D35 的未验证项同源，需用户点头才碰 `~/.dsh`）。
 - **锚点**：本次只把**自己改动的代码**的引用改成符号名（`createOwnershipPort`、`resolveOwn`/`promptLine`/`#present`、`#assertOwnedTarget`），没有全量重扫——D35 登记的锚点债仍在，正文里那些 `host/service.js:NNNN` 又会因本次约 40 行插入各差几十行。
+
+## D37 v2 密度改造：采纳范围、两条不采纳与 KPI 点选收窄
+
+- **来源**：用户提供设计样板 `requirement-board-v2.html`（工作区文件，未进仓库），要求"参考它优化需求看板"。裁决：只把设计决策落进真面板（`client.js`），颜色仍走平台 token，面板既有功能（KPI 子读数、筛选折叠、进度视图、执行单元、决策题面）一条不丢；样板不进产品。
+- **落地**：顶栏 64→56px、内边距 18→16px；KPI 磁贴卡 → 一条带边框/1px 分隔线的指标带；卡片加 `data-status`/`data-kind` 状态色条、节点进度移到标题行右侧、简述 1 行、meta 11px；详情改两行吸顶（ID+复制 ID、标题+徽标+操作），正文滚动；`j`/`k`/`↑`/`↓` 移动选中并滚动到可见，`/` 展开筛选并聚焦搜索，`Esc` 清空搜索——document 级监听由 `ctx.effect` 持有、dispose 即移除，输入框与弹窗内不劫持；新增 `keyboardHint`/`statsFilterHint` 两个 DICT 键。
+- **两条不采纳**：① 暖调中性色/浅色默认——面板颜色全走 `--dsw-*`（DESIGN.md token 约定），面板级暖调会与外壳脱节，要暖调应走平台主题/全局 token；② 搜索上移视图行——搜索是筛选区（状态/优先级/角色/会话/项目/执行/分组）的一员，单独上移会割裂折叠结构，`/` 快捷键已覆盖其收益。
+- **KPI 点选收窄**：只给能映射到既有筛选的读数加点击（进行中/阻塞/已完成 → `status`，决策数 → `kind`），写入的是筛选区同一个 filter（chip 即回执），不新增第二个过滤状态；再点回到默认读数。完成率/总数/阻塞项计数/停滞/队列/执行读数保持只读。依据：`host/service.js` 的 `snapshot().stats` 按全板计算（`stats()` 不带筛选参数），点选不会让读数被自己过滤变小；「停滞」「队列」没有对应筛选，沿用 §5 D10 的既有裁决不做假按钮。
+- **一处偏差（登记）**：`.rb-detail-id .rb-btn` 边框 transparent——ID 旁的复制是内联工具，1px 描边在 11px 行高里会被读成主按钮；只作用于该子树，§13.1 的 Button 描边契约在其他站点不变。
+- **证据**：`client-smoke` **550/550**（新增键盘 9 条、KPI 点选 5 条）、`loader` 53/53、`smoke` 106/106、`g-hygiene` 4/5（既有 `tests/options.mjs` 尾 LF，与本次无关）。只改浏览器半边，宿主零改动、无需重启 `dsh web`；UI-REDESIGN.md 新增 §9 记录几何与时效说明。
+
+## D38 升级第一轮落地：分页、滚动复位、prompt 预算门
+
+- **背景**：用户确认第 9 轮规划的五项决策（① 按 W7 切 SQLite；② 分页按 offset + 「内容已更新」提示；③ 批量操作先确认"部分成功"语义；④ 客户端拆分先做 spike；⑤ 浏览器门接受 Windows 单平台基线），并按建议先做第一轮（不涉及宿主、无需重启）。
+- **W2 分页**：`client.js` 新增 `SNAPSHOT_PAGE_SIZE=200` 与 `snapshotQuery(filter)`；`refresh` 用同一 query 构造（`limit` 200）；新增 `loadMore()` 以当前行数作 `offset` 追加下一页，按 id 去重，filter 已变则丢弃在飞的答案；列表底部在 `visible.length < total` 时渲染「加载更多（{shown} / {total}）」（`board.loadMore`）。提交变更触发的 refresh 会把已展开的列表折回第一页，并发布 `listReset` 计数，面板转成一条 muted 提示（`listReloaded`）。**语义取舍**：接受 offset 分页与实时更新之间的重复/漏行窗口，折回时明说；keyset 留后续。
+- **W0 滚动复位**：`.rb-detail` 以选中需求 id 作 `key`，切换需求时容器重挂、右栏从顶部开始（上一轮吸顶头的遗留回归）。用 key 而不是 ref+scrollTop，因为浏览器与测试桩件都没有真实滚动几何可断言；W1 浏览器门负责几何验证。
+- **W3 预算门**：新增 `tests/prompt-budget.mjs`（10 条）——空板不注段；60 条需求 + 3 个决策的忙板下量 `promptContext` 字符数（基线 **1186**，上限 2400）、单行长度、`- …` 溢出标记与真实条目分开计数（12 条真实条目 + 1 条标记）；挂载插件确认注册 1 个 prompt 段与 3 个工具，并量三份定义字节（基线 **19774**：requirement_board 15170 / flow_template 3908 / requirement_role 696；合计上限 24000、单份 18500）。**反证**：把上限临时改成 500 → `1186 > 500` 红；复原后 10/10 绿。
+- **验收读数**：`client-smoke` **557/557**（+7 分页）、`prompt-budget` **10/10**、`loader` 53/53、`smoke` 106/106；README 更新面板分页说明、套件清单与限制条款（原"预算无门"改为"由 prompt-budget 守门"）。
+- **悬而未决**：W7（切 SQLite + `/health` 诊断）需要一次 `dsh web` 重启窗口，尚未执行——待用户约时间；W8 待确认"部分成功"语义；W9 spike 结论：模块加载器支持编译器生成的 package-local chunk（`require.async`），但明确禁止 entry 之间同步 require 相对 `client*.js`，手写拆分不可行；零构建形态下只有"抽 CSS 到 Host 静态路由"这一条可行路径，收益不足，暂不实施。
+
+## D39 升级第二轮落地：真浏览器布局门、偏好记忆、内置模板本地化、无障碍
+
+- **W1 真浏览器布局门**：新增 `tests/verification/panel-layout.e2e.mjs`（17 条）。它不依赖用户的 3080/token：用临时 `DSH_HOME` 复制当前 profile（package.json/patch/yml + `node_modules/dsh-requirement-board` junction）与看板快照，自起 `dsh --profile web --port 0` 隔离实例，解析 stdout 的 URL/token 登录，Playwright 用本机 **Microsoft Edge channel** 量：`.rb-root` 挂载、顶栏 56px、KPI 7 格同一行、卡片 3px 状态色条、元信息 4 列、详情可滚 + ID 行吸顶 + 标题仍可见、深色 `#f06423` / 浅色 `#c2410c` 双主题、860px 断点两栏堆叠 + 元信息 1 列、真实页面里的 `j`/`/`/`?`。跑完销毁临时实例。**反证**：把 `.rb-header` 高度 56→64 → `height 65` 红；复原后 17/17 绿。两处实现教训：`spawn('node')` 需要真实仓库路径（`C:/code/...` 写错会以 ENOENT 报 cwd 不存在）；新 `DSH_HOME` 会触发 shell 首次运行弹窗，需先按 Esc 关闭再派发 entry 点击。
+- **W4 偏好记忆**：`localStorage` 键 `requirement-board:v1` 存 `{view, grouped, selectedId, filter}`，**只存视图不存数据**；`readPreferences`/`writePreferences` 全部 try/catch（隐私模式静默降级）；`sanitizeFilter` 只放行 Host 的过滤键并按枚举校验值，手改文档无法让页面请求服务端会拒绝的读法；恢复一次（`preferencesRestored` ref），选中项不在当前筛选结果里时回退首条。**注意**：恢复/保存 effect 与"选中首条"effect 的顺序已调整，避免保存默认值覆盖刚恢复的选择。
+- **W5 内置模板本地化**：新增 `BUILTIN_TEMPLATE_TEXT`（`tpl-standard`：模板名/描述 + 5 个节点名/描述）与 `localizeTemplate`/`localizeRequirement`，在渲染前对快照做一次替换，覆盖卡片节点进度、详情模板/流程、历史 fromName/toName、进度视图节点耗时、模板抽屉与新建对话框；**自定义模板与内置模板的 clone 保持存储名**。DICT 增 12 键（中英各一份）。实现上**不用 useMemo**：`t` 在 locale 切换时身份不变，memo 会把旧语言的文案钉住——这条与仓库里已有 memo 的差异已在代码注释点名。
+- **W6 无障碍与帮助**：视图切换补齐 tab 语义（`aria-selected`、`aria-controls="rb-board-view"`、roving `tabIndex`、`←`/`→` 切换并把焦点移过去）；`?` 打开快捷键帮助弹窗（Dialog + 关闭按钮，同一套 `shortcutsTitle` 文案）；输入框内不劫持 `?`/`j`/`k`。
+- **测试配套**：`client-smoke` 增 7 条：tab 语义与方向键、`?` 帮助开/关、偏好写入、`harness.reset()` 后恢复视图、坏 JSON 回默认；`harness.reset()` 是新增的测试设施（清 state/effect/ref/callback 槽并跑 cleanup），用于模拟一次真正的重新挂载。`client-smoke` 共 **564/564**。
+- **验收读数**：`client-smoke` 564/564、`prompt-budget` 10/10、`loader` 53/53、`smoke` 106/106、`panel-layout` 17/17（+ 反证红）。本轮仍只改浏览器半边与测试/文档，**宿主零改动、不需要重启**；W7 继续等重启窗口，W8 等语义确认。
+- **文档**：README 增面板第 11/12 条（键盘/帮助、偏好记忆）、真浏览器门说明、两条限制（偏好只在本浏览器且不含数据、内置模板本地化只覆盖内置 id）；UI-REDESIGN 本轮无视觉规格变化，未改。
+
+## D40 W7 落地：看板切 SQLite（数据零丢失、HMR 热生效、无需重启）
+
+- **结论**：需求看板已从 JSON 后端切到 **SQLite**（`~/.dsh/storages/requirement_board.db`，WAL 模式）。用户重启后我完成迁移与切换；**profile 补丁被 HMR 直接热应用，无需再重启**，后续重启也会从补丁组合出同一路由（`dsh --profile web --dump-config` 已复核：`storage-domain` → `routes.requirement_board: sqlite`，`storage-sqlite` 行带 path/journalMode）。
+- **数据迁移（平台没有跨后端迁移，自己搬）**：写了一个一次性脚本（现留档 `backups/migrate-board-json-to-sqlite.mjs`），用插件自己的 domain API 打开 JSON 域与 SQLite 域，逐表 `entries()` → `delete` 目标种子行 → `put` 源记录，再 `global.set` 源全局（revision 6）。**逐条 JSON.stringify 比对通过**：2 需求 / 3 模板 / 2 角色 / 0 队列，`exactCopy: true`，目标 69632 B。ID、历史、模板版本、角色、全局计数器全部原样保留。
+- **切换证据（不只看"看起来正常"）**：① 切前 JSON mtime 冻结在 `21:41:40`，之后只写 `.db-wal`；② HMR 打开 SQLite 后出现 `requirement_board.db-shm`（21:45:29）与 `.db-wal`；③ 写入证明——建一条探针需求 + claim + delete：WAL 从 28872 → 74192 → 148352 增长，JSON mtime 始终不变；④ 探针删除后 `requirement_board list/stats` 回到 2 条、`stats.byStatus.active=2`，与迁移前一致。
+- **备份（回滚用）**：`backups/requirement_board-json-20261018-214106.json`（切前 JSON 原样）；`backups/requirement_board-sqlite-20261018-2140/`（切后 sqlite 主库 + wal + shm）。**回滚步骤**：删掉 profile 补丁里两段 → 重启 → 后端回 JSON（旧 JSON 仍是切前状态，切换后的增量在 sqlite 里，不会自动回灌——这一步在计划里已如实登记）。
+- **profile 补丁**（`~/.dsh/profiles/web/cordis.patch.yml`）：`insert` 一条 `storage-sqlite`（`path: C:/Users/yunda/.dsh/storages/requirement_board.db`、`journalMode: wal`）；`id: storage-domain` 覆盖里**原样重述 `backend: json`** 并加 `routes.requirement_board: sqlite`（键必须是下划线域名；漏掉 backend 会因整体替换而失败，写错键会静默回退 JSON）。
+- **诊断读数的限制（如实登记）**：原计划让 `/health` 报 `storage.backend`，但平台的 `DomainFacility` 不向插件暴露"这个域被路由到哪个后端"（`open()` 内部解析 route，`get()` 只回 `DomainImpl`，backend 名是私有字段）。**不在插件里猜/写死后端名**，因此该读数降级为部署侧核验：`dsh --profile web --dump-config` 看 route + 看 `.dsh/storages/requirement_board.db` 是否为当前写入介质（mtime/WAL 增长）。要做成面板/健康检查读数，需要在平台 storage-domain 上补一个"路由/后端"只读 API —— 列为平台侧后续项。
+- **布局门的隔离修正**：切换后部署把 SQLite 路径写死在 profile 补丁里，布局门复制 profile 自起实例时不能再用生产库路径。`panel-layout.e2e.mjs` 改为给临时实例加 `--patch <临时 overlay>`（把 `storage-sqlite.path` 指到临时 home），并改为通过 command API **自建两条探针需求**（不再复制看板快照），跑完销毁；复跑 **18/18**（新增"自建探针"与 `j/k` 有可移动对象）。
+- **文档**：INSTALL.md 增"从 JSON 迁到 SQLite"一节（无自动迁移、domain API 复制法、备份、回滚、诊断命令）；本机 JSON 文件保留作回滚备份，**不再被任何进程维护**（mtime 冻结即为证据）；确认稳定后可手动归档删除，但建议留到下一次全量重启之后。
+
+## D41 W8 落地：批量操作（逐条写、按行报结果、部分成功不回滚）
+
+- **语义（用户 2026-10-18 同意后实施）**：① 部分成功是正常结果，**不整体回滚**；② 结果按「成功 / 冲突 / 失败」三段列出，冲突行带 id 与原因、可重试；③ 每条写前用列表读到的 `rev` 做 `expectedRev`（CAS），冲突即跳过、不覆盖；④ 操作结束自动退出选择模式，只保留结果弹窗。
+- **面板实现**：列表上方新增 `.rb-batch` 工具条——「批量」进入选择模式、点行勾选（卡片即开关，避免在 `<button>` 里再嵌可交互控件）、全选/清空、**归档**、**优先级**、**角色** 三项操作（角色选项复用 `roleOptions`）。`runBatch` 逐条 `controller.command`，每条 payload 带 `{id, expectedRev}`（update 另带 `patch`），错误按 `code === 'conflict'` 分流；结果 `{ok, conflicts, failed}` 以 Dialog 三段呈现，关闭即复位。选择状态是本地模式，不写偏好、不影响选中详情。
+- **为什么不做批量排队/认领**：`queue` 是「某个会话自己的软预留」，面板 actor 的 session 为空，Host 也不允许面板创建预留（`dispatchBoardCommand` 只给 `unqueue`）——做成按钮会给出做不到的操作。
+- **验证**：`client-smoke` **572/572**（新增 8 条：选择模式标记、点行勾选与计数、全选、批量归档逐条命令、成功结果摘要、退出选择、冲突分组（含 id 与 `errConflict` 文案）、批量优先级 patch 逐条）。本轮仍只改浏览器半边，**刷新页面即可，不需要重启**。
+- **偏差/边界**：归档走的是与单条归档完全相同的 Host 动作（人类面板 session `''` 按既有规则不受锁限制；`archive` 的锁要求只对会话生效）；批量里任何一行被别的会话改过，只会让那一行进「冲突」，不会让整批失败。UI 上是顺序请求，条目多时耗时线性增长（没有并发写）。
+
+## D42 第三轮收口：升级方案三轮全部完成
+
+- 第 1 轮（分页/滚动复位/prompt 预算门）、第 2 轮（浏览器布局门/偏好记忆/模板本地化/无障碍）、第 3 轮（SQLite 切换/批量操作/spike）全部落地；**升级方案里的工作包 W0–W9 已全部关闭**。
+- 剩余项都是**宿主/平台侧后续**（不在本插件范围内）：① storage-domain 暴露"域→后端"只读 API 以做 `/health` 读数；② Windows 下 pnpm `link:` 不落链接的安装器问题；③ 文档行号锚点债（后续引用符号名）。
+- 最终读数：`client-smoke` 572/572、`prompt-budget` 10/10、`loader` 53/53、`smoke` 106/106、`panel-layout` 18/18；`g-hygiene` 4/5（唯一 FAIL 是既有 `tests/options.mjs` 尾 LF）；看板运行在 SQLite（WAL），旧 JSON 冻结为回滚备份。
+
+## D43 节点耗时口径：读数没错，文案补上「含等待」
+
+- **起因（用户质询）**：面板上 `req_44a9f8a4c0` 的「检索」节点耗时显示 **6h 19m**，用户问「需求看板的内容对吗？6H？」。
+- **核查（数据 + 代码两根证据）**：`07:59:40.630Z` create → `14:19:38.700Z` advance = 22 798 070 ms，与 history 里记的 `durationMs` 逐毫秒相等；从 SQLite（`~/.dsh/storages/requirement_board.db` 的 `u_requirement_board_requirements`）取出该记录，用 `host/flow.js` 的 `computeStats` 独立重算，得到与面板逐行一致的三行（检索 6h19m / 交付 10s / 汇总 8s，各 1 样本，平均=min=max）。**读数没错。**
+- **但 6h 不是工作时长**：其中 6h12m14s 是 `create → claim` 的**无人接手等待**，真正执行只有 7m44s（`claim → advance`）。机制是 `applyTransition` 的 `durationMs = elapsedMs(previousEnteredAt, at)`：`enteredAt` 在 `create` 时盖上，**原地 `claim` 不重置它**；`computeStats` 只聚合 `advance`/`complete`。DESIGN.md §3.4 早就写明它是「停留了多久」，且 `stalled` 判定用的是同一根时间轴。
+- **用户裁定（2026-10-18）**：**口径不改**（停留时长可跨需求比较，与 72h 停滞判定同源），只在**表头/提示**里写明「含等待」。
+- **实现**：`client.js` 的 `DICT.en`/`DICT.zh` 各加 1 键 `durationHint`（en/zh 键集仍对齐），`ProgressPanel` 在 `sectionHead('nodeDurations')` 下渲染一行 `.rb-muted` 说明；`README.md` 第 10 条与 `DESIGN.md` §3.4 同步写明。宿主半边零改动。
+- **验证**：`client-smoke` **574/574**（新增 2 条：说明行文本、耗时行渲染 `1d`——该表此前无断言）、`loader` 53/53、`smoke` 106/106、`prompt-budget` 10/10、真浏览器门 `panel-layout.e2e` **18/18 exit 0**（含"面板零 console/page error"，自起隔离实例 + 临时 `DSH_HOME`，不碰 3080）。
+- **`g-anchors` 改前改后都是红的（本条如实记录，不掩盖）**：改前 `18 FAIL / 0-3 通过`，改后 `17 FAIL / 0-3`（改后读数 `resolved=249 unresolved-file=6 out-of-bounds=1 blank=5 ambiguous=0`）。失败类别与本次改动无关且改前已存在：6 个 `new-panel.css` / `rollout/new-panel.css` 未解析（这两个文件只在开发树、跟踪副本里没有）、1 个越界、若干「锚点落在空白行」（`host/service.js:2000` 这条我从未碰过也红）。18→17 是**行位移的巧合**（一条原本落在空白行的锚点被推到有内容的行上），不是修好的债；`g-anchors` 是 D42 已记账的既有债。为证明不是本次引入，我在同一棵树上做过一次 A/B：把三处新增逐条撤回→跑门（18 FAIL）→按 sha256 原样恢复→再跑门（17 FAIL），`client.js` sha256 `C89C8DB7…3542` 与撤回前逐字节一致。
+- **`g-hygiene` 4/5**：唯一 FAIL 仍是既有的 `tests/options.mjs` 尾 LF；改动过的 `client.js`、`tests/client-smoke.mjs`、三个 `.md` 全部通过字节卫生（UTF-8 无 BOM / LF / 恰一个尾 LF）。
+- **生效方式**：本插件是浏览器半边，`dsh web` 常驻 `client-hmr`（500ms 轮询 bundle stat → `rebuilt` → 重发图），**改完 `client.js` 刷新页面即取新字节，不需要重启**。
+- **未验证（如实记录）**：`panel-render.e2e.mjs` 未跑——它需要 boot token，且文件头明确禁止指向正在使用的部署（它会写一条探针需求再删）；本次改动只是新增一行静态文案，其渲染由 `panel-layout.e2e` 的真实浏览器门覆盖。

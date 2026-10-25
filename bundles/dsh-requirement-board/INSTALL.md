@@ -87,6 +87,25 @@ value`）。路由键必须是下划线的 `requirement_board`——连字符键
 `!!js dshHomePath(...)` 在部署补丁层是否绑定同一批辅助函数未经实测；不成立时退回字面绝对路径
 （并接受该路径不可移植）。
 
+### 从 JSON 迁移到 SQLite（本机 2026-10-18 已按此执行）
+
+平台没有跨后端的自动迁移：切换后 SQLite 从空域开始，旧 JSON 文档不会被读取。迁移做法（实测数据零丢失）：
+
+1. **先备份**：复制切前的 `~/.dsh/storages/requirement_board.json`，以及切换后的 `.db` / `.db-wal` / `.db-shm`。
+2. **用域 API 复制**：在开发树里分别打开 JSON 域与 SQLite 域（`tests/harness.mjs` 的
+   `openBoard({ backend, dir })` 即可），逐表 `entries()` 读源记录、清掉目标（bootstrap 会先种内置模板）、
+   `put` 回目标，再 `global.set` 源全局；逐条 `JSON.stringify` 比对并核对 `global.revision`。
+   一次性脚本留档在本机 `backups/migrate-board-json-to-sqlite.mjs`（不进仓库）。
+3. **加补丁**：按上一节两段写入 profile 补丁，`path` 指到 `storages/requirement_board.db`。
+4. **生效与验证**：profile 补丁可被 HMR 热应用（本机实测**不需要重启**；重启同样生效）。验证三处：
+   `dsh --profile web --dump-config` 出现 `routes.requirement_board: sqlite`；`storages/requirement_board.db`
+   出现且 `.db-wal` 随写入增长；旧 JSON 的 mtime 冻结。
+5. **回滚**：删掉两段补丁并重启，后端回 JSON；切换后的增量留在 SQLite 里，不会自动回灌
+   （回滚只保证切前 JSON 原样）。
+
+注意：`/health` **不报**后端名——平台的 `DomainFacility` 不向插件暴露"域被路由到哪个后端"，诊断以上面的
+dump-config + 介质文件读数为准；要变成健康读数，需要平台存储层补一个只读的路由/后端 API。
+
 ## 可选：preset 里的角色声明
 
 `role.js` 导出为 `dsh-requirement-board/role`，供 preset 在自己的隔离组里发布一个角色声明

@@ -8,6 +8,9 @@
 概念稿留档：`.artifacts/requirement-board/reference/kanban-redesign.html`（sha256 `138d625a…1134`）、
 参考渲染 `reference/kanban-redesign-render.png`（1440×2400，336220 B）。
 
+> **时效提示（2026-10-18）**：§9 记录 v2 密度改造，更新了顶栏高度、KPI 带、卡片与详情头部几何；
+> 与 §2.3 / §4 的旧基线冲突时，以 §9 为准。
+
 ## 1. 边界与前提
 
 - **不改**：`host/**`、存储 schema、工具面与 skill 语义、流程推进/门禁/队列语义、既有 HTTP 与 API 约定、需求数据。
@@ -241,3 +244,101 @@
 因此 `client.js` 在方案设计节点就同步到部署副本，使 3110 临时实例能拍改后截图、3080 也能在刷新后看到新设计；
 逐字节一致性自此保持到收尾。开发树专属脚本（`rollout/**`、规格文档、数据库）未推送到部署副本；
 部署副本内的 `host/**`、`probes/**`、`skills/**`、其余 `tests/**` 与本次改动无关，保持原样。
+
+## 9. v2 密度改造（2026-10-18）
+
+**来源**：用户提供的设计样板 `requirement-board-v2.html`（工作区文件，未进仓库）。它相对上一版样板的
+六条设计决策，按下面的口径落到真面板；面板原有的 KPI 子读数、筛选折叠、进度视图、执行单元、决策题面
+等功能全部保留，样板本身不进入产品。
+
+### 9.1 采纳的决策与最终几何
+
+| # | 样板决策 | 面板落点 | 最终值 |
+|---|---|---|---|
+| 1 | 指标带替代磁贴卡 | `.rb-stats` / `.rb-stat` | 一条带边框与 1px 分隔线的带；列模板与 ≤1240px 换行臂不变 |
+| 2 | 顶栏收紧 | `.rb-header` | 高 56px（原 64）、内边距 0 16px、标题 15px、副标题 11px、按钮 28px |
+| 3 | 卡片减负 | `.rb-card`、`.rb-card-title-row` | 3px 状态色条（`data-status`/`data-kind`）、节点进度在标题行右侧、简述 1 行、meta 11px |
+| 4 | 详情分区 | `.rb-detail-id` / `.rb-detail-top` | 两行吸顶（ID+复制 ID 一行、标题+徽标+操作一行），正文在 `.rb-detail` 内滚动 |
+| 5 | 键盘习惯 | `BoardPage` + `handleBoardKey` | `j`/`k`/`↑`/`↓` 移动选中并滚动到可见；`/` 展开筛选并聚焦搜索；`Esc` 清空搜索；输入框与弹窗内不劫持 |
+| 6 | 单一强调色 | 沿用面板既有 `--rb-accent` | 橙为主强调；紫只保留给决策/角色语义 |
+| 7 | 统一动效 | 沿用 `--ds-ease-out` | 新增元素过渡 150–180ms，只做状态反馈 |
+
+细节几何：视图行内边距 10 16px、分段控件高 26px；筛选行 10 16px、chips 24px、输入 28px；
+列表宽 360px（原 330）、间距 6px；详情内边距 0 26px 26px、标题 17px、操作按钮 26px。
+所有颜色仍走 `--dsw-*`，没有新增/改写颜色 token。
+
+### 9.2 未采纳的两条（与理由）
+
+1. **暖调中性色 / 浅色默认**：不采纳。面板的颜色全部解析到平台 `--dsw-*`（§2.1，DESIGN.md 的 token 约定），
+   面板级暖调会与外壳脱节，且要重做亮/暗两臂对比度与像素基线。真要暖调，正确路径是平台主题/全局 token 变更。
+2. **搜索上移视图行**：不采纳。搜索是筛选区（状态/优先级/角色/会话/项目/执行/分组）的一员，单独上移会
+   割裂折叠结构；样板此条想兑现的「随时找到搜索」由 `/` 快捷键覆盖。
+
+### 9.3 KPI 带点选过滤（收窄范围）
+
+只给**能映射到既有筛选**的读数加点击，点击写入的是筛选区同一个 filter（chip 即回执），不新增状态：
+
+| 可点 | 写入 |
+|---|---|
+| 进行中 / 阻塞 / 已完成 | `status=active|blocked|done`，再点回到 `open` |
+| 决策数（子读数） | `kind=decision`，再点回到 `''` |
+| 完成率、总数、阻塞项计数、停滞、队列/预留、执行同步 | 只读 |
+
+理由：`snapshot()` 的 `stats` 按**全板**计算（`host/service.js` 的 `stats()` 不带筛选参数），点选不会让读数
+被自己过滤变小；而「停滞」「队列」没有对应筛选，按 D10 的既有裁决不做成假按钮。
+
+### 9.4 与 §4 的偏差登记
+
+- `.rb-detail-id .rb-btn.rb-btn` 把边框置为 transparent：ID 旁的复制是内联工具，1px 描边在 11px 行高里会把它读成主按钮；
+  该偏差只作用于这一处（`.rb-detail-id` 子树），§13.1 的「每个 Button 1px 描边」在其他站点保持不变。
+- KPI 带的可点读数是 `<button class="rb-stat …">`，不是平台 `Button` 原语：它沿用磁贴的排版（边框来自指标带容器），
+  因此没有 `rb-btn` 标记，也不参与 §13 的描边几何记账。
+
+### 9.5 验证与文档时效
+
+- `client-smoke` **550/550**（新增键盘 9 条、KPI 点选 5 条）、`loader` 53/53、`smoke` 106/106；`g-hygiene` 4/5
+  （唯一 FAIL 是既有 `tests/options.mjs` 缺行尾 LF，与本次改动无关）。
+- 本轮只改浏览器半边（`client.js` + `client-smoke` + `README.md`），宿主（`host/**`）零改动，不需要重启 `dsh web`。
+- **§8 的字节哈希表是第一次重设计交付时的快照，本轮后已不代表当前字节**；当前证据以套件与 `g-hygiene` 为准，
+  不再逐字节同步部署副本（本机部署副本由链接安装直接指向本目录）。
+- §2.3 与 §4 的顶栏 64px、卡片 12px 内边距、详情 22px 内边距、KPI 磁贴等几何是**第一版基线**；与 §9 冲突时以 §9 为准。
+
+## 10. v3 实施勘误（2026-10-19）
+
+- **死 CSS 清理（C-4）**：删除 19 组无命名点规则——`rb-view-hint`（两臂）、`rb-bar`/`rb-bar-fill`、`rb-card-facts` 族、`rb-session-id`、`rb-tag`、`rb-mini`/`rb-mini-on`、`rb-side-group` 族、`rb-section-body`、`rb-code`、`rb-numlist` 族、`rb-state-chips`、`rb-stag` 全家族、`rb-reserve` 族、`rb-empty-d`、`.rb-ink-accent` 类、`rb-scroll`、`rb-foot`。`rb-count-chip`（工具条计数）与 `rb-def-row`（队列口径/决策流程定义行）在 v3 复活，**未删**。§3/§4 中这些类名的落点描述自此失效。
+- **§3 类名勘误（审计 C12）**：`.rb-act`/`.rb-act-danger` 实为 `.rb-detail-actions button`/`.rb-btn-danger`；`.rb-queue-item` 实为 `.rb-queue-row`；`.rb-stat--hero` 实为 `.rb-stat-hero`。
+- **控件几何**：v3 将搜索/触发器/select 统一为 32px 高、8px 圆角（V3-18），chips/toggles 保持 24px 胶囊族；§2.3 的「chips 26 / 输入 28」自此以 v3 为准。
+- **V3-3 产品落点**：描述渲染为单个 `p.rb-prose` 纯文本，产品里没有代码块元素；行宽约束落在 `.rb-prose` 与 `.rb-history-row`（68ch）。原型里的 `.rb-code` 块样式是留给未来 markdown 渲染的提案。
+- **V3-20**：产品本无 `rb-view-hint` 渲染点（死类已删）；「详情已开时不显示提示」由右栏孤儿行与决策横幅的移除满足。
+- **筛选展开语义**：v2 的「有生效筛选即自动展开」改为**仅显式打开**（v3 起展开是覆盖式 popover，自动展开会盖住列表）；展开态不参与持久化自动恢复。
+
+## 11. v4 修复（2026-10-21）：卡片被纵向压扁 · 窄臂元信息列
+
+**现象**（用户截图）：看板列表里的需求卡只剩标题与一行摘要，meta chips 与日期行被卡片底边横向裁断；
+列表看起来"没滚动"，文字"显示不全"。
+
+**根因**：v2 为状态色条给 `.rb-card` 加了 `overflow:hidden`。卡片是 `.rb-list`（可滚动 flex 列）的
+flex 条目；`overflow:hidden` 使它的自动最小高度变成 0，列表高度不足时默认 `flex-shrink:1` 把每条卡片
+等比压扁——标题与摘要仍在，chips/日期被卡片自己的底边裁掉；又因为所有卡片正好被压到"放得下"，
+列表的 `scrollHeight` 等于 `clientHeight`，连滚动条都不出现。窗口高度越小压得越狠（1440×900 下
+内容高 124px 的卡片被压到 84px；1440×760 下压到 60px）。
+
+**修复**：
+
+- `.rb-list > .rb-card, .rb-list > .rb-group { flex:none; }` —— 卡片与分组 section 保持内容高度，
+  列表列自己滚动。分组视图的 section 同样锁死，避免嵌套列表被二次压缩。
+- 同轮修复窄臂元信息列：≤900px 的单列臂里 `rb-meta-cell-span2` 会撑出一列隐式轨道，
+  `grid-template-columns:minmax(0,1fr)` 实际渲染成 610px + 143px 两列。加
+  `.rb-meta-grid .rb-meta-cell-span2 { grid-column:span 1; }`（作用域选择器压过 v3 后置的 span2 规则）。
+
+**不改**：列表列宽仍按 §9.1 的 360px；卡片摘要仍按 v2 密度设计的单行 clamp；其余视觉几何不变。
+若后续要让列表更宽或摘要两行，应作为新的设计决策单独走样稿，而不是本次回归修复的副作用。
+
+**验证**：
+
+- `tests/client-smoke.mjs` **579/579**（新增 2 条：卡片行 `flex:none`、单列臂 span2 归零）。
+- `tests/verification/panel-layout.e2e.mjs` **20/20**：seed 12 条需求后断言「列表溢出时滚动」且
+  「没有卡片低于内容高度（自裁切）」；顺带修正了窄臂 meta 列数的断言语义（按轨道数计，不按空格
+  split）与临时 home 目录清理在 Windows 上的偶发 EPERM。
+- 修复后 1440×900 实测：列表 `clientHeight 525 / scrollHeight 771`，卡片渲染高 126 ≥ 内容高 124，
+  title / summary / chips / 日期行全部可见。

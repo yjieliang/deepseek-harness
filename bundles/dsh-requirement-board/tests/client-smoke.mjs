@@ -189,7 +189,20 @@ function createReactHarness() {
     },
   }
 
-  return { React, render, cleanups }
+  const reset = () => {
+    for (const slots of effectSlots.values()) {
+      for (const slot of slots) if (typeof slot?.cleanup === 'function') slot.cleanup()
+    }
+    stateSlots.clear()
+    effectSlots.clear()
+    refSlots.clear()
+    callbackSlots.clear()
+    counters = new Map()
+    keys = []
+    hookIndex = 0
+  }
+
+  return { React, render, cleanups, reset }
 }
 
 const harness = createReactHarness()
@@ -295,6 +308,24 @@ const documentStub = {
   },
   removeEventListener(name, listener) {
     this.listeners.set(name, (this.listeners.get(name) ?? []).filter(entry => entry !== listener))
+  },
+  // The clipboard fallback builds a hidden textarea; Node exposes no clipboard,
+  // so this stub answers the copy command and keeps the element it was asked to
+  // fill, which lets a test read back what was put on the clipboard.
+  body: { appendChild() {}, removeChild() {} },
+  createElement() {
+    const element = { value: '', style: {}, setAttribute() {}, select() {} }
+    this.lastElement = element
+    return element
+  },
+  execCommand(command) {
+    return command === 'copy'
+  },
+  // The keyboard handler locates the search field through the document; the
+  // stub answers with whatever node a test put here.
+  queryNode: null,
+  querySelector() {
+    return this.queryNode
   },
 }
 
@@ -416,7 +447,10 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (parsed.searchParams.get('claimable') !== 'true') {
     if (snapshotHolds.length > 0) return snapshotHolds.shift()()
-    return { status: 200, json: async () => ({ ok: true, data: { ...snapshotPayload, requirements: items, total: items.length } }) }
+    const offset = Number(parsed.searchParams.get('offset') ?? '0')
+    const limit = Number(parsed.searchParams.get('limit') ?? '200')
+    const page = items.slice(offset, offset + limit)
+    return { status: 200, json: async () => ({ ok: true, data: { ...snapshotPayload, requirements: page, total: items.length } }) }
   }
   if (claimableFailure) return { status: 500, json: async () => ({ ok: false, error: { code: 'internal', message: 'takeover read failed' } }) }
   const me = parsed.searchParams.get('me') ?? ''
@@ -426,6 +460,21 @@ globalThis.fetch = async (url, init = {}) => {
 }
 globalThis.EventSource = FakeEventSource
 globalThis.document = documentStub
+// The panel remembers the reader's view/filter in localStorage. This in-memory
+// store lets a case read what the panel wrote and seed what a fresh mount restores.
+const localStorageStub = {
+  store: new Map(),
+  getItem(key) {
+    return this.store.has(String(key)) ? this.store.get(String(key)) : null
+  },
+  setItem(key, value) {
+    this.store.set(String(key), String(value))
+  },
+  removeItem(key) {
+    this.store.delete(String(key))
+  },
+}
+globalThis.localStorage = localStorageStub
 
 /* ------------------------------------------------------------ load client */
 
@@ -666,6 +715,31 @@ check('the sidebar entry has a label resolver', typeof sidebar?.options.label ==
 check('the main panel is not session-scoped', main?.options.scope === undefined && main?.options.sessions === undefined)
 check('the toast host is an app-level overlay entry', overlay?.options.id === 'requirement-board.toast' && overlay?.options.locale === 'requirement-board')
 
+/**
+ * The display name of one built-in template node in the locale bound for the
+ * current render. The fixture stores the Host's seeded Chinese names; the panel
+ * localizes them for the built-in template, so assertions must ask the dictionary.
+ */
+const BUILTIN_NODE_KEYS = {
+  review: 'builtinNodeReview',
+  design: 'builtinNodeDesign',
+  build: 'builtinNodeBuild',
+  verify: 'builtinNodeVerify',
+  release: 'builtinNodeRelease',
+}
+function displayedNodeName(node) {
+  const key = node === undefined ? undefined : BUILTIN_NODE_KEYS[node.id]
+  return key === undefined || localeDicts === null ? node?.name : (localeDicts[boundLocale]?.[key] ?? node?.name)
+}
+
+/** The display name of one template in the locale bound for the current render. */
+function displayedTemplateName(template) {
+  if (template?.builtin === true && template.id === 'tpl-standard' && localeDicts !== null) {
+    return localeDicts[boundLocale]?.builtinTplStandard ?? template.name
+  }
+  return template?.name
+}
+
 const face = main.options.inject()
 check('the main face exposes the board hook source', typeof face.hooks?.board?.getSnapshot === 'function' && typeof face.hooks.board.subscribe === 'function')
 check('the main face exposes the controller callbacks', typeof face.refresh === 'function' && typeof face.setFilter === 'function' && typeof face.controller.command === 'function')
@@ -810,8 +884,8 @@ boundLocale = 'en'
 const page = renderPage()
 check('the page renders the localized panel title', page.html.includes('Requirement Board'))
 check('the page renders the requirement title', page.html.includes('跨会话需求看板'))
-check('the page renders every flow node', requirement.flow.every(node => page.html.includes(node.name)),
-  requirement.flow.filter(node => !page.html.includes(node.name)).map(node => node.name).join(','))
+check('the page renders every flow node', requirement.flow.every(node => page.html.includes(displayedNodeName(node))),
+  requirement.flow.filter(node => !page.html.includes(displayedNodeName(node))).map(node => displayedNodeName(node)).join(','))
 check('the page renders the completion rate', page.html.includes('40%'))
 check('the page renders the transition history', page.html.includes('评审通过') && page.html.includes('方案确认'))
 check('the projected last transition drives the summary line', page.html.includes('Last transition'))
@@ -822,7 +896,12 @@ check('the active node offers neither rollback nor jump', !page.html.includes('R
 // through the switch that shows them; closing it again restores the folded
 // reading the rest of this run reads from.
 const openedPage = openFilters()
-check('the page renders the filters with visible labels', ['Search', 'Owner', 'Session', 'Status', 'Priority', 'Role', 'Kind', 'Only claimable', 'Session (me)'].every(label => openedPage.html.includes(label)), openedPage.html.slice(0, 0) || 'a filter label is missing')
+check('the page renders the filters with visible labels', ['Owner', 'Session', 'Status', 'Priority', 'Role', 'Kind', 'Only claimable', 'Session (me)'].every(label => openedPage.html.includes(label))
+  // v3: the search leads the single-row toolbar and carries its label as an
+  // accessible name instead of a visible one; the status reading rides on its
+  // trigger, so both stay named without adding a row.
+  && openedPage.collected.some(element => element.props.name === 'query' && String(element.props['aria-label'] ?? '') !== ''),
+  openedPage.html.slice(0, 0) || 'a filter label is missing')
 check('the role filter is an ordinary host filter, with no local narrowing tag',
   !openedPage.collected.some(element => String(element.props?.className ?? '').includes('rb-local-tag'))
   && !openedPage.collected.some(element => String(element.props?.title ?? '').includes('no role filter yet')),
@@ -841,7 +920,7 @@ filterToggleOf(renderPage()).props.onClick()
 function drawnEdges(page, flow) {
   const boxes = page.collected.filter(element => element.type === 'button' && String(element.props.className ?? '').includes('rb-node'))
   const geometry = new Map(boxes.map(button => {
-    const node = flow.find(candidate => button.html.includes(candidate.name))
+    const node = flow.find(candidate => button.html.includes(displayedNodeName(candidate)))
     return [node.id, { left: Number.parseFloat(button.props.style.left), width: Number.parseFloat(button.props.style.width) }]
   }))
   return page.collected.filter(element => element.type === 'path').map(path => {
@@ -864,7 +943,7 @@ function edgePairs(page, flow) {
 
 /** The box the chart placed one node at. */
 function boxOf(page, flow, id) {
-  const name = flow.find(node => node.id === id).name
+  const name = displayedNodeName(flow.find(node => node.id === id))
   const button = page.collected.find(element => element.type === 'button'
     && String(element.props.className ?? '').includes('rb-node') && element.html.includes(name))
   const style = button.props.style
@@ -926,7 +1005,7 @@ boundLocale = 'zh'
 const flowButtons = harness.render(React.createElement(main.component, pageProps)).collected
   .filter(element => element.type === 'button' && String(element.props.className ?? '').includes('rb-node'))
 check('every flow node is a button', flowButtons.length === requirement.flow.length, String(flowButtons.length))
-const verifyNode = flowButtons.find(element => element.html.includes('测试验证'))
+const verifyNode = flowButtons.find(element => element.html.includes(displayedNodeName(requirement.flow.find(node => node.id === 'verify'))))
 verifyNode.props.onClick()
 const withVerify = renderPage()
 check('selecting a node reveals its checklist', withVerify.html.includes('用例执行完成') && withVerify.html.includes('缺陷关闭'))
@@ -957,7 +1036,7 @@ const again = renderPage()
 again.findButton('新建需求').props.onClick()
 const createDialog = renderPage()
 check('the create dialog renders its fields', createDialog.html.includes('标题') && createDialog.html.includes('流程模板') && createDialog.html.includes('所属会话'))
-check('the create dialog lists the templates', createDialog.html.includes('标准研发流程'))
+check('the create dialog lists the templates', createDialog.html.includes(displayedTemplateName({ id: 'tpl-standard', name: '标准研发流程', builtin: true })))
 check('the create dialog offers the board\'s project names as suggestions',
   // A `datalist` option carries its label as its own `value`, so the suggestion
   // list is read from the list itself rather than from any rendered text.
@@ -1848,6 +1927,8 @@ const blockedPage = renderPage()
 check('a blocked requirement renders its reason', blockedPage.html.includes('等待上游接口'))
 check('the blocker list renders', blockedPage.html.includes('阻塞项') && blockedPage.html.includes('2h'))
 check('the stall list renders', blockedPage.html.includes('停滞项') && blockedPage.html.includes('4d'))
+check('the duration table states its residence-time reading', blockedPage.html.includes('含接手前的排队等待'))
+check('a duration row renders its average', blockedPage.html.includes('1d'))
 check('an unblock action replaces the block action', blockedPage.buttons.some(element => element.html === '解除阻塞'))
 
 /* ------------------------------------------------------------ empty board */
@@ -1863,10 +1944,12 @@ const filterUrl = lastSnapshotUrl()
 check('filters travel to the route', filterUrl.includes('status=done') && filterUrl.includes('owner='), filterUrl)
 check('filters render into their controls', (() => {
   // A filter in force names itself in the folded summary; the control that states
-  // its value sits behind the switch, which is where a reader looks for it.
+  // its value is the toolbar's status trigger (v3: the status select became a
+  // value trigger), which is where a reader looks for it.
   const pageWithFilter = openFilters()
-  const selects = pageWithFilter.collected.filter(element => element.type === 'select')
-  return selects.some(element => element.props.value === 'done')
+  return pageWithFilter.collected.some(element => element.type === 'button'
+    && String(element.props.className ?? '').includes('rb-trigger')
+    && element.html === `${localeDicts[boundLocale].filterStatus}: ${localeDicts[boundLocale].statusDone}`)
 })())
 face.setFilter({ status: 'open', owner: '' })
 await settle()
@@ -1964,18 +2047,31 @@ check('the switch opens every control without asking the host again',
   openedFilters.collected.some(element => element.props.name === 'project')
   && openedFilters.collected.some(element => element.props.name === 'filter.role'))
 
-// A filter in force opens the area by itself and names itself in the summary; the
-// chip is that one filter's own clearing affordance.
+// A filter in force names itself on the toolbar's status trigger; the trigger's
+// own menu is that filter's clearing affordance (v3: the receipt chip the status
+// filter used to draw is now the trigger's value).
 face.setFilter({ status: 'done' })
 await settle()
 const summaryPage = renderPage()
-const statusChip = summaryPage.collected.find(element => element.props.name === 'filter.chip.status')
-check('a filter in force opens the area and names itself in the summary',
-  statusChip !== undefined && statusChip.html.includes(localeDicts.zh.statusDone),
-  summaryPage.html.slice(0, 0) || 'the status chip is missing')
-statusChip.props.onClick()
+const statusTrigger = summaryPage.collected.find(element => element.type === 'button'
+  && String(element.props.className ?? '').includes('rb-trigger')
+  && element.html === `${localeDicts.zh.filterStatus}: ${localeDicts.zh.statusDone}`)
+check('a filter in force names itself on the status trigger',
+  statusTrigger !== undefined && String(statusTrigger.props.className).includes('rb-trigger-on'),
+  summaryPage.html.slice(0, 0) || 'the status trigger is missing')
+statusTrigger.props.onClick()
 await settle()
-check('a summary chip clears only the filter it names',
+const statusMenu = renderPage()
+const allOption = statusMenu.collected.find(element => element.props.role === 'menuitemradio'
+  && element.html === localeDicts.zh.all)
+check('the status menu offers the untouched reading with the chosen one marked',
+  allOption !== undefined
+  && statusMenu.collected.some(element => element.props.role === 'menuitemradio'
+    && element.props['aria-checked'] === true && element.html.startsWith(localeDicts.zh.statusDone)),
+  statusMenu.html.slice(0, 0) || 'the status menu is missing')
+allOption.props.onClick()
+await settle()
+check('the menu clears only the filter it names',
   face.hooks.board.getSnapshot().filter.status === 'open'
   && new URL(lastSnapshotUrl(), 'http://127.0.0.1:3080').searchParams.get('status') === 'open',
   lastSnapshotUrl())
@@ -2609,8 +2705,17 @@ await settle()
 const viewPage = renderPage()
 check('the page offers a board, a queue and a decisions view',
   ['board', 'queue', 'decisions'].every(name => viewPage.collected.some(element => element.type === 'button' && element.props.name === `view.${name}`)))
-check('the board is the view in force on load',
-  viewPage.collected.some(element => element.props.name === 'view.board' && element.props['aria-pressed'] === true))
+const viewTabs = ['board', 'queue', 'decisions'].map(name => viewPage.collected.find(element => element.props.name === `view.${name}`))
+check('the board is the view in force on load', viewTabs[0]?.props['aria-selected'] === true)
+check('the tabs carry the tab pattern: selected state, roving tabindex and a content target',
+  viewTabs[1]?.props['aria-selected'] === false && viewTabs[0]?.props.tabIndex === 0 && viewTabs[1]?.props.tabIndex === -1
+  && viewTabs.every(tab => tab.props['aria-controls'] === 'rb-board-view'))
+viewTabs[0].props.onKeyDown({ key: 'ArrowRight', preventDefault() {} })
+await settle()
+check('the arrow keys move between the views',
+  renderPage().collected.find(element => element.props.name === 'view.queue')?.props['aria-selected'] === true)
+renderPage().collected.find(element => element.props.name === 'view.board').props.onClick()
+await settle()
 check('a reserved requirement is marked on its card', viewPage.html.includes(`${localeDicts.zh.reservedBadge}: ses_Q`), viewPage.html.slice(0, 0) || 'the reserved badge is missing')
 
 /* -------------------------------------------------------------- queue view */
@@ -2772,6 +2877,87 @@ check('a decision shows who asked for the call',
 check('the panel may archive or remove a decision',
   decisionDetail.buttons.some(element => element.html === localeDicts.zh.archive)
   && decisionDetail.buttons.some(element => element.html === localeDicts.zh.remove))
+
+// The id is the handle every command and message about a requirement names, so
+// the detail keeps it in the sticky identity row with a copy control beside it.
+const idRow = decisionDetail.collected.find(element => String(element.props.className ?? '').includes('rb-detail-id'))
+check('the detail pins the requirement id above the body',
+  idRow !== undefined && idRow.html.includes(decision.id), idRow?.html)
+renderPage().findButton(localeDicts.zh.copyId).props.onClick()
+await settle()
+check('copying the id puts the exact id on the clipboard',
+  documentStub.lastElement?.value === decision.id, documentStub.lastElement?.value)
+check('copying the id is confirmed in a toast',
+  renderToast().includes(localeDicts.zh.copiedId), renderToast())
+
+/* -------------------------------------------------- keyboard navigation */
+
+// j/k (or the arrow keys) move the list selection, `/` opens the filters and
+// focuses the search, and Escape clears the search while it has focus.
+snapshotPayload = boardSnapshot({ requirements: [requirement, decision], total: 2 })
+renderPage().collected.find(element => element.props.name === 'view.board').props.onClick()
+await face.refresh()
+await settle()
+check('the page installs exactly one document-level key handler',
+  documentStub.listeners.get('keydown')?.length === 1, String(documentStub.listeners.get('keydown')?.length))
+const keydown = documentStub.listeners.get('keydown')?.[0]
+const press = (name, target = { tagName: 'BODY' }) => {
+  const event = { key: name, target, preventDefault() { this.defaultPrevented = true } }
+  keydown?.(event)
+  return event
+}
+press('j')
+await settle()
+renderPage()
+check('j moves the selection to the next requirement',
+  renderPage().collected.find(element => String(element.props.className ?? '').includes('rb-card-selected'))?.html.includes(decision.title))
+press('ArrowUp')
+await settle()
+renderPage()
+check('the arrow keys move it back',
+  renderPage().collected.find(element => String(element.props.className ?? '').includes('rb-card-selected'))?.html.includes(requirement.title))
+const searchField = { tagName: 'INPUT', focused: false, focus() { this.focused = true } }
+documentStub.queryNode = searchField
+press('/')
+await settle()
+renderPage()
+check('“/” opens the filters', filterToggleOf(renderPage())?.props['aria-expanded'] === true
+  && renderPage().collected.some(element => element.props.name === 'project'))
+check('“/” focuses the search field', searchField.focused === true)
+face.setFilter({ query: 'zzz' })
+await settle()
+renderPage()
+// The stub stands in for the search input itself, so it answers the name the
+// C-1 gate reads off the focused field.
+const typedField = { tagName: 'INPUT', blurred: false, blur() { this.blurred = true }, getAttribute(name) { return name === 'name' ? 'query' : null } }
+keydown?.({ key: 'Escape', target: typedField })
+await settle()
+const queryAfterEscape = renderPage().collected.find(element => element.props.name === 'query')?.props.value
+check('Escape clears the typed query', typedField.blurred === true && queryAfterEscape === '',
+  `${typedField.blurred} / ${JSON.stringify(queryAfterEscape)} / filter=${JSON.stringify(face.hooks.board.getSnapshot().filter)}`)
+// The help sheet explains the page's own keys; typing fields keep their keys.
+press('?')
+await settle()
+const helpPage = renderPage()
+check('“?” opens the keyboard help',
+  helpPage.html.includes(localeDicts[boundLocale].shortcutsTitle)
+  && helpPage.html.includes(localeDicts[boundLocale].shortcutMove)
+  && helpPage.html.includes(localeDicts[boundLocale].shortcutHelp))
+renderPage().collected.find(element => element.type === 'button' && element.html === localeDicts[boundLocale].close)?.props.onClick()
+await settle()
+check('the help closes again', !renderPage().html.includes(localeDicts[boundLocale].shortcutsTitle),
+  renderPage().html.slice(0, 220))
+face.setFilter({ query: '' })
+await settle()
+documentStub.queryNode = null
+// Restore what the following sections assume: the decision selected, filters folded.
+renderPage().collected.find(element => element.type === 'button' && element.props.role === 'listitem' && element.html.includes(decision.title))?.props.onClick()
+await settle()
+const filterToggle = renderPage().collected.find(element => element.props.name === 'filter.toggle')
+if (filterToggle?.props['aria-expanded'] === true) {
+  filterToggle.props.onClick()
+  await settle()
+}
 
 renderPage().findButton(localeDicts.zh.editRequirement).props.onClick()
 const editPage = renderPage()
@@ -3049,7 +3235,10 @@ blockerCard.props.onClick()
 await settle()
 const raisedDetail = renderPage()
 check('the detail names the stored priority and the effective level apart',
-  metaValue(raisedDetail, localeDicts.zh.ownPriority) === localeDicts.zh.priorityNormal
+  // v3: the stored level rides on the detail's badge row; the meta grid keeps
+  // the effective one, so the two still read apart on the same screen.
+  raisedDetail.collected.some(element => String(element.props.className ?? '').includes('rb-badge-group')
+    && element.html.includes(localeDicts.zh.priorityNormal))
   && metaValue(raisedDetail, localeDicts.zh.effectivePriority) === 'urgent↑',
   raisedDetail.html.slice(0, 0) || 'the two levels are not told apart')
 check('the detail says the raised level was not written back',
@@ -3068,9 +3257,14 @@ check('the detail names the parent and the sub-requirements',
   && blockedDetail.html.includes(`${gateBlocker.title} (${gateBlocker.id})`), blockedDetail.html.slice(0, 0) || 'the parent link is missing')
 check('the gate hint explains that archiving a blocker is not finishing it',
   blockedDetail.html.includes(localeDicts.zh.gatesHint))
-check('a detail without escalation omits the effective level even when the row carries one',
-  metaValue(blockedDetail, localeDicts.zh.effectivePriority) === null
-  && metaValue(blockedDetail, localeDicts.zh.ownPriority) === localeDicts.zh.priorityUrgent,
+check('a detail without escalation reads the effective level as empty even when the row carries one',
+  // v3: the effective cell is always present and reads as an em dash with the
+  // empty mark when nothing raised it; the stored level rides on the badge row.
+  metaValue(blockedDetail, localeDicts.zh.effectivePriority) === '—'
+  && blockedDetail.collected.some(element => String(element.props.className ?? '').includes('rb-meta-v')
+    && element.props['data-empty'] === 'true' && element.html === '—')
+  && blockedDetail.collected.some(element => String(element.props.className ?? '').includes('rb-badge-group')
+    && element.html.includes(localeDicts.zh.priorityUrgent)),
   blockedDetail.html.slice(0, 0) || 'a derived field was shown as escalation')
 
 check('the two eligibility answers are separate badges, not one verdict',
@@ -3269,11 +3463,47 @@ check('unattributed events are counted when there are any',
 snapshotPayload = boardSnapshot({ requirements: [requirement], stats: { ...boardSnapshot().stats, running: 0, execSync: { ignored: 0, gaps: 0 } } })
 await face.refresh()
 await settle()
+// v3: zero readings wait in the more-readings popover, so open it the way a
+// reader does before asking what a quiet observation counts.
+renderPage().collected.find(element => element.props.name === 'stats.more').props.onClick()
+await settle()
 const quietPage = renderPage()
 check('a gap-free observation is counted without a warning',
   statCell(quietPage, localeDicts.zh.statsExecGaps)?.html === '0'
   && !String(statCell(quietPage, localeDicts.zh.statsExecGaps)?.props.className ?? '').includes('rb-warn'))
 check('nothing unattributed is not shown as a counter', statCell(quietPage, localeDicts.zh.statsExecIgnored) === null)
+renderPage().collected.find(element => element.props.name === 'stats.more').props.onClick()
+await settle()
+
+// The band's set-shaped readings are controls. They write the ordinary
+// status/kind filter, so the chip that appears is the receipt and the page keeps
+// one source of truth; readings with no matching filter stay numbers.
+snapshotPayload = boardSnapshot({ stats: { ...boardSnapshot().stats, byKind: { task: 1, decision: 0 } } })
+await face.refresh()
+await settle()
+const bandPage = renderPage()
+check('the band’s set-shaped tiles are controls',
+  ['stats.active', 'stats.blocked', 'stats.done'].every(name =>
+    bandPage.collected.some(element => element.props.name === name && element.type === 'button')))
+check('a reading with no matching filter stays read-only',
+  !bandPage.collected.some(element => String(element.props.className ?? '').includes('rb-stat-hero') && element.type === 'button'))
+bandPage.collected.find(element => element.props.name === 'stats.active').props.onClick()
+await settle()
+check('clicking a tile writes the ordinary status filter', lastSnapshotUrl().includes('status=active'), lastSnapshotUrl())
+check('the filter chip is the receipt',
+  renderPage().html.includes(`${localeDicts.zh.filterStatus}: ${localeDicts.zh.statusActive}`))
+renderPage().collected.find(element => element.props.name === 'stats.active').props.onClick()
+await settle()
+check('clicking the pressed tile restores the open reading', !lastSnapshotUrl().includes('status=active'), lastSnapshotUrl())
+// v3: the decision reading is zero here, so it waits in the more-readings
+// popover; open it the way a reader does, then click the reading inside.
+renderPage().collected.find(element => element.props.name === 'stats.more').props.onClick()
+await settle()
+renderPage().collected.find(element => element.props.name === 'stats.decision').props.onClick()
+await settle()
+check('the decision reading filters by kind', lastSnapshotUrl().includes('kind=decision'), lastSnapshotUrl())
+face.setFilter({ kind: '', status: 'open' })
+await settle()
 
 // An execution-only change moves the observation revision. The business
 // revision stays where it was, so the next write still targets it.
@@ -3347,8 +3577,14 @@ check('the detail names the project the requirement belongs to',
   renderPage().collected.some(element => String(element.props.className ?? '').includes('rb-meta-v') && element.html === '看板'))
 cardOf(renderPage(), loose.title).props.onClick()
 await settle()
-check('a requirement with no project reads as unassigned in the detail',
-  renderPage().collected.some(element => String(element.props.className ?? '').includes('rb-meta-v') && element.html === localeDicts.zh.projectUnassigned))
+// v3: an absent fact reads as an em dash carrying the empty mark, on the cell's
+// own surface, instead of a wording the card never used.
+const looseDetail = renderPage()
+const looseProjectKey = looseDetail.collected.findIndex(element => String(element.props.className ?? '').includes('rb-meta-k')
+  && element.html === localeDicts.zh.project)
+check('a requirement with no project reads as an empty cell in the detail',
+  looseProjectKey >= 0 && looseDetail.collected[looseProjectKey + 1]?.html === '—'
+  && looseDetail.collected[looseProjectKey + 1]?.props['data-empty'] === 'true')
 
 // The two filter spellings stay distinct on the wire: the sentinel asks the Host
 // for the unassigned requirements, while "every project" sends no key at all —
@@ -3363,9 +3599,12 @@ await settle()
 check('every project drops the key instead of sending an empty one',
   new URL(lastSnapshotUrl(), 'http://127.0.0.1:3080').searchParams.has('project') === false)
 
-const groupToggle = checkboxFor(openFilters(), localeDicts.zh.groupProject)
+/** The grouped-reading toggle, now a pill button in the popover's toggle row. */
+const groupToggleOf = page => page.collected.find(element => element.type === 'button'
+  && element.html === localeDicts.zh.groupProject)
+const groupToggle = groupToggleOf(openFilters())
 check('the board offers the grouped reading', groupToggle !== undefined)
-groupToggle.props.onChange({ target: { checked: true } })
+groupToggle.props.onClick()
 await settle()
 const grouped = renderPage()
 const groupNames = grouped.collected.filter(element => String(element.props.className ?? '') === 'rb-group-name').map(element => element.html)
@@ -3373,7 +3612,7 @@ const groupCounts = grouped.collected.filter(element => String(element.props.cla
 check('grouping splits the board into one section per project, the unassigned last',
   groupNames.join(',') === `看板,${localeDicts.zh.projectUnassigned}`, groupNames.join(','))
 check('each group states how many requirements it holds', groupCounts.join(',') === '2,1', groupCounts.join(','))
-checkboxFor(openFilters(), localeDicts.zh.groupProject).props.onChange({ target: { checked: false } })
+groupToggleOf(openFilters()).props.onClick()
 await settle()
 check('leaving the grouped reading restores the flat list',
   renderPage().collected.filter(element => String(element.props.className ?? '') === 'rb-group-name').length === 0)
@@ -3591,9 +3830,10 @@ const readArm = (selector, arm) => ARM_VARIABLES.map(name => `${name}=${String(d
  * the role dialog, both role form dialogs, the drawer, the template form and the
  * migration dialog), and most have no consumer anywhere in the bundle. */
 const PORTAL_REACHABLE = ['--rb-accent', '--rb-accent-soft', '--rb-accent-line', '--rb-accent-strong',
-  '--rb-tint-error', '--rb-num']
-const NOT_CARRIED = ['--rb-accent-fill', '--rb-on-accent', '--rb-violet', '--rb-violet-soft',
-  '--rb-tint-success', '--rb-tint-warn', '--rb-tint-info', '--rb-mono']
+  '--rb-tint-error', '--rb-num', '--rb-ink-err', '--rb-ink-warn']
+const NOT_CARRIED = ['--rb-accent-fill', '--rb-accent-fill-strong', '--rb-on-accent', '--rb-violet', '--rb-violet-soft',
+  '--rb-tint-success', '--rb-tint-warn', '--rb-tint-info', '--rb-mono', '--rb-ink-ok', '--rb-ink-info',
+  '--rb-ink-vio', '--rb-ink-accent', '--rb-radius-md']
 /** The variable names one selector declares, in source order and without repeats. */
 const declaredNames = (selector) => [...new Set(cssRules.filter(rule => rule.selector === selector)
   .flatMap(rule => [...rule.body.matchAll(/--rb-[a-z0-9-]+(?=\s*:)/g)].map(match => match[0])))]
@@ -3639,6 +3879,23 @@ check('the reading faces keep the concept type scale',
   /\.rb-stat-value \{[^}]*font-size:26px/.test(stylesheet)
   && /\.rb-ring-pct \{[^}]*font-size:14px/.test(stylesheet)
   && stylesheet.includes('--rb-num:var(--dsw-font-family-brand)'))
+/* C-3 (v3): the alert-cell revival must stay AFTER the v2 strip reset in source
+ * order and keep its triple-class arm, or the next density pass repeats P6. */
+check('the v3 alert-revival arm sits after the v2 strip reset and outranks it',
+  stylesheet.includes('.rb-stats .rb-stat.rb-stat-alert {')
+  && stylesheet.indexOf('.rb-stats .rb-stat.rb-stat-alert {') > stylesheet.indexOf('.rb-stat { border:0;'),
+  `v3arm@${stylesheet.indexOf('.rb-stats .rb-stat.rb-stat-alert {')} v2reset@${stylesheet.indexOf('.rb-stat { border:0;')}`)
+/* C-6 (v3): the dialog gate precedes the slash branch, and Escape only clears the
+ * query when the focused field is the search — P4 regressed once by source order. */
+check('the keyboard dialog gate precedes the slash branch and scopes Escape to the search',
+  (() => {
+    const kb = source.slice(source.indexOf('function handleBoardKey'))
+    const gate = kb.indexOf('if (board.dialog !== null) return')
+    const slash = kb.indexOf("event.key === '/'")
+    const esc = kb.indexOf("getAttribute?.('name') === 'query'")
+    return gate !== -1 && slash !== -1 && esc !== -1 && gate < slash
+  })(),
+  'handleBoardKey order gate<slash with Escape scoped to the query field')
 check('every numeral face is set to tabular figures',
   (stylesheet.match(/font-variant-numeric:tabular-nums/g) ?? []).length >= 3,
   String((stylesheet.match(/font-variant-numeric:tabular-nums/g) ?? []).length))
@@ -3671,6 +3928,23 @@ check('a queue row keeps its badges and buttons at their own width, and never wr
   `sibling flex-shrink=[${propertyOf('.rb-queue-row > *:not(.rb-queue-title)', 'flex-shrink').join(' ')}] button white-space=[${propertyOf('.rb-queue-row .rb-btn', 'white-space').join(' ')}]`)
 check('the meta grid keeps its measured four columns',
   /\.rb-meta-grid \{[^}]*grid-template-columns:repeat\(4, minmax\(0,1fr\)\)/.test(stylesheet))
+/* At the one-column arm a span-two cell would otherwise force an implicit
+ * second track, so the narrow palette would render two unequal columns. */
+check('the one-column meta grid arm also drops the span-two cells',
+  /\.rb-meta-grid \.rb-meta-cell-span2 \{[^}]*grid-column:span 1/.test(stylesheet))
+/* The board list is a scrolling flex column. A card with overflow:hidden has an
+ * automatic minimum height of zero, so the column's default flex-shrink used to
+ * compress every card below its content: the title and the summary stayed, the
+ * meta chips and the date row were clipped inside the card, and the list had
+ * nothing left to scroll. Cards -- and the group sections that wrap nested
+ * lists -- are fixed rows; the column scrolls. */
+check('a list card keeps its content height instead of being squashed by the column',
+  (() => {
+    const rule = cssRules.find(entry =>
+      entry.selector.replace(/\s+/g, ' ') === '.rb-list > .rb-card, .rb-list > .rb-group')
+    return rule !== undefined && /\bflex:none\b/.test(rule.body)
+  })(),
+  'the scrolling list does not pin its card rows to flex:none')
 
 /* ------------------------------------------------- button stroke coverage */
 
@@ -3774,13 +4048,169 @@ check('non-button controls do not pick up the button stroke',
   })
   && stylesheet.includes('.rb-card-selected {') && stylesheet.includes('.rb-node-active {'))
 
+/* ------------------------------------------------------------- pagination */
+
+// A board larger than one snapshot page is reachable: the list appends a page at
+// a time, says how much of the board it is showing, and folds back to page one
+// (with one muted note) when a committed change replaces the reading.
+const manyRequirements = Array.from({ length: 250 }, (_, index) => ({
+  ...requirement,
+  id: `req_page_${String(index).padStart(3, '0')}`,
+  title: `分页需求 ${index}`,
+}))
+snapshotPayload = boardSnapshot({ requirements: manyRequirements, total: manyRequirements.length })
+renderPage().collected.find(element => element.props.name === 'view.board')?.props.onClick()
+await face.refresh()
+await settle()
+/** The requirement cards the list renders, in order. */
+const cards = page => page.collected.filter(element => element.type === 'button' && element.props.role === 'listitem')
+const firstPage = renderPage()
+check('the first page stops at the snapshot page size', cards(firstPage).length === 200, String(cards(firstPage).length))
+const loadMoreButton = firstPage.collected.find(element => element.props.name === 'board.loadMore')
+check('the list says how much of the board it is showing',
+  loadMoreButton !== undefined && loadMoreButton.html.includes('200') && loadMoreButton.html.includes('250'),
+  loadMoreButton?.html)
+loadMoreButton?.props.onClick()
+await settle()
+const secondPage = renderPage()
+check('loading more asks the host for the next offset', lastSnapshotUrl().includes('offset=200'), lastSnapshotUrl())
+check('the appended page reaches the whole board without duplicates',
+  cards(secondPage).length === 250
+  && new Set(cards(secondPage).map(element => element.props['data-req'])).size === 250,
+  String(cards(secondPage).length))
+check('the load-more control is gone once every row is shown',
+  renderPage().collected.every(element => element.props.name !== 'board.loadMore'))
+
+FakeEventSource.instances[0].emit('changed')
+await settleChanges()
+check('a committed change folds an extended list back to page one', cards(renderPage()).length === 200, String(cards(renderPage()).length))
+check('the fold is explained in a muted note', renderToast().includes(localeDicts.zh.listReloaded), renderToast())
+
+// Reset for the teardown below.
+snapshotPayload = boardSnapshot()
+await face.refresh()
+await settle()
+
+/* --------------------------------------------------------------- batch mode */
+
+// Batch operations write one requirement at a time and report a per-id outcome:
+// partial success is a normal result, and a revision conflict stays with its row
+// instead of hiding behind one aggregate response.
+snapshotPayload = boardSnapshot({ requirements: [requirement, decision], total: 2 })
+renderPage().collected.find(element => element.props.name === 'view.board')?.props.onClick()
+await face.refresh()
+await settle()
+/** The requirement rows the list renders. */
+const batchCards = () => renderPage().collected.filter(element => element.type === 'button' && element.props.role === 'listitem')
+const openBatch = () => renderPage().collected.find(element => element.props.name === 'batch.toggle').props.onClick()
+openBatch()
+const selectingPage = renderPage()
+check('selection mode marks every row selectable',
+  batchCards().length === 2 && batchCards().every(element => String(element.props.className).includes('rb-card-selectable')))
+batchCards()[0].props.onClick()
+const chosenPage = renderPage()
+check('clicking a row in selection mode chooses it, and the toolbar counts it',
+  String(batchCards()[0].props.className).includes('rb-card-chosen')
+  && chosenPage.html.includes(tst('batchChosen', { count: 1, total: 2 })))
+renderPage().collected.find(element => element.props.name === 'batch.all').props.onClick()
+check('select all chooses every listed row', batchCards().every(element => String(element.props.className).includes('rb-card-chosen')))
+const beforeArchive = commandBodies().length
+renderPage().collected.find(element => element.props.name === 'batch.archive').props.onClick()
+await settle()
+const archiveCalls = commandBodies().slice(beforeArchive).filter(body => body.action === 'archive')
+check('a batch archive writes one command per chosen requirement',
+  archiveCalls.length === 2 && archiveCalls.every(body => body.id !== undefined && body.expectedRev !== undefined),
+  JSON.stringify(archiveCalls))
+const batchDialog = renderPage()
+check('the batch result reports every landed row',
+  batchDialog.html.includes(localeDicts[boundLocale].batchResultTitle)
+  && batchDialog.html.includes(tst('batchResultSummary', { ok: 2, conflict: 0, failed: 0 })),
+  batchDialog.html.slice(0, 160))
+check('selection mode exits when the batch finishes',
+  renderPage().collected.every(element => element.props.name !== 'batchChosen')
+  && batchCards().every(element => !String(element.props.className).includes('rb-card-selectable')))
+renderPage().collected.find(element => element.type === 'button' && element.html === localeDicts[boundLocale].close)?.props.onClick()
+await settle()
+
+// A conflicting row is reported with its own id and reason; the successful rows
+// stay successful (partial success is not rolled back).
+commandRefusals.archive = { code: 'conflict', message: 'held by another session', details: { reason: 'revision' } }
+openBatch()
+renderPage().collected.find(element => element.props.name === 'batch.all').props.onClick()
+renderPage().collected.find(element => element.props.name === 'batch.archive').props.onClick()
+await settle()
+const conflictDialog = renderPage()
+check('a conflicting batch keeps the row in the conflict group',
+  conflictDialog.html.includes(`${localeDicts[boundLocale].batchResultConflict} (2)`)
+  && conflictDialog.html.includes(requirement.id)
+  && conflictDialog.html.includes(localeDicts[boundLocale].errConflict),
+  conflictDialog.html.slice(0, 200))
+delete commandRefusals.archive
+renderPage().collected.find(element => element.type === 'button' && element.html === localeDicts[boundLocale].close)?.props.onClick()
+await settle()
+
+// A field update is the same per-row path with a patch.
+openBatch()
+renderPage().collected.find(element => element.props.name === 'batch.all').props.onClick()
+renderPage().collected.find(element => element.props.name === 'batch.priority').props.onChange({ target: { value: 'high' } })
+const beforePriority = commandBodies().length
+renderPage().collected.find(element => element.props.name === 'batch.priorityApply').props.onClick()
+await settle()
+const updateCalls = commandBodies().slice(beforePriority).filter(body => body.action === 'update')
+check('a batch field update patches every chosen requirement',
+  updateCalls.length === 2 && updateCalls.every(body => body.patch?.priority === 'high' && body.expectedRev !== undefined),
+  JSON.stringify(updateCalls))
+renderPage().collected.find(element => element.type === 'button' && element.html === localeDicts[boundLocale].close)?.props.onClick()
+await settle()
+
+// Reset for the preference checks below.
+snapshotPayload = boardSnapshot()
+await face.refresh()
+await settle()
+
+/* ---------------------------------------------------------- preferences */
+
+// The view, filter, grouping and selection live in this browser's own storage,
+// so a reload comes back where the reader left off; an unreadable document is
+// "no preferences", never a failure.
+const storedRaw = localStorageStub.getItem('requirement-board:v1')
+const storedPreferences = storedRaw === null ? null : JSON.parse(storedRaw)
+check('the panel remembers the view, the filter and the selection',
+  storedPreferences !== null && storedPreferences.view === 'board'
+  && storedPreferences.filter?.status === 'open' && typeof storedPreferences.selectedId === 'string',
+  storedRaw?.slice(0, 120))
+localStorageStub.setItem('requirement-board:v1', JSON.stringify({
+  view: 'queue',
+  grouped: false,
+  selectedId: '',
+  filter: { session: '', owner: '', status: 'open', priority: '', query: '', role: '', kind: '', claimable: false, me: '' },
+}))
+localStorageStub.setItem('requirement-board:v1', JSON.stringify({
+  view: 'queue',
+  grouped: false,
+  selectedId: '',
+  filter: { session: '', owner: '', status: 'open', priority: '', query: '', role: '', kind: '', claimable: false, me: '' },
+}))
+harness.reset()
+const restoredPage = renderPage()
+check('a fresh mount restores the stored view',
+  restoredPage.html.includes(localeDicts[boundLocale].queueSoftHint),
+  `queue-note=${restoredPage.html.includes('rb-queue-note')}`)
+localStorageStub.setItem('requirement-board:v1', '{not json')
+harness.reset()
+const brokenPage = renderPage()
+check('an unreadable preference document falls back to the defaults',
+  brokenPage.html.includes(localeDicts[boundLocale].title) && !brokenPage.html.includes('rb-queue-note'),
+  brokenPage.html.slice(0, 0) || 'the page did not render')
+localStorageStub.store.clear()
+
 /* --------------------------------------------------------------- teardown */
 
 for (const dispose of disposers.reverse()) dispose()
 check('every disposer ran', disposers.length >= 2)
 check('disposal closes the SSE stream', FakeEventSource.instances[0].closed === true)
 check('the visibility listener was removed', documentStub.listeners.get('visibilitychange')?.length === 0)
-check('no page-level key listener is left behind: the Modal primitive owns Escape', documentStub.listeners.get('keydown') === undefined, String(documentStub.listeners.get('keydown')?.length))
+check('the page-level key listener is removed on disposal', documentStub.listeners.get('keydown')?.length === 0, String(documentStub.listeners.get('keydown')?.length))
 
 console.log(`\n${checks - failures}/${checks} checks passed`)
 process.exit(failures === 0 ? 0 : 1)

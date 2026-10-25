@@ -179,6 +179,7 @@ window.__ModuleLoader__.load({
         noStalled: 'Nothing is stalled.',
         samples: 'samples',
         avg: 'avg',
+        durationHint: 'Every figure is node residence time — from entering the node to leaving it, including the wait before anyone claimed it.',
         templateName: 'Template name',
         templateDescription: 'Template description',
         templateNodes: 'Nodes',
@@ -390,6 +391,50 @@ window.__ModuleLoader__.load({
         forceApplied: 'Forced through; the gate it overrode is recorded in the history.',
         editRequirement: 'Edit',
         updateApplied: 'Requirement updated.',
+        copyId: 'Copy ID',
+        copiedId: 'Requirement ID copied.',
+        errCopyId: 'Could not copy the requirement ID.',
+        keyboardHint: 'j / k move · / search',
+        statsFilterHint: 'Filter the list by this reading',
+        loadMore: 'Load more ({shown} / {total})',
+        listReloaded: 'The board changed; the list is back on its first page.',
+        batchSelect: 'Select',
+        batchExit: 'Exit selection',
+        batchChosen: '{count} of {total} chosen',
+        batchAll: 'Select all',
+        batchNone: 'Clear selection',
+        batchArchive: 'Archive',
+        batchPriority: 'Priority',
+        batchRole: 'Role',
+        batchApply: 'Apply',
+        batchUnchanged: 'Leave unchanged',
+        batchWorking: 'Working…',
+        batchResultTitle: 'Batch result',
+        batchResultSummary: 'Succeeded {ok}, conflicts {conflict}, failed {failed}',
+        batchResultOk: 'Succeeded',
+        batchResultConflict: 'Conflicts',
+        batchResultFailed: 'Failed',
+        shortcutsTitle: 'Keyboard shortcuts',
+        shortcutMove: 'Move the selection: j / k or ↑ / ↓',
+        shortcutSearch: 'Open the filters and focus the search: /',
+        shortcutClear: 'Clear the search: Esc',
+        shortcutHelp: 'Show this help: ?',
+        // Built-in template text is seeded into storage in Chinese by the Host;
+        // the panel localizes it for the built-in id, so an English reader does
+        // not get Chinese template and node names. Custom templates keep the
+        // names their editors gave them.
+        builtinTplStandard: 'Standard development flow',
+        builtinTplStandardDesc: 'Review → design → implement → verify → release',
+        builtinNodeReview: 'Requirement review',
+        builtinNodeReviewDesc: 'Confirm scope, acceptance criteria, and stakeholders.',
+        builtinNodeDesign: 'Solution design',
+        builtinNodeDesignDesc: 'Produce an executable technical or product plan.',
+        builtinNodeBuild: 'Implementation',
+        builtinNodeBuildDesc: 'Complete the implementation and self-test it.',
+        builtinNodeVerify: 'Verification',
+        builtinNodeVerifyDesc: 'Run the test cases and close the defects.',
+        builtinNodeRelease: 'Release',
+        builtinNodeReleaseDesc: 'Produce the release artifact and confirm the rollout.',
         errDelegated: 'Another session handed this requirement on already.',
         errDelegatedRole: 'A delegated requirement keeps its temporary role until the delegation ends.',
         errPanelOnly: 'Only a person may clear another session reservation.',
@@ -530,6 +575,22 @@ window.__ModuleLoader__.load({
         errTemplateInvalidConfig: 'The default template this deployment would rebind to is not stored, so nothing was changed.',
         clearFilters: 'Clear all',
         statsAlertHint: 'needs attention',
+        // v3 (§3): the toolbar's popover grammar, the list head, and the two
+        // view-context folds the right column demotes the overview into.
+        moreReadings: 'More readings',
+        moreFilters: 'More filters',
+        secOverview: 'Overview',
+        secQueueCaliber: 'Queue caliber',
+        secDecisions: 'Decision flow',
+        listTitle: 'Requirements',
+        answerHow: 'How to answer',
+        agentBoundary: 'Agent boundary',
+        caliberReserve: 'Reserve',
+        caliberHead: 'Head and order',
+        caliberCap: 'Ceiling',
+        caliberCapBody: 'A session queue stops at the configured ceiling: a further reservation is refused, never the oldest dropped.',
+        answerHowBody: 'Pick a choice in the decision detail; the answer is written back onto the requirement and every session reads it.',
+        agentBoundaryBody: 'An agent cannot choose, archive, or hand on a decision requirement.',
         // The concept sheet prints a small English identifier inside each
         // section heading. It identifies the section rather than describing it,
         // so both dictionaries carry the same word.
@@ -629,6 +690,7 @@ window.__ModuleLoader__.load({
         noStalled: '当前没有停滞项。',
         samples: '样本',
         avg: '平均',
+        durationHint: '各值均为节点停留时长：从进入节点到离开，含接手前的排队等待。',
         templateName: '模板名称',
         templateDescription: '模板说明',
         templateNodes: '节点列表',
@@ -840,6 +902,46 @@ window.__ModuleLoader__.load({
         forceApplied: '已强制推进，被越过的门禁记入历史。',
         editRequirement: '编辑',
         updateApplied: '已更新需求。',
+        copyId: '复制 ID',
+        copiedId: '已复制需求 ID。',
+        errCopyId: '复制需求 ID 失败。',
+        keyboardHint: 'j / k 移动 · / 搜索',
+        statsFilterHint: '按这个读数过滤列表',
+        loadMore: '加载更多（{shown} / {total}）',
+        listReloaded: '看板有更新，列表已回到第一页。',
+        batchSelect: '批量',
+        batchExit: '退出选择',
+        batchChosen: '已选 {count} / {total}',
+        batchAll: '全选',
+        batchNone: '清空选择',
+        batchArchive: '归档',
+        batchPriority: '优先级',
+        batchRole: '角色',
+        batchApply: '应用',
+        batchUnchanged: '不修改',
+        batchWorking: '处理中…',
+        batchResultTitle: '批量结果',
+        batchResultSummary: '成功 {ok} 条，冲突 {conflict} 条，失败 {failed} 条',
+        batchResultOk: '成功',
+        batchResultConflict: '冲突',
+        batchResultFailed: '失败',
+        shortcutsTitle: '键盘快捷键',
+        shortcutMove: '移动选中：j / k 或 ↑ / ↓',
+        shortcutSearch: '展开筛选并聚焦搜索：/',
+        shortcutClear: '清空搜索：Esc',
+        shortcutHelp: '显示这份帮助：？',
+        builtinTplStandard: '标准研发流程',
+        builtinTplStandardDesc: '评审 → 设计 → 实现 → 验证 → 发布',
+        builtinNodeReview: '需求评审',
+        builtinNodeReviewDesc: '确认范围、验收标准与相关方。',
+        builtinNodeDesign: '方案设计',
+        builtinNodeDesignDesc: '给出可执行的技术或产品方案。',
+        builtinNodeBuild: '开发实现',
+        builtinNodeBuildDesc: '完成实现并自测通过。',
+        builtinNodeVerify: '测试验证',
+        builtinNodeVerifyDesc: '执行用例并关闭缺陷。',
+        builtinNodeRelease: '发布上线',
+        builtinNodeReleaseDesc: '产出发布物并完成上线确认。',
         errDelegated: '该需求已被派发给其他会话。',
         errDelegatedRole: '派发期间该需求用临时角色路由，结束派发后才能改。',
         errPanelOnly: '只有人可以通过面板清除其他会话的预留。',
@@ -980,6 +1082,21 @@ window.__ModuleLoader__.load({
         errTemplateInvalidConfig: '本部署用来改绑的默认模板不存在，因此一个需求也没有改动。',
         clearFilters: '清除全部',
         statsAlertHint: '需要处理',
+        // v3（§3）：工具条弹层语法、列表头，以及右栏收纳概览的两个视图语境折叠。
+        moreReadings: '更多读数',
+        moreFilters: '更多筛选',
+        secOverview: '板概览',
+        secQueueCaliber: '队列口径',
+        secDecisions: '决策流程',
+        listTitle: '需求列表',
+        answerHow: '怎么回答',
+        agentBoundary: '代理边界',
+        caliberReserve: '预留',
+        caliberHead: '队头与顺序',
+        caliberCap: '上限',
+        caliberCapBody: '一个会话的预留队列到配置上限即止：超出时拒绝追加，而不是丢弃最旧。',
+        answerHowBody: '在决策详情里选择选项；答案回写在需求上，任何会话都能读到。',
+        agentBoundaryBody: '智能体不能选择、不能归档、不能转派决策类需求。',
         // 分节小字是分节的英文标识（概念稿的视觉语言），两种语言用同一个词。
         secBody: 'BODY',
         secImages: 'IMAGES',
@@ -1150,6 +1267,23 @@ window.__ModuleLoader__.load({
         SECTION_EN[labelKey] === undefined ? null : h('span', { className: 'rb-en' }, t(SECTION_EN[labelKey])),
         h('span', { className: 'rb-caret', 'aria-hidden': 'true' }, '▶')),
       h('div', { className: 'rb-fold-body' }, children))
+
+    /**
+     * The same fold, starting closed (v3 §3 V3-7).
+     *
+     * A view's own reading leads its right column; the board overview travels
+     * along folded, present for the reader who wants it without competing for
+     * the place of honour.
+     * @param labelKey - Dictionary key naming the section.
+     * @param t - The panel's translator.
+     * @param children - The section body, in order.
+     */
+    const foldSectionClosed = (labelKey, t, ...children) => h('details', { className: 'rb-fold' },
+      h('summary', { className: 'rb-fold-summary' },
+        h('span', null, t(labelKey)),
+        SECTION_EN[labelKey] === undefined ? null : h('span', { className: 'rb-en' }, t(SECTION_EN[labelKey])),
+        h('span', { className: 'rb-caret', 'aria-hidden': 'true' }, '▶')),
+      h('div', { className: 'rb-fold-body' }, children))
     const ROLE_NONE = '\u0000none'
 
     /** Milliseconds in one display unit, largest first. */
@@ -1234,6 +1368,148 @@ window.__ModuleLoader__.load({
       return String(text).replace(/\{(\w+)\}/g, (match, name) => (params[name] === undefined ? match : String(params[name])))
     }
 
+    /** Everything a browser remembers between visits; none of it is board data. */
+    const PREFERENCES_KEY = 'requirement-board:v1'
+
+    /** The filter reading an untouched board uses. */
+    const FILTER_DEFAULTS = {
+      session: '', owner: '', status: 'open', priority: '', query: '', role: '', kind: '',
+      project: undefined, claimable: false, me: '',
+    }
+
+    /** Values the Host accepts for the enumerated filter keys. */
+    const FILTER_VALUES = {
+      status: ['open', 'active', 'blocked', 'done', 'archived', ''],
+      priority: ['', 'low', 'normal', 'high', 'urgent'],
+      kind: ['', 'task', 'decision'],
+    }
+
+    /**
+     * The preferences a previous visit stored, or `null` where the browser has
+     * none or keeps an unreadable value. Storage is a convenience, never board
+     * state: an unreadable value reads as "no preferences", not as a failure.
+     */
+    function readPreferences() {
+      try {
+        const raw = globalThis.localStorage?.getItem(PREFERENCES_KEY)
+        if (typeof raw !== 'string' || raw === '') return null
+        const parsed = JSON.parse(raw)
+        return parsed !== null && typeof parsed === 'object' ? parsed : null
+      } catch {
+        return null
+      }
+    }
+
+    /** Persist preferences; a browser that refuses storage simply forgets them. */
+    function writePreferences(preferences) {
+      try {
+        globalThis.localStorage?.setItem(PREFERENCES_KEY, JSON.stringify(preferences))
+      } catch {
+        // Private mode, a full quota, or no storage at all: the panel still works.
+      }
+    }
+
+    /**
+     * One stored filter reading, or `null` when nothing usable was stored.
+     *
+     * Only the Host's own filter keys survive, and enumerated keys are checked
+     * against their accepted values: a hand-edited document cannot ask the page
+     * for a reading the service would refuse.
+     * @param value - the stored value.
+     * @returns the filter to ask for, or `null`.
+     */
+    function sanitizeFilter(value) {
+      if (value === null || typeof value !== 'object') return null
+      const filter = { ...FILTER_DEFAULTS }
+      for (const key of Object.keys(FILTER_DEFAULTS)) {
+        const stored = value[key]
+        if (stored === undefined) continue
+        if (key === 'project') {
+          if (typeof stored === 'string') filter.project = stored
+          continue
+        }
+        if (key === 'claimable') {
+          if (typeof stored === 'boolean') filter.claimable = stored
+          continue
+        }
+        if (typeof stored !== 'string') continue
+        if (FILTER_VALUES[key] !== undefined && !FILTER_VALUES[key].includes(stored)) continue
+        filter[key] = stored
+      }
+      return filter
+    }
+
+    /**
+     * Localized display text for the built-in template the Host seeds.
+     *
+     * The seed keeps its stored names in one language; the panel substitutes
+     * display text for the built-in id only. A custom template (or an unknown
+     * built-in) keeps whatever its editors stored.
+     */
+    const BUILTIN_TEMPLATE_TEXT = {
+      'tpl-standard': {
+        name: 'builtinTplStandard',
+        description: 'builtinTplStandardDesc',
+        nodes: {
+          review: { name: 'builtinNodeReview', description: 'builtinNodeReviewDesc' },
+          design: { name: 'builtinNodeDesign', description: 'builtinNodeDesignDesc' },
+          build: { name: 'builtinNodeBuild', description: 'builtinNodeBuildDesc' },
+          verify: { name: 'builtinNodeVerify', description: 'builtinNodeVerifyDesc' },
+          release: { name: 'builtinNodeRelease', description: 'builtinNodeReleaseDesc' },
+        },
+      },
+    }
+
+    /** One built-in template's text block, or `undefined` for a custom template. */
+    function builtinText(id) {
+      return BUILTIN_TEMPLATE_TEXT[id]
+    }
+
+    /** One template record with a built-in template's display text localized. */
+    function localizeTemplate(template, t) {
+      const text = template === null || template === undefined ? undefined : builtinText(template.id)
+      if (text === undefined || template.builtin !== true) return template
+      return {
+        ...template,
+        name: t(text.name),
+        description: t(text.description),
+        nodes: (template.nodes ?? []).map(node => {
+          const labels = text.nodes[node.id]
+          return labels === undefined ? node : { ...node, name: t(labels.name), description: t(labels.description) }
+        }),
+      }
+    }
+
+    /** One requirement with its built-in template's display text localized. */
+    function localizeRequirement(requirement, t) {
+      const text = requirement.template === undefined ? undefined : builtinText(requirement.templateId)
+      if (text === undefined || requirement.template.builtin !== true) return requirement
+      const nodeWithText = node => {
+        const labels = node === null || node === undefined ? undefined : text.nodes[node.id]
+        return labels === undefined ? node : { ...node, name: t(labels.name) }
+      }
+      return {
+        ...requirement,
+        template: { ...requirement.template, name: t(text.name) },
+        flow: Array.isArray(requirement.flow) ? requirement.flow.map(nodeWithText) : requirement.flow,
+        history: Array.isArray(requirement.history)
+          ? requirement.history.map(entry => {
+            const from = entry.from === null || entry.from === undefined ? undefined : text.nodes[entry.from]
+            const to = entry.to === undefined ? undefined : text.nodes[entry.to]
+            if (from === undefined && to === undefined) return entry
+            return {
+              ...entry,
+              fromName: from === undefined ? entry.fromName : t(from.name),
+              toName: to === undefined ? entry.toName : t(to.name),
+            }
+          })
+          : requirement.history,
+        progress: requirement.progress === undefined
+          ? requirement.progress
+          : { ...requirement.progress, activeNode: nodeWithText(requirement.progress.activeNode) },
+      }
+    }
+
     /**
      * How long a burst of committed-change events shares one read.
      *
@@ -1242,6 +1518,15 @@ window.__ModuleLoader__.load({
      * snapshot, so the page waits the burst out instead of reading per event.
      */
     const CHANGED_READ_DEBOUNCE_MS = 200
+
+    /**
+     * Rows one snapshot page carries.
+     *
+     * A board larger than one page is read a page at a time: the list appends the
+     * next page on request, and the Host's `offset`/`limit` are what make the rest
+     * of the board reachable at all.
+     */
+    const SNAPSHOT_PAGE_SIZE = 200
 
     /**
      * The board controller: owns the snapshot, the SSE subscription, and every
@@ -1265,6 +1550,13 @@ window.__ModuleLoader__.load({
         connected: false,
         everConnected: false,
         auth: '',
+        /** Whether one appended page is in flight, so the control can say so. */
+        loadingMore: false,
+        /**
+         * Counts a committed change that folded an extended list back to its
+         * first page; the page turns a new count into one muted note.
+         */
+        listReset: 0,
       })
       /** The app-level toast fact; the `shell.overlay` host owns its lifetime. */
       const toast = createSnapshotSource(null)
@@ -1354,6 +1646,31 @@ window.__ModuleLoader__.load({
       }
 
       /**
+       * The snapshot query for one filter reading.
+       *
+       * The project filter has three states and its empty one is a filter of its
+       * own — the requirements belonging to no project — so it travels even when
+       * empty instead of being dropped like a blank text filter. `limit` is the
+       * page size; an appended page adds its own `offset`.
+       * @param filter - the filter reading to ask for.
+       * @returns the query carrying it.
+       */
+      const snapshotQuery = filter => {
+        const query = new URLSearchParams()
+        for (const key of HOST_FILTER_KEYS) {
+          const value = filter[key]
+          if (key === 'project') {
+            if (value !== undefined && value !== null) query.set(key, String(value))
+            continue
+          }
+          if (value === '' || value === false || value === undefined || value === null) continue
+          query.set(key, String(value))
+        }
+        query.set('limit', String(SNAPSHOT_PAGE_SIZE))
+        return query
+      }
+
+      /**
        * Read the board, honouring the current filter.
        *
        * Answers can arrive in any order, so only the newest issued read may
@@ -1364,8 +1681,10 @@ window.__ModuleLoader__.load({
        * way, so a switch still takes effect when its answer carries the revision
        * the page already shows — the guard is "newest read", never "newest
        * revision".
+       * @param options - `notifyReset` marks the read as one a committed change
+       * triggered, so folding an extended list back to page one can say so.
        */
-      const refresh = async () => {
+      const refresh = async (options = {}) => {
         // A refused page stops reading entirely: the gate answers every route
         // the same way, so a read now would only repeat the refusal.
         if (auth !== '') return
@@ -1377,20 +1696,8 @@ window.__ModuleLoader__.load({
         /** Whether a newer read, or this page's stop, owns this read's answer. */
         const superseded = () => seq !== readSeq || request.signal.aborted
         const filter = source.getSnapshot().filter
-        const query = new URLSearchParams()
-        for (const key of HOST_FILTER_KEYS) {
-          const value = filter[key]
-          // The project filter has three states and its empty one is a filter of
-          // its own — the requirements belonging to no project — so it travels
-          // even when empty instead of being dropped like a blank text filter.
-          if (key === 'project') {
-            if (value !== undefined && value !== null) query.set(key, String(value))
-            continue
-          }
-          if (value === '' || value === false || value === undefined || value === null) continue
-          query.set(key, String(value))
-        }
-        query.set('limit', '200')
+        const extended = source.getSnapshot().requirements.length > SNAPSHOT_PAGE_SIZE
+        const query = snapshotQuery(filter)
         // `me` is the session both eligibility answers are asked for — the
         // hand-off pool reading *and* `advanceable` — so it travels on its own.
         try {
@@ -1426,6 +1733,11 @@ window.__ModuleLoader__.load({
             // the same item.
             queues: Array.isArray(payload.data.queues) ? payload.data.queues : [],
           })
+          // A committed change re-reads page one. A reader who had appended
+          // pages is now looking at a folded list, so the page says so once.
+          if (options.notifyReset === true && extended && requirements.length <= SNAPSHOT_PAGE_SIZE) {
+            publish({ listReset: (source.getSnapshot().listReset ?? 0) + 1 })
+          }
         } catch (error) {
           // A failed read keeps the last good payload on screen: a transient
           // failure must not blank a board the user is working in. The error
@@ -1437,6 +1749,46 @@ window.__ModuleLoader__.load({
           publish({ status: 'ready', error })
         } finally {
           if (inFlight === request) inFlight = null
+        }
+      }
+
+      /**
+       * Append the next page of the board.
+       *
+       * The list reads page by page so a board larger than one page is reachable
+       * in the panel; the filter is the page's own reading, and a filter change
+       * while the page is in flight discards the answer because it belongs to a
+       * reading that is no longer on screen.
+       */
+      const loadMore = async () => {
+        const current = source.getSnapshot()
+        if (current.status !== 'ready' || current.loadingMore === true || auth !== '') return
+        if (current.requirements.length >= current.total) return
+        const filter = current.filter
+        const query = snapshotQuery(filter)
+        query.set('offset', String(current.requirements.length))
+        publish({ loadingMore: true })
+        try {
+          const response = await fetch(`${API}/snapshot?${query.toString()}`, { headers: { accept: 'application/json' } })
+          const payload = await response.json().catch(() => null)
+          if (refused(response, payload)) return
+          if (payload === null || payload.ok !== true) {
+            throw Object.assign(new Error(payload?.error?.message ?? `HTTP ${response.status}`), { code: payload?.error?.code })
+          }
+          const now = source.getSnapshot()
+          if (now.filter !== filter) {
+            publish({ loadingMore: false })
+            return
+          }
+          const known = new Set(now.requirements.map(row => row.id))
+          const page = Array.isArray(payload.data.requirements) ? payload.data.requirements : []
+          publish({
+            requirements: [...now.requirements, ...page.filter(row => !known.has(row.id))],
+            total: typeof payload.data.total === 'number' ? payload.data.total : now.total,
+            loadingMore: false,
+          })
+        } catch (error) {
+          publish({ loadingMore: false, error })
         }
       }
 
@@ -1549,7 +1901,7 @@ window.__ModuleLoader__.load({
         if (changedTimer !== null) clearTimeout(changedTimer)
         changedTimer = setTimeout(() => {
           changedTimer = null
-          void refresh()
+          void refresh({ notifyReset: true })
         }, CHANGED_READ_DEBOUNCE_MS)
       }
 
@@ -1583,6 +1935,7 @@ window.__ModuleLoader__.load({
         toast,
         face: {
           refresh,
+          loadMore,
           /**
            * Read once more after the trust gate's refusal.
            *
@@ -1644,8 +1997,13 @@ window.__ModuleLoader__.load({
 .rb-root {
   --rb-accent:#f06423; --rb-accent-strong:#ff7733;
   --rb-accent-soft:rgba(240,100,35,.12); --rb-accent-line:rgba(240,100,35,.35);
-  --rb-accent-fill:#f06423;
+  --rb-accent-fill:#c2410c; --rb-accent-fill-strong:#9a3412;
   --rb-on-accent:#fff;
+  /* v3 text-grade inks (V3-11): the dark arm's semantic text keeps the icon-grade
+   * values, which measure >=4.5:1 on the layer surfaces they sit on. */
+  --rb-ink-ok:var(--dsw-alias-state-success-primary); --rb-ink-warn:var(--dsw-alias-state-warn-primary);
+  --rb-ink-err:var(--dsw-alias-state-error-primary); --rb-ink-info:var(--dsw-alias-state-business-primary);
+  --rb-ink-vio:var(--rb-violet); --rb-ink-accent:var(--rb-accent);
   --rb-violet:#9b8cf2; --rb-violet-soft:rgba(155,140,242,.12);
   --rb-tint-success:color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent);
   --rb-tint-warn:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent);
@@ -1662,8 +2020,15 @@ window.__ModuleLoader__.load({
 body:not([data-ds-dark-theme]) .rb-root {
   --rb-accent:#c2410c; --rb-accent-strong:#9a3412;
   --rb-accent-soft:rgba(194,65,12,.10); --rb-accent-line:rgba(194,65,12,.35);
-  --rb-accent-fill:#c2410c;
+  --rb-accent-fill:#c2410c; --rb-accent-fill-strong:#9a3412;
   --rb-on-accent:#fff;
+  /* v3 text-grade inks (V3-11): the platform's state hues are icon-grade; as small
+   * text on their own 10% tints over white they measure 1.96-4.4:1. The text grade
+   * steps one rung deeper and measures >=4.5:1 on each tint (ok 5.7 / warn 5.6 /
+   * err 6.5 / info 6.9 / vio 6.4 / accent 7.0). Icons and graphics keep the icon
+   * grade above; only color declarations read these. */
+  --rb-ink-ok:#166534; --rb-ink-warn:#92400e; --rb-ink-err:#991b1b;
+  --rb-ink-info:#1e40af; --rb-ink-vio:#5b21b6; --rb-ink-accent:#9a3412;
   --rb-violet:#6d5bd0; --rb-violet-soft:rgba(109,91,208,.12);
 }
 /* The platform portals a Dialog outside .rb-root, so a custom property declared
@@ -1673,7 +2038,8 @@ body:not([data-ds-dark-theme]) .rb-root {
  * as the inherited family for a font. The portal-reachable family is therefore
  * re-declared on the theme carrier, the nearest ancestor every portaled surface
  * inherits from: the accent triple, the error tint, the primary stroke an earlier
- * round added, and the numeric family. Each arm repeats the value .rb-root
+ * round added, the numeric family, and (v3) the two text-grade inks a portaled
+ * toast or role-form dialog paints. Each arm repeats the value .rb-root
  * already holds, so nothing inside the panel changes -- the panel root's own
  * declaration still wins on its own subtree, because an element's own custom
  * property beats the one it would inherit -- and nothing is declared on :root,
@@ -1692,12 +2058,15 @@ body {
   --rb-accent:#f06423; --rb-accent-soft:rgba(240,100,35,.12); --rb-accent-line:rgba(240,100,35,.35);
   --rb-tint-error:color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
   --rb-accent-strong:#ff7733;
+  /* v3: the two text-grade inks a portaled toast or role-form dialog paints. */
+  --rb-ink-err:var(--dsw-alias-state-error-primary); --rb-ink-warn:var(--dsw-alias-state-warn-primary);
   --rb-num:var(--dsw-font-family-brand);
 }
 body:not([data-ds-dark-theme]) {
   --rb-accent:#c2410c; --rb-accent-soft:rgba(194,65,12,.10); --rb-accent-line:rgba(194,65,12,.35);
   --rb-tint-error:color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
   --rb-accent-strong:#9a3412;
+  --rb-ink-err:#991b1b; --rb-ink-warn:#92400e;
   --rb-num:var(--dsw-font-family-brand);
 }
 
@@ -1778,13 +2147,13 @@ body:not([data-ds-dark-theme]) {
 .rb-btn-primary.rb-btn-primary.rb-btn-primary { height:32px; padding:0 13px; font-size:13px; font-weight:600;
   border-radius:var(--dsw-radius-sm); border:1px solid var(--rb-accent-strong); color:var(--rb-on-accent);
   background:var(--rb-accent-fill); box-shadow:0 2px 10px -2px var(--rb-accent-line); }
-.rb-btn-primary.rb-btn-primary.rb-btn-primary:hover { background:var(--rb-accent-strong);
+.rb-btn-primary.rb-btn-primary.rb-btn-primary:hover { background:var(--rb-accent-fill-strong);
   color:var(--rb-on-accent); border-color:var(--rb-accent-strong); }
 .rb-btn-primary.rb-btn-primary.rb-btn-primary:active { border-color:var(--rb-accent-strong); }
 .rb-btn-primary.rb-btn-primary.rb-btn-primary:focus-visible { border-color:var(--rb-accent-strong); }
 .rb-btn-primary.rb-btn-primary.rb-btn-primary:disabled { border-color:var(--dsw-alias-label-tertiary); }
 .rb-btn-danger.rb-btn-danger.rb-btn-danger { border:1px solid var(--dsw-alias-state-error-primary);
-  color:var(--dsw-alias-state-error-primary); }
+  color:var(--rb-ink-err); }
 .rb-btn-danger.rb-btn-danger.rb-btn-danger:hover { border-color:var(--dsw-alias-state-error-primary); }
 .rb-btn-danger.rb-btn-danger.rb-btn-danger:active { border-color:var(--dsw-alias-state-error-primary); }
 .rb-btn-danger.rb-btn-danger.rb-btn-danger:focus-visible { border-color:var(--dsw-alias-state-error-primary); }
@@ -1805,7 +2174,6 @@ body:not([data-ds-dark-theme]) {
 .rb-views .rb-seg.rb-seg:hover { color:var(--dsw-alias-label-secondary); background:transparent; }
 .rb-views .rb-seg.rb-seg-on { color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-layer-3);
   box-shadow:var(--dsw-shadow-lv1), inset 0 0 0 1px var(--dsw-alias-border-l2); }
-.rb-view-hint { font-size:12px; color:var(--dsw-alias-label-tertiary); }
 
 /* ---------- KPI band ---------- */
 /* The concept's band, as its own seven columns: hero, five readings, alert.
@@ -1837,7 +2205,7 @@ body:not([data-ds-dark-theme]) {
 .rb-stat-alert { flex:0 1 200px; cursor:default; text-align:left; font:inherit;
   border-color:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 30%, transparent);
   background:linear-gradient(180deg, var(--rb-tint-warn), var(--dsw-alias-bg-layer-1)); }
-.rb-stat-alert .rb-stat-label, .rb-stat-alert .rb-stat-value { color:var(--dsw-alias-state-warn-primary); }
+.rb-stat-alert .rb-stat-label, .rb-stat-alert .rb-stat-value { color:var(--rb-ink-warn); }
 .rb-stat-alert .rb-go { font-size:11px; color:var(--dsw-alias-label-tertiary); margin-top:2px; }
 .rb-submetrics { display:flex; flex-wrap:wrap; gap:6px 20px; padding:10px 22px 14px; flex:none;
   font-size:12px; color:var(--dsw-alias-label-tertiary); }
@@ -1852,8 +2220,6 @@ body:not([data-ds-dark-theme]) {
 .rb-submetrics .rb-role-tally { flex:1 1 100%; }
 .rb-submetrics b { font-family:var(--rb-num); font-weight:500; color:var(--dsw-alias-label-secondary);
   margin-left:4px; font-variant-numeric:tabular-nums; }
-.rb-bar { height:6px; border-radius:3px; background:var(--dsw-alias-bg-layer-2); overflow:hidden; margin-top:6px; }
-.rb-bar-fill { height:100%; background:var(--rb-accent); }
 
 /* ---------- Filters ---------- */
 .rb-filters { display:flex; flex-direction:column; gap:8px; padding:12px 18px; flex:none;
@@ -1933,7 +2299,7 @@ body:not([data-ds-dark-theme]) {
   border:1px solid var(--dsw-alias-border-l2); background:transparent; color:var(--dsw-alias-label-secondary); }
 .rb-detail-actions button:hover { color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-layer-2);
   border-color:var(--dsw-alias-border-l3); }
-.rb-detail-actions .rb-btn-danger { color:var(--dsw-alias-state-error-primary);
+.rb-detail-actions .rb-btn-danger { color:var(--rb-ink-err);
   border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent); }
 .rb-detail .rb-title { font-size:19px; font-weight:600; line-height:1.45; letter-spacing:.01em; }
 .rb-badge-group { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; flex:none; padding-top:3px; }
@@ -1947,10 +2313,6 @@ body:not([data-ds-dark-theme]) {
   box-shadow:inset 2px 0 0 var(--rb-accent); }
 .rb-card-title { font-weight:500; margin-bottom:6px; overflow-wrap:anywhere; }
 .rb-card-meta { font-size:11px; color:var(--dsw-alias-label-tertiary); display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
-.rb-card-facts { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; font-size:11px;
-  color:var(--dsw-alias-label-tertiary); }
-.rb-card-facts b { font-family:var(--rb-num); font-weight:500; color:var(--dsw-alias-label-secondary);
-  font-variant-numeric:tabular-nums; }
 
 /* ---------- Queue panel ---------- */
 .rb-panel { border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-md);
@@ -1959,15 +2321,11 @@ body:not([data-ds-dark-theme]) {
   border-bottom:1px solid var(--dsw-alias-border-l1); }
 .rb-panel-head h2 { font-size:13px; font-weight:600; }
 .rb-count { font-family:var(--rb-num); font-size:11px; font-weight:500; font-variant-numeric:tabular-nums;
-  color:var(--rb-violet); background:var(--rb-violet-soft); border-radius:999px; padding:1px 8px; }
+  color:var(--rb-ink-vio); background:var(--rb-violet-soft); border-radius:999px; padding:1px 8px; }
 .rb-queue { display:flex; flex-direction:column; gap:8px; overflow:auto; min-height:0; }
 .rb-queue-note { font-size:12px; line-height:1.7; padding:10px 12px; border-radius:var(--dsw-radius-sm);
   background:var(--dsw-alias-bg-layer-2); border-left:2px solid var(--rb-violet);
   color:var(--dsw-alias-label-tertiary); }
-.rb-session-id { display:flex; align-items:center; gap:8px; font-family:var(--rb-mono); font-size:11px;
-  color:var(--dsw-alias-label-secondary); background:var(--dsw-alias-bg-layer-2);
-  border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-sm);
-  padding:8px 10px; word-break:break-all; }
 .rb-queue-group { display:flex; flex-direction:column; gap:6px; padding:12px;
   border-radius:var(--dsw-radius-md); border:1px solid var(--dsw-alias-border-l2);
   background:var(--dsw-alias-bg-layer-2); }
@@ -1979,17 +2337,6 @@ body:not([data-ds-dark-theme]) {
 .rb-queue-title { flex:1 1 160px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .rb-queue-row > *:not(.rb-queue-title) { flex-shrink:0; }
 .rb-queue-row .rb-btn { white-space:nowrap; }
-.rb-tag { display:inline-flex; align-items:center; height:20px; padding:0 8px; border-radius:5px;
-  font-family:var(--rb-num); font-size:11px; font-weight:500; font-variant-numeric:tabular-nums;
-  color:var(--rb-violet); background:var(--rb-violet-soft); }
-.rb-mini { font-size:11px; color:var(--dsw-alias-label-tertiary); background:var(--dsw-alias-bg-layer-1);
-  border:1px solid var(--dsw-alias-border-l1); border-radius:4px; padding:1px 7px; }
-.rb-mini-on { color:var(--dsw-alias-state-success-primary);
-  border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 30%, transparent); }
-.rb-side-group { margin-top:18px; }
-.rb-side-group h3 { font-size:11px; font-weight:600; color:var(--dsw-alias-label-tertiary);
-  text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; padding:0 2px; }
-.rb-side-group .rb-section-title { text-transform:uppercase; }
 .rb-def-row { display:flex; gap:10px; padding:7px 2px; font-size:12.5px;
   border-bottom:1px dashed var(--dsw-alias-border-l1); }
 .rb-def-row:last-child { border-bottom:0; }
@@ -1998,24 +2345,15 @@ body:not([data-ds-dark-theme]) {
 .rb-role-tally { display:flex; align-items:center; gap:6px; flex-wrap:wrap; width:100%; }
 
 /* ---------- Section headers, folding, prose ---------- */
-.rb-section { margin-bottom:20px; }
+.rb-section { margin-bottom:16px; }
 .rb-section-title { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600;
   color:var(--dsw-alias-label-primary); margin-bottom:10px; text-transform:none; letter-spacing:0; }
 .rb-section-title::before { content:""; flex:none; width:3px; height:13px; border-radius:2px;
   background:var(--rb-accent); }
 .rb-en { font-family:var(--rb-num); font-size:10px; font-weight:500; letter-spacing:.06em;
   text-transform:uppercase; color:var(--dsw-alias-label-tertiary); }
-.rb-section-body { font-size:13px; color:var(--dsw-alias-label-secondary); line-height:1.85; }
 .rb-prose { font-size:13px; color:var(--dsw-alias-label-secondary); line-height:1.85;
   margin:0 0 4px; overflow-wrap:anywhere; }
-.rb-code { font-family:var(--rb-mono); font-size:11.5px; background:var(--dsw-alias-bg-layer-2);
-  border:1px solid var(--dsw-alias-border-l1); border-radius:4px; padding:1px 5px;
-  color:var(--dsw-alias-label-secondary); }
-.rb-numlist { counter-reset:rb-it; display:grid; gap:8px; margin:0; padding:0; }
-.rb-numlist li { counter-increment:rb-it; list-style:none; position:relative; padding-left:30px; }
-.rb-numlist li::before { content:counter(rb-it); position:absolute; left:0; top:2px; width:20px; height:20px;
-  display:grid; place-items:center; font-family:var(--rb-num); font-size:11px; font-weight:500;
-  font-variant-numeric:tabular-nums; color:var(--rb-accent); background:var(--rb-accent-soft); border-radius:6px; }
 details.rb-fold { border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-md);
   background:var(--dsw-alias-bg-layer-1); margin-bottom:16px; overflow:hidden; }
 details.rb-fold > summary.rb-fold-summary { cursor:pointer; list-style:none; display:flex; align-items:center;
@@ -2038,29 +2376,10 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   overflow-wrap:anywhere; }
 .rb-meta-v-mono { font-family:var(--rb-mono); font-size:11px; font-weight:400;
   color:var(--dsw-alias-label-secondary); }
-.rb-meta-v-hi { color:var(--dsw-alias-state-warn-primary); }
+.rb-meta-v-hi { color:var(--rb-ink-warn); }
 .rb-meta-v-num { font-family:var(--rb-num); font-variant-numeric:tabular-nums; }
 
 /* ---------- State chips, reserve banner ---------- */
-.rb-state-chips { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0 16px; }
-.rb-stag { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 10px;
-  border-radius:6px; font-size:11.5px; font-weight:500; border:1px solid var(--dsw-alias-border-l2);
-  color:var(--dsw-alias-label-secondary); background:var(--dsw-alias-bg-layer-2); }
-.rb-stag-ok { color:var(--dsw-alias-state-success-primary); background:var(--rb-tint-success);
-  border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 30%, transparent); }
-.rb-stag-warn { color:var(--dsw-alias-state-warn-primary); background:var(--rb-tint-warn);
-  border-color:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 30%, transparent); }
-.rb-stag-danger { color:var(--dsw-alias-state-error-primary); background:var(--rb-tint-error);
-  border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent); }
-.rb-stag-vio { color:var(--rb-violet); background:var(--rb-violet-soft);
-  border-color:color-mix(in srgb, var(--rb-violet) 30%, transparent); }
-.rb-stag-mut { color:var(--dsw-alias-label-tertiary); }
-.rb-stag-num { font-family:var(--rb-num); font-variant-numeric:tabular-nums; }
-.rb-reserve { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px;
-  border-radius:var(--dsw-radius-md); background:var(--rb-violet-soft);
-  border:1px solid color-mix(in srgb, var(--rb-violet) 25%, transparent);
-  font-size:12px; color:var(--rb-violet); margin-bottom:18px; }
-.rb-reserve .rb-mono { font-family:var(--rb-mono); font-size:11px; opacity:.85; }
 
 /* ---------- Gate rows and key/value grids ---------- */
 .rb-gate { display:grid; gap:8px; }
@@ -2071,8 +2390,8 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
 .rb-gv { min-width:0; color:var(--dsw-alias-label-secondary); overflow-wrap:anywhere; }
 .rb-gate-blocking { border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
   background:linear-gradient(180deg, var(--rb-tint-error), var(--dsw-alias-bg-layer-2)); }
-.rb-gate-blocking .rb-gk { color:var(--dsw-alias-state-error-primary); }
-.rb-req-link { display:inline-block; font-family:var(--rb-mono); font-size:11px; color:var(--dsw-alias-state-business-primary);
+.rb-gate-blocking .rb-gk { color:var(--rb-ink-err); }
+.rb-req-link { display:inline-block; font-family:var(--rb-mono); font-size:11px; color:var(--rb-ink-info);
   background:var(--rb-tint-info); padding:1px 7px; border-radius:4px; border:1px solid transparent;
   margin:0 4px 2px 0; }
 .rb-kv { display:grid; grid-template-columns:110px minmax(0,1fr); gap:8px 14px; font-size:12.5px; }
@@ -2093,10 +2412,10 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   cursor:pointer; text-align:left; font:inherit; appearance:none; }
 .rb-node:hover { border-color:var(--dsw-alias-border-l3); }
 .rb-node-name { font-weight:500; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.rb-node-meta { font-size:10px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.rb-node-meta { font-size:11px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .rb-node-done { border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 35%, transparent);
   background:var(--rb-tint-success); color:var(--dsw-alias-label-primary); }
-.rb-node-done .rb-node-mark { color:var(--dsw-alias-state-success-primary); }
+.rb-node-done .rb-node-mark { color:var(--rb-ink-ok); }
 .rb-node-active { border-color:var(--rb-accent-line); background:var(--rb-accent-soft);
   color:var(--dsw-alias-label-primary); box-shadow:0 0 0 1px var(--rb-accent-line); }
 .rb-node-active .rb-node-mark { color:var(--rb-accent); }
@@ -2106,7 +2425,7 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
 
 /* ---------- Checks, history, execution units ---------- */
 .rb-check { display:flex; gap:8px; align-items:flex-start; padding:3px 0; cursor:pointer; }
-.rb-check-done { color:var(--dsw-alias-state-success-primary); }
+.rb-check-done { color:var(--rb-ink-ok); }
 .rb-checks { display:flex; flex-direction:column; gap:4px; }
 .rb-check-row { display:flex; align-items:center; gap:6px; }
 .rb-history { display:flex; flex-direction:column; gap:0; max-height:280px; overflow:auto; }
@@ -2129,7 +2448,6 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   border:1px solid var(--dsw-alias-border-l1); display:grid; place-items:center; font-size:15px;
   margin-bottom:2px; }
 .rb-empty-t { font-size:13px; font-weight:500; color:var(--dsw-alias-label-secondary); }
-.rb-empty-d { font-size:12px; }
 .rb-skeleton { display:flex; flex-direction:column; gap:8px; padding:10px 12px; }
 .rb-skeleton-row { height:14px; border-radius:4px;
   background:linear-gradient(90deg, var(--dsw-alias-bg-layer-1), var(--dsw-alias-bg-layer-2), var(--dsw-alias-bg-layer-1));
@@ -2138,23 +2456,22 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
 /* A reading kept for assistive technology while the visible form is a skeleton. */
 .rb-sr { position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden;
   clip-path:inset(50%); white-space:nowrap; border:0; }
-.rb-error { color:var(--dsw-alias-state-error-primary); }
-.rb-warn { color:var(--dsw-alias-state-warn-primary); }
+.rb-error { color:var(--rb-ink-err); }
+.rb-warn { color:var(--rb-ink-warn); }
 .rb-muted { color:var(--dsw-alias-label-tertiary); }
-.rb-ink-success { color:var(--dsw-alias-state-success-primary); }
-.rb-ink-info { color:var(--dsw-alias-state-business-primary); }
-.rb-ink-accent { color:var(--rb-accent); }
+.rb-ink-success { color:var(--rb-ink-ok); }
+.rb-ink-info { color:var(--rb-ink-info); }
 .rb-icon { display:block; }
 
 /* ---------- Notices ---------- */
-.rb-notice { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:12px 18px 0;
+.rb-notice { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:12px 16px 0;
   padding:10px 14px; border-radius:var(--dsw-radius-md); font-size:12px;
   border:1px solid var(--dsw-alias-border-l1); background:var(--dsw-alias-bg-layer-1);
   color:var(--dsw-alias-label-secondary); }
 .rb-notice-error, .rb-notice-auth { border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
-  background:var(--rb-tint-error); color:var(--dsw-alias-state-error-primary); }
+  background:var(--rb-tint-error); color:var(--rb-ink-err); }
 .rb-notice-stale { border-color:color-mix(in srgb, var(--dsw-alias-state-warn-primary) 35%, transparent);
-  background:var(--rb-tint-warn); color:var(--dsw-alias-state-warn-primary); }
+  background:var(--rb-tint-warn); color:var(--rb-ink-warn); }
 .rb-notice-hint { border-left:3px solid var(--rb-accent); }
 .rb-notice-sync { background:var(--rb-tint-warn); }
 .rb-notice-force { border-color:color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
@@ -2188,7 +2505,7 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   min-width:20px; padding:0; border-radius:50%; font-size:12px; line-height:1;
   border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
   color:var(--dsw-alias-label-secondary); }
-.rb-image-tile .rb-image-remove:hover { color:var(--dsw-alias-state-error-primary);
+.rb-image-tile .rb-image-remove:hover { color:var(--rb-ink-err);
   border-color:var(--dsw-alias-state-error-primary); }
 /* The picker is driven by its own button, so the native control stays out of
  * the layout but remains reachable for the keyboard and assistive technology. */
@@ -2246,7 +2563,7 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
 .rb-role-confirm { display:flex; flex-direction:column; gap:6px; margin-top:4px; padding:8px 10px;
   border:1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
   border-radius:var(--dsw-radius-sm); background:var(--rb-tint-error);
-  color:var(--dsw-alias-state-error-primary); font-size:12px; }
+  color:var(--rb-ink-err); font-size:12px; }
 .rb-duty-row { display:flex; align-items:center; gap:6px; }
 .rb-duty-row > span { flex:1 1 auto; min-width:0; }
 .rb-duty-count { font-family:var(--rb-num); font-size:11px; color:var(--dsw-alias-label-tertiary);
@@ -2254,7 +2571,7 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
 .rb-form-error { display:flex; flex-direction:column; gap:4px; padding:8px 10px;
   border:1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
   border-radius:var(--dsw-radius-sm); background:var(--rb-tint-error);
-  color:var(--dsw-alias-state-error-primary); font-size:12px; }
+  color:var(--rb-ink-err); font-size:12px; }
 .rb-preset-empty { padding:4px 2px 8px; }
 .rb-role-list { display:flex; flex-direction:column; border:1px solid var(--dsw-alias-border-l1);
   border-radius:var(--dsw-radius-md); overflow:hidden; max-height:40vh; overflow-y:auto;
@@ -2280,10 +2597,6 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
 .rb-table td, .rb-table th { text-align:left; padding:6px; border-bottom:1px solid var(--dsw-alias-border-l1); }
 .rb-table th { color:var(--dsw-alias-label-tertiary); font-weight:500; }
 .rb-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.rb-scroll { overflow:auto; min-height:0; }
-.rb-foot { margin-top:32px; padding-top:14px; border-top:1px solid var(--dsw-alias-border-l1);
-  display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
-  font-family:var(--rb-num); font-size:11px; color:var(--dsw-alias-label-tertiary); }
 
 /* ---------- The requirement's brief ---------- */
 /* The plain-language reading sits above the metadata grid, so it is the first
@@ -2322,10 +2635,120 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   overflow-wrap:anywhere; }
 .rb-group-n { font-family:var(--rb-num); font-size:11px; color:var(--dsw-alias-label-tertiary); }
 
+/* ---------- v2 density pass ----------
+ * The design sample's direction, applied to the panel: a tighter top bar, one
+ * bordered KPI strip instead of seven separate cards, cards whose status is a
+ * rail and whose progress sits on the title line, and a detail pane whose
+ * identity/title/actions stay put while the body scrolls. Colours stay on the
+ * platform's own aliases: the panel must read as part of the harness, not as a
+ * separately skinned surface. */
+.rb-header { height:56px; gap:14px; padding:0 16px; }
+.rb-header .rb-title { font-size:15px; }
+.rb-header .rb-sub { gap:5px; font-size:11px; }
+.rb-header .rb-btn.rb-btn { height:28px; padding:0 11px; font-size:12.5px; }
+.rb-header .rb-btn-primary.rb-btn-primary.rb-btn-primary { height:30px; }
+.rb-views { gap:12px; padding:10px 16px 0; }
+.rb-segmented { padding:2px; }
+.rb-views .rb-seg.rb-seg { height:26px; padding:0 14px; font-size:12.5px; }
+.rb-filters { gap:6px; padding:10px 16px; }
+.rb-filters .rb-chip.rb-chip { height:24px; padding:0 10px; font-size:12px; }
+.rb-select, .rb-textarea, .rb-input { height:28px; font-size:13px; }
+
+/* One strip for the seven KPI readings: the cells keep their grid columns and
+ * lose their own frames, so the band reads as a table of numbers. */
+.rb-stats { gap:0; margin:10px 16px 0; padding:0;
+  border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-md);
+  background:var(--dsw-alias-bg-layer-1); overflow:hidden; }
+.rb-stat { border:0; border-right:1px solid var(--dsw-alias-border-l1);
+  border-radius:0; background:transparent; padding:10px 14px; }
+.rb-stat:hover { border-color:var(--dsw-alias-border-l1); }
+.rb-stat-alert { border-right:0; }
+.rb-submetrics { padding:8px 16px 12px; }
+/* The readings that are controls: same cells, a pressed state and a cursor. */
+.rb-stat-action { text-align:left; cursor:pointer; font:inherit; }
+.rb-stat-action:hover { background:var(--rb-accent-soft); }
+.rb-stat-action:focus-visible { outline:2px solid var(--rb-accent-line); outline-offset:-2px; }
+.rb-stat-on { box-shadow:inset 0 -2px 0 var(--rb-accent); }
+.rb-submetric-action { cursor:pointer; border-radius:4px; padding:0 3px; margin:0 -3px; }
+.rb-submetric-action:hover { color:var(--dsw-alias-label-primary); background:var(--rb-accent-soft); }
+.rb-submetric-on, .rb-submetric-on b { color:var(--rb-accent); }
+
+/* Body split and cards. */
+.rb-body { padding:12px 16px 16px; gap:14px; }
+.rb-list { width:360px; gap:6px; }
+.rb-card { position:relative; overflow:hidden; padding:10px 12px 9px 14px; }
+/* A card is a fixed row of a scrolling column. Its own overflow:hidden -- the
+ * rail clip -- gives it an automatic minimum height of zero, so a list taller
+ * than the column used to flex-shrink every card: the title and the summary
+ * survived, but the meta chips and the date row were cut off inside the card
+ * and the list had nothing left to scroll. Cards keep their content height;
+ * the column scrolls. Group sections wrap nested lists, so they carry the same
+ * rule. */
+.rb-list > .rb-card, .rb-list > .rb-group { flex:none; }
+.rb-card::before { content:""; position:absolute; left:0; top:9px; bottom:9px; width:3px;
+  border-radius:0 3px 3px 0; background:var(--dsw-alias-border-l3); }
+.rb-card[data-status="active"]::before { background:var(--rb-accent); }
+.rb-card[data-status="blocked"]::before { background:var(--dsw-alias-state-error-primary); }
+.rb-card[data-status="done"]::before { background:var(--dsw-alias-state-success-primary); }
+.rb-card[data-status="archived"]::before { background:var(--dsw-alias-border-l3); }
+.rb-card[data-kind="decision"]::before { background:var(--rb-violet); }
+.rb-card-title-row { display:flex; align-items:baseline; gap:8px; }
+.rb-card-title { flex:1 1 auto; margin-bottom:0; font-size:13px; line-height:1.4; }
+.rb-card-progress { flex:none; font-family:var(--rb-num); font-size:11px;
+  color:var(--dsw-alias-label-tertiary); font-variant-numeric:tabular-nums; }
+.rb-card-progress b { color:var(--rb-accent); font-weight:500; }
+.rb-card-summary { display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;
+  overflow:hidden; margin-top:3px; font-size:12px; line-height:1.5;
+  color:var(--dsw-alias-label-tertiary); }
+.rb-card-meta { gap:4px 8px; margin-top:6px; font-size:11px; }
+.rb-card-meta + .rb-card-meta { margin-top:3px; }
+.rb-list-more { display:flex; justify-content:center; padding:8px 0 2px; }
+/* Selection mode: the list column becomes a pane so the toolbar sits above the
+ * scrolling rows; the row itself is the toggle (no nested control inside the
+ * card button), and the check mark is its visual state. */
+.rb-list-pane { display:flex; flex-direction:column; min-height:0; width:360px; flex:none; gap:6px; }
+.rb-list-pane > .rb-list { flex:1 1 auto; width:auto; }
+.rb-batch { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:7px 9px;
+  border:1px solid var(--dsw-alias-border-l1); border-radius:var(--dsw-radius-sm);
+  background:var(--dsw-alias-bg-layer-1); font-size:11.5px; color:var(--dsw-alias-label-tertiary); }
+.rb-batch .rb-btn.rb-btn { height:24px; padding:0 8px; font-size:11.5px; }
+.rb-batch-count { color:var(--rb-accent); font-family:var(--rb-num); }
+.rb-batch-select { height:24px; font-size:11.5px; }
+.rb-card-selectable { cursor:pointer; }
+.rb-card-chosen { border-color:var(--rb-accent-line); box-shadow:inset 0 0 0 1px var(--rb-accent-line); }
+.rb-batch-check { flex:none; width:14px; height:14px; border-radius:4px; display:grid; place-items:center;
+  border:1px solid var(--dsw-alias-border-l3); color:transparent; font-size:10px; }
+.rb-card-chosen .rb-batch-check { background:var(--rb-accent); border-color:var(--rb-accent); color:#fff; }
+.rb-batch-result { display:grid; gap:10px; font-size:12.5px; }
+.rb-batch-group h3 { margin:0 0 4px; font-size:12px; font-weight:600; }
+.rb-batch-row { color:var(--dsw-alias-label-secondary); font-family:var(--rb-mono); font-size:11px; word-break:break-all; }
+.rb-shortcuts { display:grid; gap:9px; }
+.rb-shortcut { font-size:13px; color:var(--dsw-alias-label-secondary); }
+
+/* Detail: the two identity rows stick to the top of the scrolling pane. */
+.rb-detail { padding:0 26px 26px; }
+.rb-detail-id { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:6px;
+  padding:12px 0 5px; background:var(--dsw-alias-bg-base);
+  font-family:var(--rb-mono); font-size:11px; color:var(--dsw-alias-label-tertiary); }
+.rb-detail-id .rb-btn.rb-btn { height:22px; padding:0 7px; font-size:11px;
+  border-color:transparent; background:transparent; color:var(--dsw-alias-label-tertiary); }
+.rb-detail-id .rb-btn.rb-btn:hover { color:var(--rb-accent); background:var(--rb-accent-soft);
+  border-color:transparent; }
+.rb-detail-top { position:sticky; top:34px; z-index:2; padding-bottom:10px; margin-bottom:6px;
+  background:var(--dsw-alias-bg-base); }
+.rb-detail .rb-title { font-size:17px; }
+.rb-detail-actions .rb-btn.rb-btn { height:26px; padding:0 9px; font-size:12px; }
+.rb-keys { display:flex; align-items:center; gap:4px; margin-left:8px; font-size:11px;
+  color:var(--dsw-alias-label-tertiary); }
+.rb-keys kbd { font:11px var(--rb-mono); color:var(--dsw-alias-label-tertiary);
+  border:1px solid var(--dsw-alias-border-l2); border-bottom-width:2px; border-radius:4px;
+  padding:0 4px; background:var(--dsw-alias-bg-layer-1); }
+
 /* ---------- Adaptation ---------- */
 @media (max-width:1240px) {
   .rb-body { flex-direction:column; }
   .rb-list { width:auto; }
+  .rb-list-pane { width:auto; }
   .rb-meta-grid { grid-template-columns:repeat(2, minmax(0,1fr)); }
   /* Too narrow for seven columns: the band's cells wrap, keeping their order. */
   .rb-stats { display:flex; flex-wrap:wrap; align-items:stretch; }
@@ -2337,6 +2760,10 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   .rb-detail { padding-top:16px; }
   .rb-stat-hero, .rb-stat-alert { flex:1 1 100%; }
   .rb-meta-grid { grid-template-columns:minmax(0,1fr); }
+  /* A cell that spans two columns would otherwise force an implicit second
+   * track and keep the "one column" arm at two unequal columns. The scoped
+   * selector outranks the span rule the v3 pass declares further down. */
+  .rb-meta-grid .rb-meta-cell-span2 { grid-column:span 1; }
 }
 @media (max-width:760px) {
   /* Side by side is the point of this dialog, so the narrow arm keeps both
@@ -2348,6 +2775,116 @@ details.rb-fold[open] > summary.rb-fold-summary .rb-caret { transform:rotate(90d
   .rb-live, .rb-skeleton-row { animation:none; }
   .rb-stat, .rb-card, .rb-node, .rb-caret, .rb-ring-fill { transition:none; }
 }
+
+/* ---------- v3 optimization pass ----------
+ * The third design round (design-notes.md §3): accessibility grades the platform
+ * aliases do not carry, the filter toolbar's single-row grammar with two
+ * independent popovers, reading measure, zero-value demotion, and the container
+ * keyed band breakpoint. Everything here overrides by later order or by a
+ * doubled/tripled class arm; the v1 and v2 rules above stay untouched so their
+ * recorded deviations keep reading true. Colours stay on --dsw-* aliases or on
+ * the --rb-* registry; the only literals are the light arm's text-grade inks
+ * declared in the arm blocks above.
+ */
+/* C-2: the radius the brief card references but no block ever defined. */
+.rb-root { --rb-radius-md:var(--dsw-radius-md); container-type:inline-size; }
+/* P6/C-3: revive the alert cell the v2 strip reset killed by source order. The
+ * triple-class arm outranks the v2 strip reset without editing the v2 rule, so the next
+ * density pass cannot silently repeat the regression; the smoke suite asserts
+ * the computed ring. */
+.rb-stats .rb-stat.rb-stat-alert { background:linear-gradient(180deg, var(--rb-tint-warn), var(--dsw-alias-bg-layer-1));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-state-warn-primary) 35%, transparent); }
+.rb-stats .rb-stat.rb-stat-alert.rb-stat-alert-clear { background:var(--dsw-alias-bg-layer-1); box-shadow:none; }
+/* P6: the band wraps when the shell column narrows, whatever the viewport says. */
+@container (max-width:1080px) {
+  .rb-stats { display:flex; flex-wrap:wrap; align-items:stretch; }
+  .rb-stat { flex:1 1 104px; border-right:0; border-top:1px solid var(--dsw-alias-border-l1); }
+  .rb-stat:first-child { border-top:0; }
+  .rb-stat-hero, .rb-stat-alert { flex:1 1 100%; }
+}
+/* P3: one solid focus ring, keyboard modality only; inputs keep theirs back. */
+.rb-stat-action:focus-visible { outline:2px solid var(--rb-accent); outline-offset:-2px; }
+.rb-root .rb-select:focus-visible, .rb-root .rb-textarea:focus-visible, .rb-root .rb-input:focus-visible,
+.rb-root summary.rb-fold-summary:focus-visible { outline:2px solid var(--rb-accent); outline-offset:1px; }
+/* P7: every repeated control reaches a 24px hit target. */
+.rb-detail-id .rb-btn.rb-btn { height:24px; }
+.rb-submetric-action { padding:3px 6px; margin:-3px -6px; min-height:24px; }
+.rb-image-tile .rb-image-remove { width:24px; height:24px; min-width:24px; top:3px; right:3px; }
+.rb-clear { min-height:24px; padding:4px 8px; }
+/* V3-1: an empty meta value keeps the cell surface and reads as a dash. */
+.rb-meta-v[data-empty="true"] { color:var(--dsw-alias-label-tertiary); font-weight:400; }
+.rb-meta-cell-span2 { grid-column:span 2; }
+/* V3-2/V3-3: a reading measure for prose; history notes are metadata tier (12px
+ * stays) but keep the same measure so command lines stop running 100+ chars. */
+.rb-prose { max-width:68ch; }
+.rb-history-row { max-width:68ch; }
+/* V3-3 landed on the prose measure: the description renders as one wrapping
+ * paragraph, so there is no code block element to style in this product. */
+/* V3-4: the status rail only where a state needs action; done and archived cards
+ * carry their badge instead of a saturated edge. */
+.rb-card[data-status="done"]::before, .rb-card[data-status="archived"]::before { background:transparent; }
+/* V3-6: zero readings step down; a zero that is still a control says so on hover. */
+.rb-stat-value[data-zero="true"] { color:var(--dsw-alias-label-tertiary); }
+.rb-stat-action:hover .rb-stat-value { text-decoration:underline; text-underline-offset:3px; }
+/* V3-5/V3-21/V3-22/V3-23: one-row toolbar. The right cluster hangs off a container
+ * that is always rendered, so hiding the clear button cannot drag the count and
+ * the key hint into the left group. Value triggers open their own dimension menu;
+ * "more filters" opens the whole grid; the two never share a state. */
+.rb-filters { position:relative; }
+.rb-bar-right { margin-left:auto; display:inline-flex; align-items:center; gap:8px; }
+.rb-trigger { display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 10px;
+  border-radius:var(--dsw-radius-sm); color:var(--dsw-alias-label-secondary); font:inherit; font-size:12.5px; }
+.rb-trigger:hover { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); }
+.rb-trigger::after { content:"▾"; font-size:9px; color:var(--dsw-alias-label-tertiary); }
+.rb-trigger-on { background:var(--rb-accent-soft); color:var(--rb-ink-accent); }
+.rb-trigger-wrap { position:relative; display:inline-flex; }
+.rb-status-pop { position:absolute; top:calc(100% + 4px); left:0; z-index:7; min-width:150px;
+  background:var(--dsw-alias-bg-layer-1); border:1px solid var(--dsw-alias-border-l2);
+  border-radius:var(--dsw-radius-md); box-shadow:var(--dsw-shadow-lv2); padding:6px;
+  display:flex; flex-direction:column; gap:2px; }
+.rb-status-opt { display:flex; align-items:center; justify-content:space-between; gap:10px; height:32px;
+  padding:0 10px; border-radius:var(--dsw-radius-sm); text-align:left; font:inherit; font-size:12.5px;
+  color:var(--dsw-alias-label-secondary); }
+.rb-status-opt:hover { background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-primary); }
+.rb-status-opt-on { color:var(--rb-ink-accent); background:var(--rb-accent-soft); }
+.rb-filter-pop { position:absolute; top:calc(100% + 4px); left:16px; right:16px; z-index:6;
+  background:var(--dsw-alias-bg-layer-1); border:1px solid var(--dsw-alias-border-l2);
+  border-radius:var(--dsw-radius-md); box-shadow:var(--dsw-shadow-lv2); padding:12px; }
+.rb-filter-grid { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; }
+.rb-field-span2 { grid-column:span 2; }
+.rb-toggle-row { grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; }
+.rb-toggle { display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px;
+  border-radius:999px; border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-secondary); font-size:12px; }
+.rb-toggle:hover { border-color:var(--dsw-alias-border-l3); color:var(--dsw-alias-label-primary); }
+.rb-toggle-on { border-color:var(--rb-accent-line); background:var(--rb-accent-soft); color:var(--rb-ink-accent); }
+/* V3-18: one control family — 32px frames at the small radius; the caret is drawn
+ * by the field so no native select chrome survives. */
+.rb-select, .rb-input { height:32px; border-radius:var(--dsw-radius-sm); }
+.rb-select { appearance:none; -webkit-appearance:none; padding-right:26px; }
+.rb-field:has(.rb-select) { position:relative; }
+.rb-field:has(.rb-select)::after { content:"▾"; position:absolute; right:10px; top:50%;
+  transform:translateY(-50%); font-size:9px; color:var(--dsw-alias-label-tertiary); pointer-events:none; }
+/* V3-25: the badge row scrolls with the body; the sticky stack keeps two rows. */
+.rb-detail-badges { padding:10px 0 0; }
+/* v3 motion: popover and trigger feedback join the existing 160ms family. */
+.rb-trigger, .rb-status-opt, .rb-toggle, .rb-filter-pop, .rb-status-pop {
+  transition:background .16s var(--ds-ease-out), color .16s var(--ds-ease-out), border-color .16s var(--ds-ease-out); }
+.rb-btn:active, .rb-card:active, .rb-seg:active { transform:translateY(1px); }
+@media (prefers-reduced-motion: reduce) {
+  .rb-trigger, .rb-status-opt, .rb-toggle, .rb-filter-pop, .rb-status-pop { transition:none; }
+  .rb-btn:active, .rb-card:active, .rb-seg:active { transform:none; }
+}
+@media (max-width:1240px) {
+  .rb-filter-grid { grid-template-columns:repeat(2, minmax(0,1fr)); }
+}
+/* V3-8: the list column's head row — title, visible count, batch entry. The
+ * entry button hangs right off the row whatever the count reads. */
+.rb-list-head{display:flex;align-items:center;gap:8px;padding:2px 2px 4px;flex:none}
+.rb-list-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.02em}
+.rb-list-count{font-family:var(--rb-num);font-variant-numeric:tabular-nums;font-size:11px;color:var(--dsw-alias-label-tertiary);border:1px solid var(--dsw-alias-border-l2);border-radius:999px;padding:0 7px;line-height:16px}
+.rb-search{flex:1 1 220px;max-width:420px}
+.rb-list-head .rb-btn-sm{margin-left:auto}
 `
 
     /** One labelled form field. */
@@ -3390,16 +3927,29 @@ name: `role.remove.${record.id}`,
      * arrangement is new — every reading still comes from the same `stats`
      * payload, and none of the Host's counters changed.
      */
-    function StatsStrip({ stats, roles, t }) {
+    /**
+     * The KPI band.
+     *
+     * The readings that name a set the board can be filtered to are controls:
+     * they write the ordinary filter the filter area writes, so the chip that
+     * appears is the receipt and the page keeps one source of truth. Readings
+     * with no matching filter (completion rate, totals, stalled, queue, execution
+     * sync) stay read-only: the panel has no "stalled only" or "queued only"
+     * filter, and a control that cannot produce the list it names is worse than
+     * a number.
+     */
+    function StatsStrip({ stats, roles, t, filter, setFilter }) {
+      /** Whether the zero readings' popover is open (v3 §3 V3-6). */
+      const [moreOpen, setMoreOpen] = useState(false)
       if (stats === null) return null
       const rate = Math.round(stats.completionRate * 100)
       const circumference = 2 * Math.PI * 24
       const done = stats.byStatus.done ?? 0
       const tiles = [
         { label: t('total'), value: String(stats.total) },
-        { label: t('statusActive'), value: String(stats.byStatus.active ?? 0) },
-        { label: t('statusBlocked'), value: String(stats.byStatus.blocked ?? 0) },
-        { label: t('statusDone'), value: String(done) },
+        { label: t('statusActive'), value: String(stats.byStatus.active ?? 0), filter: 'active' },
+        { label: t('statusBlocked'), value: String(stats.byStatus.blocked ?? 0), filter: 'blocked' },
+        { label: t('statusDone'), value: String(done), filter: 'done' },
         { label: t('blockedTitle'), value: String(stats.blocked.length), warn: stats.blocked.length > 0 },
       ]
       const sub = []
@@ -3407,7 +3957,7 @@ name: `role.remove.${record.id}`,
         sub.push(
           { label: t('statsUnfinished'), value: String(stats.total - done) },
           { label: t('kindTask'), value: String(stats.byKind.task ?? 0) },
-          { label: t('kindDecision'), value: String(stats.byKind.decision ?? 0), warn: (stats.byKind.decision ?? 0) > 0 },
+          { label: t('kindDecision'), value: String(stats.byKind.decision ?? 0), warn: (stats.byKind.decision ?? 0) > 0, filter: 'decision' },
         )
       }
       if (typeof stats.queued === 'number') sub.push({ label: t('statsQueued'), value: String(stats.queued) })
@@ -3436,6 +3986,36 @@ name: `role.remove.${record.id}`,
       }
       const stalled = stats.stalled.length
       const tally = Array.isArray(stats.byRole) ? stats.byRole.filter(row => (row.total ?? 0) > 0).slice(0, 6) : []
+      // v3 §3 V3-6: a zero reading names an empty set, so the first screen keeps
+      // only the readings that name something; the zeros wait in a popover one
+      // click away. The decision count keeps its own filter even in there.
+      const shown = sub.filter(cell => cell.value !== '0')
+      const hidden = sub.filter(cell => cell.value === '0')
+      /** One sub-reading; inside the popover, any click on it also closes it. */
+      const subReading = (cell, insidePop) => cell.filter === 'decision'
+        ? h('button', {
+          key: cell.label,
+          type: 'button',
+          name: 'stats.decision',
+          className: `rb-submetric rb-submetric-action${filter.kind === 'decision' ? ' rb-submetric-on' : ''}`,
+          'aria-pressed': filter.kind === 'decision',
+          title: t('statsFilterHint'),
+          // Deciding shows the open decisions: the default reading, so the
+          // count the tile reports and the list it opens agree.
+          onClick: () => {
+            setFilter({ kind: filter.kind === 'decision' ? '' : 'decision', status: 'open' })
+            if (insidePop) setMoreOpen(false)
+          },
+        },
+          h('span', { className: 'rb-stat-label' }, cell.label),
+          h('b', { className: cell.warn === true ? 'rb-warn' : undefined }, cell.value))
+        : h('span', {
+          key: cell.label,
+          className: 'rb-submetric',
+          onClick: insidePop ? () => setMoreOpen(false) : undefined,
+        },
+          h('span', { className: 'rb-stat-label' }, cell.label),
+          h('b', { className: cell.warn === true ? 'rb-warn' : undefined }, cell.value))
       return h('div', { className: 'rb-kpi' },
         h('div', { className: 'rb-stats' },
           h('div', { className: 'rb-stat rb-stat-hero' },
@@ -3451,21 +4031,49 @@ name: `role.remove.${record.id}`,
               h('div', { className: 'rb-stat-label' }, t('completionRate')),
               h('div', { className: 'rb-hero-frac' },
                 `${t('statusDone')} `, h('b', null, String(done)), ' / ', h('b', null, String(stats.total))))),
-          tiles.map(tile => h('div', { key: tile.label, className: 'rb-stat' },
-            h('div', { className: 'rb-stat-label' }, tile.label),
-            h('div', { className: `rb-stat-value${tile.warn ? ' rb-warn' : ''}` }, tile.value))),
+          tiles.map(tile => {
+            const reading = h('div', { className: 'rb-stat-label' }, tile.label)
+            const value = h('div', {
+              className: `rb-stat-value${tile.warn ? ' rb-warn' : ''}`,
+              'data-zero': tile.value === '0' ? 'true' : undefined,
+            }, tile.value)
+            if (tile.filter === undefined) return h('div', { key: tile.label, className: 'rb-stat' }, reading, value)
+            const on = filter.status === tile.filter
+            return h('button', {
+              key: tile.label,
+              type: 'button',
+              name: `stats.${tile.filter}`,
+              className: `rb-stat rb-stat-action${on ? ' rb-stat-on' : ''}`,
+              'aria-pressed': on,
+              title: t('statsFilterHint'),
+              // A status reading replaces the kind reading: the two narrow the
+              // same list along different axes, and keeping a leftover kind from
+              // an earlier click would show a list this tile does not name.
+              onClick: () => setFilter({ status: on ? 'open' : tile.filter, kind: '' }),
+            }, reading, value)
+          }),
           // The alert tile is a reading, not a control: it carries no click
           // target because the panel has no "stalled only" filter to open.
           h('div', { className: `rb-stat rb-stat-alert${stalled > 0 ? '' : ' rb-stat-alert-clear'}` },
             h('div', { className: 'rb-stat-label' }, t('stalledTitle')),
-            h('div', { className: 'rb-stat-value' }, String(stalled)),
+            h('div', { className: 'rb-stat-value', 'data-zero': stalled === 0 ? 'true' : undefined }, String(stalled)),
             stalled > 0 ? h('div', { className: 'rb-go' }, t('statsAlertHint')) : null)),
         sub.length === 0 && tally.length === 0 ? null : h('div', { className: 'rb-submetrics' },
           // Each reading keeps a label node beside its value node: the strip is
           // the same reading as a tile, only placed second.
-          sub.map(cell => h('span', { key: cell.label, className: 'rb-submetric' },
-            h('span', { className: 'rb-stat-label' }, cell.label),
-            h('b', { className: cell.warn === true ? 'rb-warn' : undefined }, cell.value))),
+          shown.map(cell => subReading(cell, false)),
+          hidden.length === 0 ? null : h('button', {
+            type: 'button',
+            name: 'stats.more',
+            className: 'rb-submetric rb-submetric-action',
+            'aria-expanded': moreOpen,
+            onClick: () => setMoreOpen(current => !current),
+          },
+            h('span', { className: 'rb-stat-label' }, t('moreReadings')),
+            h('b', null, String(hidden.length))),
+          moreOpen && hidden.length > 0
+            ? h('div', { className: 'rb-sub-pop' }, hidden.map(cell => subReading(cell, true)))
+            : null,
           tally.length === 0 ? null : h('span', { className: 'rb-role-tally' },
             h('span', { className: 'rb-field-label' }, t('statsByRole')),
             tally.map(row => h(Tag, { key: row.role === '' ? '(none)' : row.role, tone: 'outline' },
@@ -3591,26 +4199,41 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
     }
 
     /** Per-node average durations plus the blocker and stall lists. */
-    function ProgressPanel({ stats, t }) {
-      if (stats === null) return null
+    /**
+     * The board overview's three sections (v3 §3 V3-7/V3-19).
+     *
+     * The board view reads them open; the queue and decisions views keep them
+     * inside one closed fold beside their own reading. When every duration row
+     * rests on a single sample, min and max only repeat the average, so both
+     * columns stay out of the table.
+     */
+    function overviewSections(stats, t) {
       const tables = stats.nodeDurations.slice(0, 12)
-      return h('div', null,
-        h('div', { className: 'rb-section' },
+      /** A duration row's node name, localized for the built-in template. */
+      const durationName = row => {
+        const text = builtinText(row.templateId)
+        const labels = text === undefined ? undefined : text.nodes[row.nodeId]
+        return labels === undefined ? row.name : t(labels.name)
+      }
+      const singleSample = tables.length > 0 && tables.every(row => row.samples === 1)
+      return [
+        h('div', { className: 'rb-section', key: 'durations' },
           sectionHead('nodeDurations', t),
+          h('div', { className: 'rb-muted' }, t('durationHint')),
           tables.length === 0 ? h('div', { className: 'rb-muted' }, '—') : h('table', { className: 'rb-table' },
             h('thead', null, h('tr', null,
               h('th', null, t('nodesLabel')),
               h('th', null, t('samples')),
               h('th', null, t('avg')),
-              h('th', null, 'min'),
-              h('th', null, 'max'))),
+              singleSample ? null : h('th', { key: 'min' }, 'min'),
+              singleSample ? null : h('th', { key: 'max' }, 'max'))),
             h('tbody', null, tables.map(row => h('tr', { key: `${row.templateId}:${row.nodeId}` },
-              h('td', null, row.name),
+              h('td', null, durationName(row)),
               h('td', null, String(row.samples)),
               h('td', null, formatDuration(row.avgMs)),
-              h('td', null, formatDuration(row.minMs)),
-              h('td', null, formatDuration(row.maxMs))))))),
-        h('div', { className: 'rb-section' },
+              singleSample ? null : h('td', { key: 'min' }, formatDuration(row.minMs)),
+              singleSample ? null : h('td', { key: 'max' }, formatDuration(row.maxMs))))))),
+        h('div', { className: 'rb-section', key: 'blocked' },
           sectionHead('blockedTitle', t),
           stats.blocked.length === 0 ? h('div', { className: 'rb-muted' }, t('noBlocked')) : h('div', null, stats.blocked.map(item => h('div', {
             key: item.id,
@@ -3619,7 +4242,7 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
             h('span', { className: 'rb-error' }, item.title),
             h('span', { className: 'rb-muted' }, item.reason),
             h('span', { className: 'rb-muted' }, formatDuration(item.blockedMs)))))),
-        h('div', { className: 'rb-section' },
+        h('div', { className: 'rb-section', key: 'stalled' },
           sectionHead('stalledTitle', t),
           stats.stalled.length === 0 ? h('div', { className: 'rb-muted' }, t('noStalled')) : h('div', null, stats.stalled.map(item => h('div', {
             key: item.id,
@@ -3627,7 +4250,13 @@ onClick: () => setPendingAction(pendingAction === 'block' ? null : 'block'),
           },
             h('span', { className: 'rb-warn' }, item.title),
             h('span', { className: 'rb-muted' }, item.node),
-            h('span', { className: 'rb-muted' }, formatDuration(item.idleMs)))))))
+            h('span', { className: 'rb-muted' }, formatDuration(item.idleMs)))))),
+      ]
+    }
+
+    function ProgressPanel({ stats, t }) {
+      if (stats === null) return null
+      return h('div', null, overviewSections(stats, t))
     }
 
     /** The requirement creation dialog. */
@@ -5216,10 +5845,60 @@ name: 'edit.save',
         const known = (requirements ?? []).find(item => item.id === id)
         return known === undefined ? id : `${known.title} (${id})`
       }
-      /** One cell of the detail's meta grid: a dim label above its value. */
-      const metaCell = (label, value, variant) => h('div', { className: 'rb-meta-cell', key: label },
-        h('div', { className: 'rb-meta-k' }, label),
-        h('div', { className: `rb-meta-v${variant === undefined ? '' : ` ${variant}`}` }, value))
+      /**
+       * One cell of the detail's meta grid: a dim label above its value.
+       *
+       * v3 §3 V3-1: the grid is a fixed ten cells, so an absent fact reads as a
+       * dash on the cell's own surface rather than as a hole in the table; a
+       * mono value carries its full text as a title because the cell clips it.
+       * @param label - The cell's dim label.
+       * @param value - The reading; empty renders as an em dash.
+       * @param variant - Optional value class, e.g. the mono or numeral family.
+       * @param options - `span2` fills two columns; `title` names the full value.
+       */
+      const metaCell = (label, value, variant, options) => {
+        const opts = options ?? {}
+        const empty = value === '' || value === null || value === undefined || value === '—'
+        return h('div', { className: `rb-meta-cell${opts.span2 === true ? ' rb-meta-cell-span2' : ''}`, key: label },
+          h('div', { className: 'rb-meta-k' }, label),
+          h('div', {
+            className: `rb-meta-v${variant === undefined ? '' : ` ${variant}`}`,
+            'data-empty': empty ? 'true' : undefined,
+            title: opts.title,
+          }, empty ? '—' : value))
+      }
+      /**
+       * Copy the requirement's id to the clipboard.
+       *
+       * The id is the handle every board tool and every message about this
+       * requirement names, so moving work from the panel into a conversation
+       * starts by getting that exact string. Clipboard access is attempted first;
+       * the hidden textarea is the fallback for a context that does not expose it,
+       * and either outcome is reported in the same toast the panel's writes use.
+       */
+      const copyRequirementId = async () => {
+        const id = requirement.id
+        try {
+          if (globalThis.navigator?.clipboard?.writeText !== undefined) {
+            await globalThis.navigator.clipboard.writeText(id)
+          } else {
+            const area = globalThis.document.createElement('textarea')
+            area.value = id
+            area.setAttribute('readonly', '')
+            area.style.position = 'fixed'
+            area.style.top = '-1000px'
+            area.style.opacity = '0'
+            globalThis.document.body.appendChild(area)
+            area.select()
+            const refused = typeof globalThis.document.execCommand !== 'function' || globalThis.document.execCommand('copy') !== true
+            globalThis.document.body.removeChild(area)
+            if (refused) throw new Error('the clipboard is unavailable')
+          }
+          controller.notify('info', t('copiedId'))
+        } catch {
+          controller.notify('error', t('errCopyId'))
+        }
+      }
       /** Linked requirement ids as reference chips, or the "nothing linked" wording. */
       const linkList = ids => (ids ?? []).length === 0
         ? t('noneLinked')
@@ -5277,7 +5956,7 @@ name: 'edit.save',
                 ? h('span', { className: 'rb-muted' }, `${t('executionSyncAt')}: ${formatInstant(sync.syncedAt)}`)
                 : null)
             : null,
-          units.length === 0 && settled ? h('div', { className: 'rb-empty' },
+          units.length === 0 && settled ? h('div', { className: 'rb-empty', role: 'status' },
             h('span', { className: 'rb-empty-ico', 'aria-hidden': 'true' }, '◌'),
             h('span', { className: 'rb-empty-t' }, t('executionsEmpty'))) : null,
           units.length === 0 ? null : h('div', { className: 'rb-exec-list', role: 'list' }, units.map((unit, index) => h('div', {
@@ -5413,30 +6092,21 @@ name: 'edit.save',
             `${t('optionAnswerNote')}: ${requirement.answerNote}`))
       }
       return h('div', null,
+        // The id and its copy control ride in the sticky identity row: the id is
+        // the handle every tool and message names, so it stays in reach while the
+        // body scrolls.
+        h('div', { className: 'rb-detail-id' },
+          h('span', null, requirement.id),
+          h(Button, {
+            className: 'rb-btn-sm rb-btn',
+            variant: 'ghost',
+            size: 'sm',
+            name: 'requirement.copyId',
+            onClick: () => void copyRequirementId(),
+          }, t('copyId'))),
         h('div', { className: 'rb-detail-top' },
           h('div', { className: 'rb-detail-head' },
-            h('h2', { className: 'rb-title', style: { margin: 0 } }, requirement.title),
-          h('div', { className: 'rb-badge-group' },
-              h(StatusBadge, { status: requirement.status, t }),
-          h(PriorityBadge, { priority: requirement.priority, t }),
-          h(KindBadge, { kind: requirement.kind, t }),
-          // A decision whose questions are still open says so where the reader
-          // lands, before the folded section that asks them.
-          requirement.kind === 'decision' && outstanding.length > 0
-            ? h(Tag, { tone: 'warning' }, t('optionAwaitingHuman'))
-            : null,
-          h(RoleBadge, { role: requirement.role, roles, unregistered: requirement.roleUnregistered === true, t }),
-          h(EligibilityBadges, { item: requirement, me, claimableIds, t }),
-          h(CriticalBadge, {
-            escalated: requirement.escalated,
-            effectivePriority: requirement.effectivePriority,
-            priority: requirement.priority,
-            t,
-          }),
-          h(GatedBadge, { gated: requirement.gated, blockedBy: requirement.blockedBy, t }),
-          h(BlocksBadge, { blocksOn: requirement.blocksOn, t }),
-          h(DelegatedBadge, { delegatedTo: delegation, t }),
-          h(ReservedBadge, { reservedBy: requirement.reservedBy, t }))),
+            h('h2', { className: 'rb-title', style: { margin: 0 } }, requirement.title)),
           h('span', { className: 'rb-grow' }),
           h('div', { className: 'rb-detail-actions' },
           h(Button, {
@@ -5486,6 +6156,30 @@ disabled: busy,
 disabled: busy,
             onClick: () => setConfirmDelete(true),
             }, t('remove')))),
+        // v3 §3 V3-25: the badge row scrolls with the body as its first node;
+        // the sticky stack keeps only the identity row and the title/actions row.
+        h('div', { className: 'rb-detail-badges' },
+          h('div', { className: 'rb-badge-group' },
+            h(StatusBadge, { status: requirement.status, t }),
+            h(PriorityBadge, { priority: requirement.priority, t }),
+            h(KindBadge, { kind: requirement.kind, t }),
+            // A decision whose questions are still open says so where the reader
+            // lands, before the folded section that asks them.
+            requirement.kind === 'decision' && outstanding.length > 0
+              ? h(Tag, { tone: 'warning' }, t('optionAwaitingHuman'))
+              : null,
+            h(RoleBadge, { role: requirement.role, roles, unregistered: requirement.roleUnregistered === true, t }),
+            h(EligibilityBadges, { item: requirement, me, claimableIds, t }),
+            h(CriticalBadge, {
+              escalated: requirement.escalated,
+              effectivePriority: requirement.effectivePriority,
+              priority: requirement.priority,
+              t,
+            }),
+            h(GatedBadge, { gated: requirement.gated, blockedBy: requirement.blockedBy, t }),
+            h(BlocksBadge, { blocksOn: requirement.blocksOn, t }),
+            h(DelegatedBadge, { delegatedTo: delegation, t }),
+            h(ReservedBadge, { reservedBy: requirement.reservedBy, t }))),
         h('div', { className: `rb-summary${requirement.summary === '' ? ' rb-summary-empty' : ''}` },
           h('div', { className: 'rb-summary-tag' },
             h('span', null, t('summary')),
@@ -5509,21 +6203,37 @@ disabled: busy,
             },
           })
           : null,
+        // v3 §3 V3-1/V3-15: a fixed ten cells in a fixed order — the stored
+        // priority and the kind ride on the badge row above instead of doubling
+        // here, and the last two cells span two columns so the grid ends full.
         h('div', { className: 'rb-meta-grid' },
-          metaCell(t('ownPriority'), t(`priority${requirement.priority[0].toUpperCase()}${requirement.priority.slice(1)}`)),
-          requirement.escalated === true
-            ? metaCell(t('effectivePriority'), `${requirement.effectivePriority}↑`, 'rb-meta-v-hi')
-            : null,
-          metaCell(t('owner'), requirement.owner === '' ? t('unassigned') : requirement.owner),
-          metaCell(t('project'), requirement.project === undefined || requirement.project === '' ? t('projectUnassigned') : requirement.project),
+          metaCell(t('owner'), requirement.owner === '' ? '' : requirement.owner),
+          metaCell(t('project'), requirement.project === undefined || requirement.project === '' ? '' : requirement.project),
           metaCell(t('template'), requirement.template.name),
-          metaCell(t('filterKind'), t(requirement.kind === 'decision' ? 'kindDecision' : 'kindTask')),
-          metaCell(t('sessions'), requirement.sessions.length === 0 ? '—' : requirement.sessions.join(', '), 'rb-meta-v-mono'),
-          requirement.requestedBy === undefined || requirement.requestedBy === ''
-            ? null
-            : metaCell(t('requestedBy'), requirement.requestedBy),
           metaCell(t('updated'), formatInstant(requirement.updatedAt)),
-          metaCell(t('revision'), String(requirement.rev), 'rb-meta-v-num')),
+          metaCell(t('sessions'), requirement.sessions.join(', '), 'rb-meta-v-mono',
+            { title: requirement.sessions.join(', ') }),
+          metaCell(t('requestedBy'), requirement.requestedBy ?? '', 'rb-meta-v-mono',
+            { title: requirement.requestedBy === undefined || requirement.requestedBy === '' ? undefined : requirement.requestedBy }),
+          metaCell(t('revision'), String(requirement.rev), 'rb-meta-v-num'),
+          metaCell(t('effectivePriority'),
+            requirement.escalated === true && typeof requirement.effectivePriority === 'string' && requirement.effectivePriority !== ''
+              ? `${requirement.effectivePriority}↑`
+              : '',
+            requirement.escalated === true ? 'rb-meta-v-hi' : undefined),
+          metaCell(t('lock'), lock === null ? '' : lock.holder, 'rb-meta-v-mono',
+            { span2: true, title: lock === null ? undefined : lock.holder }),
+          metaCell(t('delegation'),
+            delegation === null
+              ? ''
+              : delegation.name === undefined || delegation.name === '' ? delegation.session : `${delegation.name} (${delegation.session})`,
+            'rb-meta-v-mono',
+            {
+              span2: true,
+              title: delegation === null
+                ? undefined
+                : delegation.name === undefined || delegation.name === '' ? delegation.session : `${delegation.name} (${delegation.session})`,
+            })),
         requirement.escalated === true
           ? h('div', { className: 'rb-muted', style: { marginTop: 4 } }, t('priorityLiftedHint'))
           : null,
@@ -5724,6 +6434,65 @@ key: 'ok',
     }
 
     /** The main-column page. */
+    /**
+     * The board page's keyboard habits: j/k or the arrow keys move the list
+     * selection, `/` opens the filters and focuses the search, Escape clears the
+     * search while the search itself has focus. Typing fields keep their own
+     * keys, and a dialog or the queue view leaves the list alone.
+     *
+     * C-1 (v3): the dialog gate sits before the `/` branch — a key stroke inside
+     * a portaled dialog must never reach the page behind it, whatever the key;
+     * and Escape only clears the query when the focused field is the search, so
+     * cancelling a typo in a dialog input cannot silently drop the board filter.
+     * @param board - the page state published by the current render.
+     * @param event - the document keydown event.
+     */
+    function handleBoardKey(board, event) {
+      if (board === null || board === undefined || event === undefined || event === null) return
+      if (event.defaultPrevented === true || event.metaKey === true || event.ctrlKey === true || event.altKey === true) return
+      const target = event.target ?? null
+      const tag = target?.tagName ?? ''
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable === true
+      if (typing) {
+        if (event.key !== 'Escape') return
+        target.blur?.()
+        if (target.getAttribute?.('name') === 'query' && board.filter.query !== '') board.setFilter({ query: '' })
+        return
+      }
+      if (board.dialog !== null) return
+      if (event.key === '/') {
+        event.preventDefault?.()
+        board.openFilters()
+        later(() => document.querySelector?.('input[name="query"]')?.focus())
+        return
+      }
+      if (event.key === '?') {
+        event.preventDefault?.()
+        board.openHelp()
+        return
+      }
+      if (board.view === 'queue') return
+      const step = event.key === 'j' || event.key === 'ArrowDown' ? 1
+        : event.key === 'k' || event.key === 'ArrowUp' ? -1
+          : 0
+      if (step === 0) return
+      const items = board.visible
+      if (items.length === 0) return
+      event.preventDefault?.()
+      const index = items.findIndex(item => item.id === board.selectedId)
+      const next = items[Math.min(items.length - 1, Math.max(0, (index < 0 ? 0 : index) + step))]
+      if (next === undefined || next.id === board.selectedId) return
+      board.setSelectedId(next.id)
+      later(() => document.querySelector?.(`[data-req="${next.id}"]`)?.scrollIntoView?.({ block: 'nearest' }))
+    }
+
+    /** Run after the browser has painted the state change, or immediately where
+     * no animation frame exists (the offline client smoke test). */
+    function later(callback) {
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(callback)
+      else callback()
+    }
+
     function BoardPage(props) {
       const state = props.useBoard(identity)
       const t = props.t
@@ -5747,9 +6516,33 @@ key: 'ok',
        * this component's own and is written nowhere else.
        */
       const [filtersOpen, setFiltersOpen] = useState(null)
+      /**
+       * Whether the status trigger's own dimension menu is open (v3 §3 V3-22).
+       *
+       * It is a state of its own: the value trigger opens this small menu and
+       * the "more filters" trigger opens the whole grid, and the two never
+       * share one switch, so opening one never surprises the reader with the
+       * other's contents.
+       */
+      const [statusMenuOpen, setStatusMenuOpen] = useState(false)
       /** Every requirement the board holds, unfiltered, for the drawer's pin counts. */
       const [pins, setPins] = useState(null)
       const [pinsTruncated, setPinsTruncated] = useState(false)
+      /**
+       * Selection mode for batch operations.
+       *
+       * The writes stay per requirement on the Host: the panel runs them one by
+       * one and reports a per-id outcome, because one bulk request would hide
+       * which row a revision conflict belonged to. Selection is a mode, not a
+       * stored filter — leaving it writes nothing.
+       */
+      const [selecting, setSelecting] = useState(false)
+      const [chosenIds, setChosenIds] = useState(() => new Set())
+      const [batchPriority, setBatchPriority] = useState('')
+      const [batchRole, setBatchRole] = useState('')
+      const [batchBusy, setBatchBusy] = useState(false)
+      /** The last batch's per-id outcome, or `null` when its dialog is closed. */
+      const [batchResult, setBatchResult] = useState(null)
 
       const requirements = state.requirements
       const roles = state.roles
@@ -5759,9 +6552,10 @@ key: 'ok',
        *
        * It is the list the drawer starts from; the drawer reads it again through
        * `template.list` so an archived template can be asked for, and this copy is
-       * what a freshly opened drawer renders before that answer lands.
+       * what a freshly opened drawer renders before that answer lands. The
+       * built-in template's stored text is replaced with the active locale's.
        */
-      const templates = state.templates ?? []
+      const templates = (state.templates ?? []).map(template => localizeTemplate(template, t))
       /**
        * The listed rows exactly as the Host answered them.
        *
@@ -5769,16 +6563,42 @@ key: 'ok',
        * service filters by the routing role in force (`?role=human` is the human's
        * inbox) and answers with the same result set the model's `list` sees. The
        * page never narrows the fetched page itself: a row the service sent is a
-       * row the reader asked for.
+       * row the reader asked for. Built-in template text is localized for display
+       * here, once, so cards, detail, and the flow chart agree.
        */
-      const visible = requirements
+      const visible = requirements.map(requirement => localizeRequirement(requirement, t))
       const selected = useMemo(
         () => visible.find(item => item.id === selectedId) ?? null,
         [visible, selectedId],
       )
       useEffect(() => {
-        if (selected === null && visible.length > 0) setSelectedId(visible[0].id)
-      }, [visible, selected])
+        if (visible.length === 0 || selected !== null) return
+        // A restored selection is kept only while its row is on screen; a row that
+        // is filtered out (or gone) falls back to the first one.
+        if (selectedId !== null && visible.some(item => item.id === selectedId)) return
+        setSelectedId(visible[0].id)
+      }, [visible, selected, selectedId])
+      /**
+       * Restore what this browser last had open, once. This is a reading of the
+       * reader's own preferences, not board state: a stale id or an unreadable
+       * document falls back to the defaults instead of failing the page.
+       */
+      const preferencesRestored = useRef(false)
+      useEffect(() => {
+        if (preferencesRestored.current) return
+        preferencesRestored.current = true
+        const saved = readPreferences()
+        if (saved === null) return
+        if (saved.view === 'board' || saved.view === 'queue' || saved.view === 'decisions') setView(saved.view)
+        if (typeof saved.grouped === 'boolean') setGrouped(saved.grouped)
+        if (typeof saved.selectedId === 'string' && saved.selectedId !== '') setSelectedId(saved.selectedId)
+        const restored = sanitizeFilter(saved.filter)
+        if (restored !== null) props.setFilter(restored)
+      }, [props])
+      /** Remember the reader's view, filter, grouping, and selection for the next visit. */
+      useEffect(() => {
+        writePreferences({ view, grouped, selectedId: selectedId ?? '', filter })
+      }, [view, grouped, selectedId, filter])
 
       /** Run one command with the busy flag, the error notice, and a success flag. */
       const run = useCallback(async (action, payload) => {
@@ -5814,6 +6634,132 @@ key: 'ok',
           setBusy(false)
         }
       }, [controller])
+
+      /** Toggle one row in selection mode. */
+      const toggleChosen = id => setChosenIds(current => {
+        const next = new Set(current)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+      /** Select every listed row, or clear when all are already chosen. */
+      const toggleChooseAll = () => setChosenIds(current =>
+        current.size === visible.length && visible.length > 0
+          ? new Set()
+          : new Set(visible.map(item => item.id)))
+      /** Leave selection mode and drop the selection and the pending patch. */
+      const exitSelection = () => {
+        setSelecting(false)
+        setChosenIds(new Set())
+        setBatchPriority('')
+        setBatchRole('')
+      }
+      /**
+       * Run one operation over the chosen rows, one requirement at a time.
+       *
+       * Each write carries the revision this list read, so a row another session
+       * changed in between fails its own compare-and-set and is reported as a
+       * conflict instead of being overwritten. The result keeps three groups so
+       * the reader can retry exactly the rows that still need it; partial success
+       * is a normal outcome, not an error.
+       * @param action - Host command: `archive`, or `update` with a patch.
+       * @param patchFor - the `update` patch for one row; omit for archive.
+       */
+      const runBatch = async (action, patchFor) => {
+        if (batchBusy || chosenIds.size === 0) return
+        setBatchBusy(true)
+        const outcome = { ok: [], conflicts: [], failed: [] }
+        const rows = visible.filter(item => chosenIds.has(item.id))
+        try {
+          for (const row of rows) {
+            try {
+              const payload = { id: row.id, expectedRev: row.rev }
+              if (patchFor !== undefined) payload.patch = patchFor(row)
+              await controller.command(action, payload)
+              outcome.ok.push(row.id)
+            } catch (error) {
+              const entry = { id: row.id, message: controller.errorText(error, t) }
+              if (error?.code === 'conflict') outcome.conflicts.push(entry)
+              else outcome.failed.push(entry)
+            }
+          }
+        } finally {
+          setBatchBusy(false)
+          setBatchResult({ ...outcome, action })
+          exitSelection()
+        }
+      }
+
+      /**
+       * The selection-mode toolbar above the list.
+       *
+       * The entry button lives in the list head (v3 §3 V3-8); while selection is
+       * on, this bar carries the count and the pending patch controls, and the
+       * writes stay per requirement on the Host through {@link runBatch}.
+       */
+      const renderBatchBar = () => h('div', { className: 'rb-batch' },
+        h('span', { className: 'rb-batch-count', role: 'status' }, t('batchChosen', { count: chosenIds.size, total: visible.length })),
+        selecting
+          ? h(Button, {
+            className: 'rb-btn-sm rb-btn',
+            variant: 'ghost',
+            size: 'sm',
+            name: 'batch.all',
+            onClick: toggleChooseAll,
+          }, t(chosenIds.size === visible.length && visible.length > 0 ? 'batchNone' : 'batchAll'))
+          : null,
+        selecting
+          ? h(Button, {
+            className: 'rb-btn-sm rb-btn',
+            variant: 'ghost',
+            size: 'sm',
+            name: 'batch.archive',
+            disabled: batchBusy || chosenIds.size === 0,
+            onClick: () => void runBatch('archive'),
+          }, batchBusy ? t('batchWorking') : t('batchArchive'))
+          : null,
+        selecting
+          ? h('select', {
+            className: 'rb-select rb-batch-select',
+            name: 'batch.priority',
+            'aria-label': t('batchPriority'),
+            value: batchPriority,
+            onChange: event => setBatchPriority(event.target.value),
+          },
+            h('option', { value: '' }, `${t('batchPriority')}: ${t('batchUnchanged')}`),
+            ['low', 'normal', 'high', 'urgent'].map(value => h('option', { key: value, value }, t(`priority${value[0].toUpperCase()}${value.slice(1)}`))))
+          : null,
+        selecting
+          ? h(Button, {
+            className: 'rb-btn-sm rb-btn',
+            variant: 'ghost',
+            size: 'sm',
+            name: 'batch.priorityApply',
+            disabled: batchBusy || chosenIds.size === 0 || batchPriority === '',
+            onClick: () => void runBatch('update', () => ({ priority: batchPriority })),
+          }, t('batchApply'))
+          : null,
+        selecting
+          ? h('select', {
+            className: 'rb-select rb-batch-select',
+            name: 'batch.role',
+            'aria-label': t('batchRole'),
+            value: batchRole,
+            onChange: event => setBatchRole(event.target.value),
+          },
+            h('option', { value: '' }, `${t('batchRole')}: ${t('batchUnchanged')}`),
+            roleOptions.map(option => h('option', { key: option.value, value: option.value }, option.label)))
+          : null,
+        selecting
+          ? h(Button, {
+            className: 'rb-btn-sm rb-btn',
+            variant: 'ghost',
+            size: 'sm',
+            name: 'batch.roleApply',
+            disabled: batchBusy || chosenIds.size === 0 || batchRole === '',
+            onClick: () => void runBatch('update', () => ({ role: batchRole })),
+          }, t('batchApply'))
+          : null)
 
       /**
        * Read the unfiltered requirement set the drawer counts pins from.
@@ -5993,7 +6939,7 @@ key: 'ok',
        * the Host may be asked for (`human` is its own inbox), each role's open
        * count from the Host's own tally, and "all" counting what is on screen.
        */
-      const roleSelect = h('span', { className: 'rb-filter' },
+      const roleSelect = h('label', { className: 'rb-field', style: { flex: '0 1 180px' } },
         h('span', { className: 'rb-field-label' }, t(FILTER_LABELS.role)),
         h('select', {
           className: 'rb-select',
@@ -6030,21 +6976,55 @@ key: 'ok',
         if (filter.me !== '') list.push({ key: 'me', label: `${t('filterMe')}: ${filter.me}`, clear: { me: '' } })
         return list
       }, [filter, t, visible.length, roles, roleFilterOptions])
-      /** One filter in force: its label, and a click that clears just that one. */
+      /**
+       * One filter in force: its label, and a click that clears just that one.
+       *
+       * v3 §3 V3-14: the label can be clipped by the chip's own width, so the
+       * title carries the full text and the accessible name adds the clearing
+       * action it performs.
+       */
       const filterChip = entry => h(Pill, {
         key: `filter.chip.${entry.key}`,
         className: 'rb-chip rb-chip-on',
         active: true,
-        title: t('filterRemove'),
+        title: entry.label,
+        'aria-label': `${entry.label} (${t('filterRemove')})`,
         name: `filter.chip.${entry.key}`,
         onClick: () => props.setFilter(entry.clear),
       }, h('span', { className: 'rb-chip-label' }, entry.label),
       h('span', { className: 'rb-chip-n', 'aria-hidden': 'true' }, '×'))
       /** Whether the controls are on screen, as the reader last left it. */
-      const filtersShown = filtersOpen === null ? activeFilters.length > 0 : filtersOpen
+      // v3: the filter area is an overlay popover now, so an active filter must
+      // not auto-open it over the list — the trigger's own value is the receipt.
+      const filtersShown = filtersOpen === true
+      /**
+       * The reading the status trigger names, and the menu its own popover
+       * offers (v3 §3 V3-22).
+       *
+       * The trigger carries the value in force, so the chip no longer repeats
+       * it; the menu is the dimension's own four readings with the Host's
+       * counts, and picking one writes the same `status` filter a KPI tile
+       * writes. `archived` stays reachable through a restored preference and
+       * reads on the trigger, though the menu offers the four live readings.
+       */
+      const statusKeys = { open: 'open', active: 'statusActive', blocked: 'statusBlocked', done: 'statusDone', archived: 'statusArchived' }
+      const statusOn = filter.status !== '' && filter.status !== 'open'
+      const statusTriggerLabel = `${t('filterStatus')}: ${filter.status === '' ? t('all') : t(statusKeys[filter.status] ?? 'open')}`
+      const statusOptions = [
+        { key: '', label: t('all') },
+        { key: 'active', label: t('statusActive'), count: state.stats?.byStatus?.active ?? 0 },
+        { key: 'blocked', label: t('statusBlocked'), count: state.stats?.byStatus?.blocked ?? 0 },
+        { key: 'done', label: t('statusDone'), count: state.stats?.byStatus?.done ?? 0 },
+      ]
 
-      /** One labelled filter control, so a select is never a bare value list. */
-      const select = (key, values, emptyLabel = t('all')) => h('span', { key, className: 'rb-filter' },
+      /**
+       * One labelled filter control, so a select is never a bare value list.
+       *
+       * v3 §3 V3-5: the fields live in the popover's grid, so the wrapper is an
+       * `rb-field` — the class that draws the select's caret — and the session
+       * field may ask for two columns of room for its ids.
+       */
+      const select = (key, values, emptyLabel = t('all'), fieldClass = 'rb-field') => h('label', { key, className: fieldClass },
         h('span', { className: 'rb-field-label' }, t(FILTER_LABELS[key])),
         h('select', {
           className: 'rb-select',
@@ -6055,14 +7035,6 @@ key: 'ok',
         },
           h('option', { value: '' }, emptyLabel),
           values.map(value => h('option', { key: value.value, value: value.value }, value.label))))
-
-      /** One labelled checkbox filter; the wrapping label carries the accessible name. */
-      const toggle = (key, label) => h(Checkbox, {
-        key,
-        checked: filter[key] === true,
-        label: t(label),
-        onChange: next => props.setFilter({ [key]: next }),
-      })
 
       const views = [
         { key: 'board', label: t('viewBoard') },
@@ -6113,14 +7085,33 @@ key: 'ok',
        */
       const card = item => {
         const lock = lockFacts(item.lock)
+        // The node progress on the title line: the active node's ordinal over
+        // the whole flow, so a glance says how far along the work is.
+        const step = item.progress.done === item.progress.total
+          ? item.progress.total
+          : item.progress.done + 1
+        const chosen = chosenIds.has(item.id)
         return h('button', {
           key: item.id,
           type: 'button',
           role: 'listitem',
-          className: `rb-card${item.id === selectedId ? ' rb-card-selected' : ''}`,
-          onClick: () => setSelectedId(item.id),
+          'data-req': item.id,
+          'data-status': item.status,
+          'data-kind': item.kind,
+          'aria-pressed': selecting ? chosen : undefined,
+          // v3 §3 V3-14: the selected card states its currency to a reader, not
+          // only through its border and background.
+          'aria-current': item.id === selectedId && !selecting ? 'true' : undefined,
+          className: `rb-card${item.id === selectedId && !selecting ? ' rb-card-selected' : ''}`
+            + `${selecting ? ' rb-card-selectable' : ''}${selecting && chosen ? ' rb-card-chosen' : ''}`,
+          onClick: () => { if (selecting) toggleChosen(item.id); else setSelectedId(item.id) },
         },
-          h('div', { className: 'rb-card-title' }, item.title),
+          h('div', { className: 'rb-card-title-row' },
+            selecting ? h('span', { className: 'rb-batch-check', 'aria-hidden': 'true' }, chosen ? '✓' : '') : null,
+            h('div', { className: 'rb-card-title' }, item.title),
+            h('span', { className: 'rb-card-progress' },
+              `${item.progress.activeNode?.name ?? item.nodeId} `,
+              h('b', null, `${step}/${item.progress.total}`))),
           item.summary === undefined || item.summary === '' ? null : h('div', { className: 'rb-card-summary' }, item.summary),
           h('div', { className: 'rb-card-meta' },
             item.project === undefined || item.project === '' ? null : h('span', { className: 'rb-card-project' }, item.project),
@@ -6139,14 +7130,12 @@ key: 'ok',
             h(BlocksBadge, { blocksOn: item.blocksOn, t }),
             h(DelegatedBadge, { delegatedTo: item.delegatedTo, t }),
             h(ReservedBadge, { reservedBy: item.reservedBy, t }),
-            h('span', null, item.progress.done === item.progress.total ? `${item.progress.total}/${item.progress.total}` : `${item.progress.done + 1}/${item.progress.total}`),
             h('span', null, item.owner === '' ? t('unassigned') : item.owner)),
           lock === null ? null : h('div', { className: `rb-card-meta${lock.orphaned ? ' rb-error' : ''}` },
             h('span', null, `🔒 ${lock.holder}`),
             h('span', null, `${t('lockHeldSince')} ${formatDuration(lock.heldMs)}`),
             lock.orphaned ? h('span', null, t('lockOrphaned')) : null),
           h('div', { className: 'rb-card-meta' },
-            h('span', null, item.progress.activeNode?.name ?? item.nodeId),
             h('span', null, formatInstant(item.updatedAt))))
       }
 
@@ -6163,18 +7152,53 @@ key: 'ok',
           })))
           : null,
         queueRows.length === 0 && state.status !== 'loading' && state.auth === ''
-          ? h('div', { className: 'rb-empty' },
+          ? h('div', { className: 'rb-empty', role: 'status' },
             h('span', { className: 'rb-empty-ico', 'aria-hidden': 'true' }, '◌'),
             h('span', { className: 'rb-empty-t' }, t('queueEmpty')))
           : null,
+        // v3 §3 V3-17: the purple note and the order hint move into the right
+        // column's queue-caliber fold; the left column keeps only the rows.
         h('div', { className: 'rb-queue' },
-          h('div', { className: 'rb-queue-note' }, t('queueSoftHint')),
-          h('div', { className: 'rb-muted' }, t('queueHint')),
           queueRows.map(row => h('div', { key: row.session, className: 'rb-queue-group' },
             h('div', { className: 'rb-queue-head' },
               h('span', { className: 'rb-queue-session' }, `${t('queueTitle')}: ${row.session}`),
               h(Tag, { tone: 'outline' }, t('queueCount', { count: row.items.length }))),
             row.items.map((entry, index) => queueRow(row.session, entry, index === 0))))))
+
+      /**
+       * The state the keyboard handler reads, swapped on every render.
+       *
+       * The handler itself is installed once at the plugin level (so disposal
+       * removes it); reading through this ref is what keeps it current without
+       * re-binding a document listener on every state change.
+       */
+      const keyState = useRef(null)
+      keyState.current = {
+        visible,
+        selectedId,
+        view,
+        dialog,
+        filter,
+        setSelectedId,
+        setFilter: props.setFilter,
+        openFilters: () => setFiltersOpen(true),
+        openHelp: () => setDialog('keys'),
+      }
+      useEffect(() => {
+        props.setKeyboardHandler(event => handleBoardKey(keyState.current, event))
+        return () => props.setKeyboardHandler(null)
+      }, [props.setKeyboardHandler])
+
+      /** Turn a committed change that folded an extended list into one muted note. */
+      const resetSeen = useRef(state.listReset ?? 0)
+      useEffect(() => {
+        const seen = state.listReset ?? 0
+        if (seen > resetSeen.current) {
+          resetSeen.current = seen
+          controller.notify('muted', t('listReloaded'))
+        }
+        resetSeen.current = seen
+      }, [state.listReset, controller, t])
 
       return h('div', { className: 'rb-root' },
         h('style', null, CSS),
@@ -6217,10 +7241,24 @@ name: 'refresh',
               key: entry.key,
               role: 'tab',
               name: `view.${entry.key}`,
+              id: `rb-view-tab-${entry.key}`,
               className: view === entry.key ? 'rb-seg rb-seg-on' : 'rb-seg',
               active: view === entry.key,
-              'aria-pressed': view === entry.key,
+              'aria-selected': view === entry.key,
+              'aria-controls': 'rb-board-view',
+              // Roving tabindex: one stop for the tablist, the arrow keys move
+              // between the views, which is the tab pattern readers expect.
+              tabIndex: view === entry.key ? 0 : -1,
               onClick: () => showView(entry.key),
+              onKeyDown: event => {
+                const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+                if (step === 0) return
+                event.preventDefault?.()
+                const index = views.findIndex(candidate => candidate.key === view)
+                const nextView = views[(index + step + views.length) % views.length]
+                showView(nextView.key)
+                later(() => document.getElementById?.(`rb-view-tab-${nextView.key}`)?.focus())
+              },
             }, entry.label)))),
         // The trust gate's refusal is not a transient failure and has no retry: the
         // page cannot reach the board again until it is opened afresh, so the
@@ -6246,106 +7284,158 @@ name: 'auth.recheck',
             h('span', null, controller.errorText(state.error, t)),
             h(Button, { className: 'rb-btn-pad rb-btn-sm rb-btn', variant: 'ghost', size: 'sm', onClick: () => void props.refresh()}, t('retry')))
           : null,
-        view === 'decisions'
-          ? h('div', { className: 'rb-notice rb-notice-hint' },
-            h('span', null, t('viewDecisionsHint')),
-            h(Tag, { tone: 'warning' }, t('decisionBadge')))
-          : null,
-        h(StatsStrip, { stats: state.stats, roles, t }),
+        // v3 §3 V3-7: the decisions view's explanation is no longer an orphan
+        // banner above the band; it leads the right column's decision-flow fold.
+        h(StatsStrip, { stats: state.stats, roles, t, filter, setFilter: props.setFilter }),
         view === 'board' ? h('div', { className: 'rb-filters' },
-          // The switch and the summary are the whole area while it is folded, and
-          // they stay on screen when it opens: a reader always sees which filters
-          // are in force, and each chip clears only its own.
+          // v3 §3 V3-5/V3-21/V3-22/V3-23: one row — the search, the status value
+          // trigger with its own dimension menu, the "more filters" trigger that
+          // opens the whole grid as a popover over the list, the receipts of what
+          // is in force, and a right cluster hanging off a container that is
+          // always rendered so hiding the clear button cannot drag it left.
           h('div', { className: 'rb-filter-bar' },
-            h(Button, {
-              className: 'rb-btn-pad rb-btn-sm rb-btn',
-              variant: 'ghost',
-              size: 'sm',
+            h(Input, {
+              className: 'rb-input rb-search',
+              name: 'query',
+              value: filter.query,
+              'aria-label': t('filterQuery'),
+              onChange: event => props.setFilter({ query: event.target.value }),
+            }),
+            h('span', {
+              className: 'rb-trigger-wrap',
+              // A click outside the wrap moves the focus elsewhere, which is the
+              // cheapest outside-click the page can listen for.
+              onBlur: event => {
+                if (!event.currentTarget.contains(event.relatedTarget ?? null)) setStatusMenuOpen(false)
+              },
+            },
+              h('button', {
+                type: 'button',
+                className: `rb-trigger${statusOn ? ' rb-trigger-on' : ''}`,
+                'data-on': statusOn ? 'true' : undefined,
+                'aria-expanded': statusMenuOpen,
+                'aria-haspopup': 'menu',
+                onClick: () => setStatusMenuOpen(current => !current),
+              }, statusTriggerLabel),
+              statusMenuOpen ? h('div', { className: 'rb-status-pop', role: 'menu', 'aria-label': t('filterStatus') },
+                statusOptions.map(option => {
+                  const chosen = option.key === ''
+                    ? filter.status === '' || filter.status === 'open'
+                    : filter.status === option.key
+                  return h('button', {
+                    key: option.key === '' ? 'all' : option.key,
+                    type: 'button',
+                    role: 'menuitemradio',
+                    className: `rb-status-opt${chosen ? ' rb-status-opt-on' : ''}`,
+                    'aria-checked': chosen,
+                    onClick: () => {
+                      props.setFilter({ status: option.key || 'open', kind: '' })
+                      setStatusMenuOpen(false)
+                    },
+                  },
+                    h('span', null, option.label),
+                    option.count === undefined ? null : h('span', { className: 'rb-chip-n' }, String(option.count)))
+                })) : null),
+            h('button', {
+              type: 'button',
+              className: 'rb-trigger',
               name: 'filter.toggle',
               'aria-expanded': filtersShown,
-              title: filtersShown ? t('filterHide') : t('filterShow'),
               onClick: () => setFiltersOpen(!filtersShown),
-            }, t('filterPanel')),
+            }, t('moreFilters')),
             activeFilters.length === 0
               ? h('span', { className: 'rb-muted' }, t('filterSummaryAll'))
-              : h('div', { className: 'rb-filter-chips' }, activeFilters.map(filterChip)),
-            h('span', { className: 'rb-grow' }),
-            h('span', { className: 'rb-muted' }, `${visible.length} / ${state.stats?.total ?? 0}`),
-            activeFilters.length === 0 ? null : h('button', {
-              type: 'button',
-              className: 'rb-clear',
-              name: 'filter.clear',
-              onClick: () => props.setFilter({
-                query: '', status: '', priority: '', owner: '', session: '', role: '', kind: '', project: undefined, claimable: false, me: '',
-              }),
-            }, t('clearFilters'))),
-          filtersShown ? h('div', { className: 'rb-filter-controls' },
-            h('span', { className: 'rb-filter' },
-              h('span', { className: 'rb-field-label' }, t('filterQuery')),
-              h(Input, {
-                name: 'query',
-                value: filter.query,
-                'aria-label': t('filterQuery'),
-                onChange: event => props.setFilter({ query: event.target.value }),
-              })),
-            select('status', [
-              { value: 'open', label: t('open') },
-              { value: 'active', label: t('statusActive') },
-              { value: 'blocked', label: t('statusBlocked') },
-              { value: 'done', label: t('statusDone') },
-              { value: 'archived', label: t('statusArchived') },
-            ]),
-            select('priority', ['low', 'normal', 'high', 'urgent'].map(value => ({
-              value,
-              label: t(`priority${value[0].toUpperCase()}${value.slice(1)}`),
-            }))),
-            select('owner', owners.map(value => ({ value, label: value }))),
-            select('session', sessions.map(value => ({ value, label: value }))),
-            select('kind', [
-              { value: 'task', label: t('kindTask') },
-              { value: 'decision', label: t('kindDecision') },
-            ]),
-            // The project control cannot use `select`: its empty value is the
-            // Host's spelling of "belongs to no project", so the option standing for
-            // "every project" needs a value of its own and the sentinel maps back to
-            // the empty string on the way out.
-            h('span', { className: 'rb-filter' },
-              h('span', { className: 'rb-field-label' }, t(FILTER_LABELS.project)),
-              h('select', {
-                className: 'rb-select',
-                name: 'project',
-                value: filter.project === undefined ? '' : (filter.project === '' ? PROJECT_UNASSIGNED : filter.project),
-                'aria-label': t(FILTER_LABELS.project),
-                onChange: event => props.setFilter({
-                  project: event.target.value === ''
-                    ? undefined
-                    : (event.target.value === PROJECT_UNASSIGNED ? '' : event.target.value),
+              : h('div', { className: 'rb-filter-chips' },
+                // The status reading rides on the trigger above; a chip beside it
+                // would repeat it word for word.
+                activeFilters.filter(entry => entry.key !== 'status').map(filterChip)),
+            h('span', { className: 'rb-bar-right' },
+              activeFilters.length === 0 ? null : h('button', {
+                type: 'button',
+                className: 'rb-clear',
+                name: 'filter.clear',
+                onClick: () => props.setFilter({
+                  query: '', status: '', priority: '', owner: '', session: '', role: '', kind: '', project: undefined, claimable: false, me: '',
                 }),
-              },
-                h('option', { value: '' }, t('all')),
-                h('option', { value: PROJECT_UNASSIGNED }, t('projectUnassigned')),
-                projects.filter(name => name !== PROJECT_UNASSIGNED).map(name => h('option', { key: name, value: name }, name)))),
-            h(Checkbox, {
-              checked: grouped,
-              label: t('groupProject'),
-              onChange: next => setGrouped(next),
-            }),
-            toggle('claimable', 'filterClaimable'),
-            h('span', { className: 'rb-filter' },
-              h('span', { className: 'rb-field-label' }, t('filterMe')),
-              h(Input, {
-                name: 'me',
-                value: filter.me,
-                title: t('filterMeHint'),
-                'aria-label': t('filterMe'),
-                onChange: event => props.setFilter({ me: event.target.value }),
-              })),
-            roleSelect) : null)
+              }, t('clearFilters')),
+              h('span', { className: 'rb-count-chip' }, `${visible.length} / ${state.stats?.total ?? 0}`),
+              h('span', { className: 'rb-keys', 'aria-hidden': 'true' }, t('keyboardHint')))),
+          filtersShown ? h('div', { className: 'rb-filter-pop' },
+            h('div', { className: 'rb-filter-grid' },
+              select('session', sessions.map(value => ({ value, label: value })), t('all'), 'rb-field rb-field-span2'),
+              select('kind', [
+                { value: 'task', label: t('kindTask') },
+                { value: 'decision', label: t('kindDecision') },
+              ]),
+              // The project control cannot use `select`: its empty value is the
+              // Host's spelling of "belongs to no project", so the option standing for
+              // "every project" needs a value of its own and the sentinel maps back to
+              // the empty string on the way out.
+              h('label', { className: 'rb-field' },
+                h('span', { className: 'rb-field-label' }, t(FILTER_LABELS.project)),
+                h('select', {
+                  className: 'rb-select',
+                  name: 'project',
+                  value: filter.project === undefined ? '' : (filter.project === '' ? PROJECT_UNASSIGNED : filter.project),
+                  'aria-label': t(FILTER_LABELS.project),
+                  onChange: event => props.setFilter({
+                    project: event.target.value === ''
+                      ? undefined
+                      : (event.target.value === PROJECT_UNASSIGNED ? '' : event.target.value),
+                  }),
+                },
+                  h('option', { value: '' }, t('all')),
+                  h('option', { value: PROJECT_UNASSIGNED }, t('projectUnassigned')),
+                  projects.filter(name => name !== PROJECT_UNASSIGNED).map(name => h('option', { key: name, value: name }, name)))),
+              select('priority', ['low', 'normal', 'high', 'urgent'].map(value => ({
+                value,
+                label: t(`priority${value[0].toUpperCase()}${value.slice(1)}`),
+              }))),
+              select('owner', owners.map(value => ({ value, label: value }))),
+              h('div', { className: 'rb-toggle-row' },
+                h('button', {
+                  type: 'button',
+                  className: `rb-toggle${grouped ? ' rb-toggle-on' : ''}`,
+                  'aria-pressed': grouped,
+                  onClick: () => setGrouped(!grouped),
+                }, t('groupProject')),
+                h('button', {
+                  type: 'button',
+                  className: `rb-toggle${filter.claimable === true ? ' rb-toggle-on' : ''}`,
+                  'aria-pressed': filter.claimable === true,
+                  onClick: () => props.setFilter({ claimable: filter.claimable !== true }),
+                }, t('filterClaimable')),
+                h('label', { className: 'rb-field', style: { flex: '0 1 220px' } },
+                  h('span', { className: 'rb-field-label' }, t('filterMe')),
+                  h(Input, {
+                    className: 'rb-input',
+                    name: 'me',
+                    value: filter.me,
+                    title: t('filterMeHint'),
+                    'aria-label': t('filterMe'),
+                    onChange: event => props.setFilter({ me: event.target.value }),
+                  })),
+                roleSelect))) : null)
           : null,
-        h('div', { className: 'rb-body' },
+        h('div', { className: 'rb-body', id: 'rb-board-view' },
           view === 'queue'
             ? renderQueue()
-            : h('div', { className: 'rb-list', role: 'list' },
+            : h('div', { className: 'rb-list-pane' },
+              // v3 §3 V3-8: the column names itself, counts what it shows, and
+              // carries the batch entry on the same row instead of a button
+              // floating above the list with nothing to belong to.
+              h('div', { className: 'rb-list-head' },
+                h('span', { className: 'rb-list-title' }, view === 'decisions' ? t('viewDecisions') : t('listTitle')),
+                h('span', { className: 'rb-list-count' }, String(visible.length)),
+                h(Button, {
+                  className: 'rb-btn rb-btn-sm',
+                  variant: selecting ? 'ghost' : 'outline',
+                  size: 'sm',
+                  name: 'batch.toggle',
+                  onClick: () => { if (selecting) exitSelection(); else setSelecting(true) },
+                }, t(selecting ? 'batchExit' : 'batchSelect'))),
+              selecting ? renderBatchBar() : null,
+              h('div', { className: 'rb-list', role: 'list' },
               state.status === 'loading'
                 ? h('div', null,
                   // The skeleton is the visual; the status line stays for a
@@ -6358,7 +7448,7 @@ name: 'auth.recheck',
                   }))))
                 : null,
               visible.length === 0 && state.status !== 'loading' && state.auth === ''
-                ? h('div', { className: 'rb-empty' },
+                ? h('div', { className: 'rb-empty', role: 'status' },
                   h('span', { className: 'rb-empty-ico', 'aria-hidden': 'true' }, '◌'),
                   h('span', { className: 'rb-empty-t' }, view === 'decisions'
                     ? t('decisionsEmpty')
@@ -6370,8 +7460,23 @@ name: 'auth.recheck',
                     h('span', { className: 'rb-group-name' }, group.label),
                     h('span', { className: 'rb-group-n' }, String(group.items.length))),
                   h('div', { className: 'rb-list', role: 'list' }, group.items.map(card))))
-                : visible.map(card)),
-          h('div', { className: 'rb-detail' },
+                : visible.map(card),
+              // A board larger than one page says how much of it is on screen
+              // and appends the next page on request.
+              visible.length < state.total && state.status === 'ready'
+                ? h('div', { className: 'rb-list-more' },
+                  h(Button, {
+                    variant: 'outline',
+                    size: 'sm',
+                    className: 'rb-btn-pad rb-btn-sm rb-btn',
+                    name: 'board.loadMore',
+                    disabled: state.loadingMore === true,
+                    onClick: () => void props.loadMore(),
+                  }, t('loadMore', { shown: visible.length, total: state.total })))
+                : null)),
+          // The scroll container is keyed by the selected requirement, so
+          // switching rows remounts it and the new detail starts at its top.
+          h('div', { className: 'rb-detail', key: selected === null ? 'none' : selected.id },
             selected !== null
               ? h(RequirementDetail, {
                 requirement: selected,
@@ -6388,10 +7493,46 @@ name: 'auth.recheck',
                 onRevokeDelegation: revokeDelegation,
                 t,
               })
-              : h('div', { className: 'rb-muted' }, boardIsEmpty ? t('emptyBoard') : t('selectNode')),
-            h(ProgressPanel, { stats: state.stats, t }))),
+              // v3 §3 V3-7/V3-20: no hint line repeats the left column's empty
+              // state; the one reading the right column adds on an empty board
+              // is the invitation to create the first requirement.
+              : view === 'board' && state.stats?.total === 0
+                ? h('div', { className: 'rb-muted' }, t('emptyBoard'))
+                : null,
+            // v3 §3 V3-7: the right column answers the view it is in. The queue
+            // and decisions views lead with their own caliber and keep the board
+            // overview folded beside it; the board view reads the overview open.
+            view === 'queue'
+              ? h('div', null,
+                foldSection('secQueueCaliber', t,
+                  h('dl', { style: { margin: 0 } },
+                    h('div', { className: 'rb-def-row' },
+                      h('dt', null, t('caliberReserve')),
+                      h('dd', null, t('queueSoftHint'))),
+                    h('div', { className: 'rb-def-row' },
+                      h('dt', null, t('caliberHead')),
+                      h('dd', null, t('queueHint'))),
+                    h('div', { className: 'rb-def-row' },
+                      h('dt', null, t('caliberCap')),
+                      h('dd', null, t('caliberCapBody'))))),
+                foldSectionClosed('secOverview', t, h(ProgressPanel, { stats: state.stats, t })))
+              : view === 'decisions'
+                ? h('div', null,
+                  foldSection('secDecisions', t,
+                    h('div', { className: 'rb-notice rb-notice-hint', role: 'note', style: { margin: '0 0 10px' } },
+                      h('span', null, t('viewDecisionsHint')),
+                      h(Tag, { tone: 'warning' }, t('decisionBadge'))),
+                    h('dl', { style: { margin: 0 } },
+                      h('div', { className: 'rb-def-row' },
+                        h('dt', null, t('answerHow')),
+                        h('dd', null, t('answerHowBody'))),
+                      h('div', { className: 'rb-def-row' },
+                        h('dt', null, t('agentBoundary')),
+                        h('dd', null, t('agentBoundaryBody'))))),
+                  foldSectionClosed('secOverview', t, h(ProgressPanel, { stats: state.stats, t })))
+                : h(ProgressPanel, { stats: state.stats, t }))),
         dialog === 'requirement' ? h(CreateRequirementDialog, {
-          templates: state.templates,
+          templates,
           defaultTemplateId: state.templates[0]?.id ?? 'tpl-standard',
           projects,
           busy,
@@ -6423,7 +7564,44 @@ name: 'auth.recheck',
           invoke: invokeQuietly,
           onClose: () => setDialog(null),
           t,
-        }) : null)
+        }) : null,
+        batchResult === null ? null : h(Dialog, {
+          title: t('batchResultTitle'),
+          closeLabel: t('close'),
+          onClose: () => setBatchResult(null),
+          footer: [h(Button, {
+            key: 'close',
+            className: 'rb-btn-pad rb-btn',
+            variant: 'ghost',
+            onClick: () => setBatchResult(null),
+          }, t('close'))],
+        },
+          h('div', { className: 'rb-batch-result' },
+            h('div', { className: 'rb-muted' }, t('batchResultSummary', {
+              ok: batchResult.ok.length,
+              conflict: batchResult.conflicts.length,
+              failed: batchResult.failed.length,
+            })),
+            [['ok', 'batchResultOk'], ['conflicts', 'batchResultConflict'], ['failed', 'batchResultFailed']].map(([group, label]) =>
+              batchResult[group].length === 0 ? null : h('div', { key: group, className: 'rb-batch-group' },
+                h('h3', null, `${t(label)} (${batchResult[group].length})`),
+                batchResult[group].map(entry => typeof entry === 'string'
+                  ? h('div', { key: entry, className: 'rb-batch-row' }, entry)
+                  : h('div', { key: entry.id, className: 'rb-batch-row' }, `${entry.id} — ${entry.message}`)))))),
+        dialog === 'keys' ? h(Dialog, {
+          title: t('shortcutsTitle'),
+          closeLabel: t('close'),
+          onClose: () => setDialog(null),
+          footer: [h(Button, {
+            key: 'close',
+            className: 'rb-btn-pad rb-btn',
+            variant: 'ghost',
+            onClick: () => setDialog(null),
+          }, t('close'))],
+        },
+          h('div', { className: 'rb-shortcuts' },
+            ['shortcutMove', 'shortcutSearch', 'shortcutClear', 'shortcutHelp'].map(key =>
+              h('div', { key, className: 'rb-shortcut' }, t(key))))) : null)
     }
 
     return {
@@ -6444,6 +7622,20 @@ name: 'auth.recheck',
         }
         const controller = createBoardController()
         ctx.effect(() => controller.start(), 'requirement-board: board sync')
+        /**
+         * The page's keyboard habits are listened for at the document, so a key
+         * typed while the page has focus anywhere inside it still counts. The
+         * listener and the page's handler both go away with the plugin effect.
+         */
+        const keyboard = { handler: null }
+        ctx.effect(() => {
+          const onKeyDown = event => { if (keyboard.handler !== null) keyboard.handler(event) }
+          document.addEventListener('keydown', onKeyDown)
+          return () => {
+            keyboard.handler = null
+            document.removeEventListener('keydown', onKeyDown)
+          }
+        }, 'requirement-board: keyboard navigation')
 
         const face = {
           hooks: { board: controller.source },
@@ -6451,8 +7643,10 @@ name: 'auth.recheck',
           controller: controller.face,
           uploadImage: controller.face.uploadImage,
           refresh: controller.face.refresh,
+          loadMore: controller.face.loadMore,
           recheck: controller.face.recheck,
           setFilter: controller.face.setFilter,
+          setKeyboardHandler: handler => { keyboard.handler = handler },
         }
         ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
           name: 'sidebar.panellist',

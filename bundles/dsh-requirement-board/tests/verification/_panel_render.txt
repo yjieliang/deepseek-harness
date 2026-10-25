@@ -1,0 +1,11 @@
+100/100 checks passed
+console.error: Failed to load resource: the server responded with a status of 409 (Conflict)
+console.error: Failed to load resource: the server responded with a status of 409 (Conflict)
+console.error: Failed to load resource: the server responded with a status of 409 (Conflict)
+console.error: Failed to load resource: the server responded with a status of 409 (Conflict)
+panel controls: 15
+danger colour: rgb(153, 27, 27) vs token rgb(153, 27, 27)
+role roster: G:\code\deepseek-harness\bundles\dsh-requirement-board\tests\verification\_role_roster.png (4 presets, 3 unrecorded)
+template drawer: G:\code\deepseek-harness\bundles\dsh-requirement-board\tests\verification\_template_drawer.png
+template migration: G:\code\deepseek-harness\bundles\dsh-requirement-board\tests\verification\_template_migration.png
+panel text: 需求看板 本 Harness 的所有会话共享 刷新 角色管理 流程模板管理 新建需求 看板 队列 要我拍板 0% 完成率 已完成 0 / 0 总数 0 进行中 0 阻塞 0 已完成 0 阻塞项 0 停滞项 0 更多读数 10 状态: 未完成 更多筛选 全部需求 0 / 0 j / k 移动 · / 搜索 需求列表 0 批量 ◌ 还没有需求。可以在这里新建，或让 AI 创建。 还没有需求。可以在这里新建，或让 AI 创建。 各节点平均耗时 DURATIONS 各值均为节点停留时长：从进入节点到离开，含接手前的排队等待。 — 阻塞项 BLOCKED 当前没有阻塞项。 停滞项 STALLED 当前没有停滞项。
