@@ -7,7 +7,7 @@ import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-sto
 import type { MainPanelId } from './service.ts'
 import {
   clampWidth, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO, RIGHTBAR_MIN,
-  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
+  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, SIDEBAR_DRAWER_BREAKPOINT, SIDEBAR_MAX, SIDEBAR_MIN,
 } from './columns.ts'
 
 /**
@@ -108,6 +108,7 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
         d.panelInfo.activePanelId = panelId
         // An explicit choice outranks a panel the registry may still bring back.
         d.restorePanelId = null
+        if (d.layoutInfo.viewportWidth < SIDEBAR_DRAWER_BREAKPOINT) d.layoutInfo.narrowExpanded = false
       },
       // A registry gap (a Client code replacement) is not a deselection: fall
       // back to the Conversation now, then follow the same key's return.
@@ -137,7 +138,8 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       setViewportWidth: (d, width: number) => {
         if (d.layoutInfo.viewportWidth === width) return
         d.layoutInfo.rightbarInstant = false
-        if ((d.layoutInfo.viewportWidth < SIDEBAR_AUTO_COLLAPSE) !== (width < SIDEBAR_AUTO_COLLAPSE)) {
+        if ((d.layoutInfo.viewportWidth < SIDEBAR_AUTO_COLLAPSE) !== (width < SIDEBAR_AUTO_COLLAPSE)
+          || (d.layoutInfo.viewportWidth < SIDEBAR_DRAWER_BREAKPOINT) !== (width < SIDEBAR_DRAWER_BREAKPOINT)) {
           d.layoutInfo.narrowExpanded = false
         }
         d.layoutInfo.viewportWidth = width

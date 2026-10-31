@@ -2,7 +2,7 @@
 /** Explicit file actions preserve their destination, availability, and independent failure state. */
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { contextMenuHook, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { PresentedFileCard } from '../src/client/PresentedFileCard.tsx'
 import { en, zh } from '../src/client/locales.ts'
@@ -27,23 +27,27 @@ async function settle(): Promise<void> {
   })
 }
 
-const props = () => ({
-  cwd: undefined,
-  file: { path: 'out/report.pdf', description: 'Final report', seq: 4, index: 1 },
-  host: { name: 'remote-desktop', available: true, fileManager: 'finder' as const },
-  phase: undefined,
-  onPreview: vi.fn(),
-  actions: <button type="button">Native file action</button>,
-  t: makeTranslate(en, commonEn),
-})
-it('localizes reveal failures and accurately reports a directory-only action', () => {
+const props = () => {
+  const onMenu = vi.fn()
+  return {
+    cwd: undefined,
+    file: { path: 'out/report.pdf', description: 'Final report', seq: 4, index: 1 },
+    host: { name: 'remote-desktop', available: true, fileManager: 'finder' as const },
+    phase: undefined,
+    onPreview: vi.fn(),
+    onMenu, contextMenuProps: contextMenuHook((_target, point) => { onMenu(point) })()
+      .getTriggerProps({ kind: 'image', value: { url: 'unused' } }),
+    actions: <button type="button">Native file action</button>,
+    t: makeTranslate(en, commonEn),
+  }
+}
+it('localizes reveal failures and restores the description when progress clears', () => {
   const p = props()
   const view = render(<PresentedFileCard {...p} phase="revealError" t={makeTranslate(zh)} />)
   expect(view.getByText(zh['presented.revealError'])).toBeTruthy()
-  view.rerender(<PresentedFileCard {...p} phase="revealed" host={{ ...p.host, fileManager: 'directory' }} />)
-  expect(view.getByText(en['presented.directoryOpened'])).toBeTruthy()
-  view.rerender(<PresentedFileCard {...p} phase="revealed" />)
-  expect(view.getByText(en['presented.revealed'])).toBeTruthy()
+  view.rerender(<PresentedFileCard {...p} />)
+  expect(view.getByText(p.file.description)).toBeTruthy()
+  expect(view.queryByRole('status')).toBeNull()
 })
 
 
@@ -87,6 +91,8 @@ it('renders the supplied action independently from the card preview', () => {
   fireEvent.click(view.getByRole('button', { name: 'Native file action' }))
   expect(native).toHaveBeenCalledOnce()
   expect(p.onPreview).not.toHaveBeenCalled()
+  fireEvent.contextMenu(view.getByRole('button', { name: 'Preview out/report.pdf in sidebar' }), { clientX: 26, clientY: 37 })
+  expect(p.onMenu).toHaveBeenCalledWith({ x: 26, y: 37 })
   fireEvent.click(view.getByRole('button', { name: 'Preview out/report.pdf in sidebar' }))
   expect(p.onPreview).toHaveBeenCalledOnce()
 })
